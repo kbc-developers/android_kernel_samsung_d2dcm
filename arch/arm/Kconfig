@@ -2298,4 +2298,4 @@ source "crypto/Kconfig"
 
 source "lib/Kconfig"
 
-source "kernel/KConfig.cust"
+source "kernel/Kconfig.cust"

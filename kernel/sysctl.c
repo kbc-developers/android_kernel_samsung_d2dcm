@@ -236,6 +236,22 @@ int sysctl_build_target = 2;
 #endif
 int sysctl_safe_mode = 0;
 int sysctl_boot_completed = 0;
+unsigned int sysctl_feature_aosp = 0;
+
+static int proc_feature_aosp(struct ctl_table *table, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int error;
+
+	error = proc_dointvec(table, write, buffer, lenp, ppos);
+	if (error)
+		return error;
+
+	if (write) {
+		printk("Initializing USB with build_target: %d\n", sysctl_feature_aosp);
+		//late_init_android_gadget(sysctl_feature_aosp);
+	}
+	return 0;
+}
 
 /* The default sysctl tables: */
 
@@ -1024,6 +1040,13 @@ static struct ctl_table kern_table[] = {
 		.maxlen		= sizeof(int),
 		.mode		= 0666,
 		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "feature_aosp",
+		.data		= &sysctl_feature_aosp,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_feature_aosp,
 	},
 /*
  * NOTE: do not add new entries to this table unless you have read
