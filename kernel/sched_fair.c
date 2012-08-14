@@ -2785,7 +2785,6 @@ static inline void update_sg_lb_stats(struct sched_domain *sd,
 			update_group_power(sd, this_cpu);
 		} else if (time_after_eq(jiffies, group->sgp->next_update))
 			update_group_power(sd, this_cpu);
-		}
 	}
 
 	/* Adjust by relative CPU power of the group */
