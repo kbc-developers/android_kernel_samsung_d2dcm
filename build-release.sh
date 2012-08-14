@@ -33,13 +33,13 @@ if [ ! -d $RELEASE_DIR ]; then
 fi
 
 # build for samsung boot.img
-#cd $KERNEL_DIR
-#bash ./build-bootimg-samsung.sh a $1
-#if [ $? != 0 ]; then
-#  echo 'error: samsung boot.img build fail'
-#  exit -1
-#fi
-#cp -v ./out/SAM/bin/SC06D* $RELEASE_DIR/
+cd $KERNEL_DIR
+bash ./build-bootimg-samsung.sh a $1
+if [ $? != 0 ]; then
+  echo 'error: samsung boot.img build fail'
+  exit -1
+fi
+cp -v ./out/SAM/bin/SC06D* $RELEASE_DIR/
 
 
 # build for aosp boot.img
