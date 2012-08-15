@@ -353,6 +353,7 @@ CC		= $(srctree)/scripts/gcc-wrapper.py $(REAL_CC)
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
+ifeq ($(USE_CFLAGS_OPTION),y)
 CFLAGS_MODULE   = -fgcse-lm -fgcse-sm -fsched-spec-load -fforce-addr \
 		  -ffast-math -fsingle-precision-constant \
 		  -march=armv7-a -mfpu=neon -ftree-vectorize -funswitch-loops
@@ -361,8 +362,12 @@ CFLAGS_MODULE  += -mtune=cortex-a15
 else
 CFLAGS_MODULE  += -mtune=cortex-a9
 endif
+else
+CFLAGS_MODULE   =
+endif
 AFLAGS_MODULE   =
 LDFLAGS_MODULE  =
+ifeq ($(USE_CFLAGS_OPTION),y)
 CFLAGS_KERNEL	= -fgcse-lm -fgcse-sm -fsched-spec-load -fforce-addr \
 		  -ffast-math -fsingle-precision-constant \
 		  -march=armv7-a -mfpu=neon -ftree-vectorize -funswitch-loops
@@ -370,6 +375,9 @@ ifeq ($(HAVE_TUNE_CORTEX_A15),y)
 CFLAGS_KERNEL  += -mtune=cortex-a15
 else
 CFLAGS_KERNEL  += -mtune=cortex-a9
+endif
+else
+CFLAGS_KERNEL	=
 endif
 AFLAGS_KERNEL	=
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage

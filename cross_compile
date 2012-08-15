@@ -45,5 +45,7 @@ check_and_get_linaro()
 export BUILD_CROSS_COMPILE=`check_and_get_linaro arm-linux-gnueabihf 2012.07 20120720`
 
 # export compiler option
+export USE_CFLAGS_OPTION=y
 export HAVE_NO_UNALIGNED_ACCESS=y
 export HAVE_TUNE_CORTEX_A15=y
+
