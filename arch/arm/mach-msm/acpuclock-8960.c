@@ -1738,7 +1738,7 @@ static struct acpu_level * __init select_freq_plan(void)
 		case 0x3:
 		default:
 			pr_alert("ACPU PVS: Fast\n");
-			v1 = acpu_freq_tbl_8960_kraitv1_nom_fast;
+			v1 = acpu_freq_tbl_8960_kraitv1_slow;
 #ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
 				if (global_sec_pvs_value == 0xfafa) {
 					v2 = acpu_freq_tbl_8960_kraitv2_slow;
