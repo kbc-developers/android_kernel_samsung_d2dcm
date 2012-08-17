@@ -359,8 +359,8 @@ static ssize_t cpufreq_min_limit_store(struct kobject *kobj,
 	if (freq_min_limit == -1) {
 		cpufreq_set_limit(
 			APPS_MIN_STOP,
-			MIN_FREQ_LIMIT);
-		freq_min_apps = MIN_FREQ_LIMIT;
+			MIN_FREQ_LIMIT_STARTUP);
+		freq_min_apps = MIN_FREQ_LIMIT_STARTUP;
 		freq_min_apps_lock = 0;
 	} else {
 		int i;
@@ -372,18 +372,18 @@ static ssize_t cpufreq_min_limit_store(struct kobject *kobj,
 				table[i].frequency != CPUFREQ_TABLE_END; i++) {
 
 				if (table[i].frequency == freq_min_limit) {
-					if (freq_min_limit <= MIN_FREQ_LIMIT) {
+					if (freq_min_limit <= MIN_FREQ_LIMIT_STARTUP) {
 						cpufreq_set_limit(
 							APPS_MIN_STOP,
-							MIN_FREQ_LIMIT);
-						freq_min_apps = MIN_FREQ_LIMIT;
+							MIN_FREQ_LIMIT_STARTUP);
+						freq_min_apps = MIN_FREQ_LIMIT_STARTUP;
 						freq_min_apps_lock = 1;
 					} else if (freq_min_limit
-							  >= MAX_FREQ_LIMIT) {
+							  >= MAX_FREQ_LIMIT_STARTUP) {
 						cpufreq_set_limit(
 							APPS_MIN_START,
-							MAX_FREQ_LIMIT);
-						freq_min_apps = MAX_FREQ_LIMIT;
+							MAX_FREQ_LIMIT_STARTUP);
+						freq_min_apps = MAX_FREQ_LIMIT_STARTUP;
 						freq_min_apps_lock = 1;
 					} else {
 						cpufreq_set_limit(
@@ -400,7 +400,7 @@ static ssize_t cpufreq_min_limit_store(struct kobject *kobj,
 	}
 
 #ifdef CONFIG_SEC_DVFS_DUAL
-	if (freq_min_limit >= MAX_FREQ_LIMIT)
+	if (freq_min_limit >= MAX_FREQ_LIMIT_STARTUP)
 		dual_boost(1);
 	else
 		dual_boost(0);
@@ -433,8 +433,8 @@ static ssize_t cpufreq_max_limit_store(struct kobject *kobj,
 	if (freq_max_limit == -1) {
 		cpufreq_set_limit(
 			APPS_MAX_STOP,
-			MAX_FREQ_LIMIT);
-		freq_max_apps = MAX_FREQ_LIMIT;
+			MAX_FREQ_LIMIT_STARTUP);
+		freq_max_apps = MAX_FREQ_LIMIT_STARTUP;
 		freq_max_apps_lock = 0;
 	} else {
 		int i;
@@ -446,18 +446,18 @@ static ssize_t cpufreq_max_limit_store(struct kobject *kobj,
 				table[i].frequency != CPUFREQ_TABLE_END; i++) {
 
 				if (table[i].frequency == freq_max_limit) {
-					if (freq_max_limit <= MIN_FREQ_LIMIT) {
+					if (freq_max_limit <= MIN_FREQ_LIMIT_STARTUP) {
 						cpufreq_set_limit(
 							APPS_MAX_START,
-							MIN_FREQ_LIMIT);
-						freq_max_apps = MIN_FREQ_LIMIT;
+							MIN_FREQ_LIMIT_STARTUP);
+						freq_max_apps = MIN_FREQ_LIMIT_STARTUP;
 						freq_max_apps_lock = 1;
 					} else if (freq_max_limit
-							  >= MAX_FREQ_LIMIT) {
+							  >= MAX_FREQ_LIMIT_STARTUP) {
 						cpufreq_set_limit(
 							APPS_MAX_STOP,
-							MAX_FREQ_LIMIT);
-						freq_max_apps = MAX_FREQ_LIMIT;
+							MAX_FREQ_LIMIT_STARTUP);
+						freq_max_apps = MAX_FREQ_LIMIT_STARTUP;
 						freq_max_apps_lock = 1;
 					} else {
 						cpufreq_set_limit(
@@ -570,8 +570,8 @@ static int __init pm_init(void)
 	if (!power_kobj)
 		return -ENOMEM;
 #ifdef CONFIG_SEC_DVFS
-	freq_min_apps = MIN_FREQ_LIMIT;
-	freq_max_apps = MAX_FREQ_LIMIT;
+	freq_min_apps = MIN_FREQ_LIMIT_STARTUP;
+	freq_max_apps = MAX_FREQ_LIMIT_STARTUP;
 	freq_min_apps_lock = 0;
 	freq_max_apps_lock = 0;
 #endif
