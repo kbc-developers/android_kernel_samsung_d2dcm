@@ -73,6 +73,9 @@
 #ifdef CONFIG_MSM_USE_OVERCLOCK
 #define MAX_VDD_SC		1350000 /* uV */
 #define MIN_VDD_SC		 800000 /* uV */
+#else
+#define MAX_VDD_SC		1300000 /* uV */
+#define MIN_VDD_SC		 850000 /* uV */
 #endif
 #define HFPLL_NOMINAL_VDD	1050000
 #define HFPLL_LOW_VDD		 850000
