@@ -1,4 +1,4 @@
-i#ifndef __LZO_H__
+#ifndef __LZO_H__
 #define __LZO_H__
 /*
  *  LZO Public Kernel Interface
