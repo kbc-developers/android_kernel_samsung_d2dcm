@@ -748,20 +748,20 @@ static struct acpu_level acpu_freq_tbl_8960_kraitv2_slow[] = {
 	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(1),   950000 },
 #endif
 	{ 1, {   432000, HFPLL, 2, 0, 0x20 }, L2(7),   975000 },
-	{ 1, {   540000, HFPLL, 2, 0, 0x28 }, L2(7),  1075000 },
-	{ 1, {   648000, HFPLL, 1, 0, 0x18 }, L2(7),  1100000 },
-	{ 1, {   756000, HFPLL, 1, 0, 0x1C }, L2(7),  1125000 },
-	{ 1, {   864000, HFPLL, 1, 0, 0x20 }, L2(7),  1150000 },
-	{ 1, {   972000, HFPLL, 1, 0, 0x24 }, L2(7),  1175000 },
-	{ 1, {  1080000, HFPLL, 1, 0, 0x28 }, L2(16), 1200000 },
-	{ 1, {  1188000, HFPLL, 1, 0, 0x2C }, L2(16), 1225000 },
-	{ 1, {  1296000, HFPLL, 1, 0, 0x30 }, L2(16), 1250000 },
-	{ 1, {  1404000, HFPLL, 1, 0, 0x34 }, L2(16), 1275000 },
+	{ 1, {   540000, HFPLL, 2, 0, 0x28 }, L2(7),  1000000 },
+	{ 1, {   648000, HFPLL, 1, 0, 0x18 }, L2(7),  1025000 },
+	{ 1, {   756000, HFPLL, 1, 0, 0x1C }, L2(7),  1075000 },
+	{ 1, {   864000, HFPLL, 1, 0, 0x20 }, L2(7),  1100000 },
+	{ 1, {   972000, HFPLL, 1, 0, 0x24 }, L2(7),  1125000 },
+	{ 1, {  1080000, HFPLL, 1, 0, 0x28 }, L2(16), 1175000 },
+	{ 1, {  1188000, HFPLL, 1, 0, 0x2C }, L2(16), 1200000 },
+	{ 1, {  1296000, HFPLL, 1, 0, 0x30 }, L2(16), 1225000 },
+	{ 1, {  1404000, HFPLL, 1, 0, 0x34 }, L2(16), 1237500 },
 #ifndef CONFIG_MSM_USE_OVERCLOCK
-	{ 1, {  1512000, HFPLL, 1, 0, 0x38 }, L2(16), 1300000 },
+	{ 1, {  1512000, HFPLL, 1, 0, 0x38 }, L2(16), 1250000 },
 #else
-	{ 1, {  1512000, HFPLL, 1, 0, 0x38 }, L2(17), 1300000 },
-	{ 1, {  1620000, HFPLL, 1, 0, 0x3C }, L2(18), 1300000 },
+	{ 1, {  1512000, HFPLL, 1, 0, 0x38 }, L2(17), 1250000 },
+	{ 1, {  1620000, HFPLL, 1, 0, 0x3C }, L2(18), 1275000 },
 	{ 1, {  1728000, HFPLL, 1, 0, 0x40 }, L2(19), 1300000 },
 #endif
 	{ 0, { 0 } }
@@ -1737,22 +1737,34 @@ static struct acpu_level * __init select_freq_plan(void)
 		switch (pvs) {
 		case 0x0:
 		case 0x7:
-		case 0x1:
-		case 0x3:
-		default:
-			pr_alert("ACPU PVS: Fast\n");
+			pr_alert("ACPU PVS: Slow\n");
 			v1 = acpu_freq_tbl_8960_kraitv1_slow;
+			v2 = acpu_freq_tbl_8960_kraitv2_slow;
+			break;
+		case 0x1:
+			pr_alert("ACPU PVS: Nominal\n");
+			v1 = acpu_freq_tbl_8960_kraitv1_nom_fast;
+			v2 = acpu_freq_tbl_8960_kraitv2_nom;
+			break;
+		case 0x3:
+			pr_alert("ACPU PVS: Fast\n");
+			v1 = acpu_freq_tbl_8960_kraitv1_nom_fast;
 #ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
 				if (global_sec_pvs_value == 0xfafa) {
-					v2 = acpu_freq_tbl_8960_kraitv2_slow;
+					v2 = acpu_freq_tbl_8960_kraitv2_nom;
 					pr_alert("ACPU PVS: Fast-r\n");
 				} else {
-					v2 = acpu_freq_tbl_8960_kraitv2_slow;
+					v2 = acpu_freq_tbl_8960_kraitv2_fast;
 					pr_alert("ACPU PVS: Fast-o\n");
 				}
 #else
-				v2 = acpu_freq_tbl_8960_kraitv2_slow;
+				v2 = acpu_freq_tbl_8960_kraitv2_fast;
 #endif
+			break;
+		default:
+			pr_err("ACPU PVS: Unknown. Defaulting to slow.\n");
+			v1 = acpu_freq_tbl_8960_kraitv1_slow;
+			v2 = acpu_freq_tbl_8960_kraitv2_slow;
 			break;
 		}
 
