@@ -1,0 +1,102 @@
+
+  *** SC-06D Custom Kernel ***
+
+  1. 内容
+    CPU Freq
+      384MHz ～ 1512MHz
+
+    CPU Governor
+      Performance
+      PowerSave
+      UserSpace
+      Ondemand (default)
+      Interactive (recommended)
+      Conservative
+      SmartassV2 (recommended)
+      PegasusQ
+      Sakuractive
+      Wheatley
+
+    I/O Scheduler
+      cfq (default)
+      bfq v3r4
+      sio
+      deadline
+      noop
+      vr (recommended)
+
+    Features
+      TweakGS3 suport
+        --- Cpu Voltage control support
+        -- mDNIe control
+        -- Vibrator control
+      CPU Voltage Control support
+      bootanimation support
+        -> /system/media/bootanimation.zip or /data/local/bootanimation.zip
+      bootsound support
+        -> /system/media/bootsound.mp3
+      bootmovie support
+        -> /data/local/bootmovie.mp4
+      exfat "not" support -> (ext4かFAT32でformatしちゃおう)
+      RAM Console support
+
+    Others
+      kernel version 3.0.8 -> 3.0.41
+      Use compiler linaro 2012.07
+
+
+  2. 注意事項
+    Odinで焼いた場合countが上がり保証が切れます
+    文鎮化の可能性があります
+
+    root取得について
+      CWM Based Galaxy S3 Recovery v6.0.0.10_r1以降で
+      Advanced -> root hackingから導入可能です
+
+    Sansung ROMでのCPU上限/下限設定について
+      Sansung ROMの場合CPU上限/下限をROM側から動的に変更しています
+      SetCPU/SystemTuner/TweakGS3等で設定しても意味がありません。
+      TweakGS3で下限の設定値が1080になってしまうのは現在の設定値を
+      表示するためです。(画面をタッチした瞬間下限が1080に設定されるため)
+      但しすぐに下限いっぱいまで下がりますので問題ありません。
+
+
+  3. 導入方法:
+    SC06D-ICS-KBC-XXX-odin.tar.md5 : Odinで煮込んでください
+    SC06D-ICS-KBC-XXX-sign.zip : CWM Recovery からinstallしてください
+
+
+  4. その他
+    何があっても自己責任でお楽しみください。
+    また不具合等ありましたらご連絡ください。
+
+    不意にリブートが発生した場合
+    再起動後に/proc/last_kmsgを送ってくれると改善できる
+    かもしれません。
+
+
+  5. 更新履歴
+    V1.3.2  kernel version update
+            Voltage Control削除
+            電圧値調整
+            その他kernelパラメータの調整
+
+    V1.3.1  kernel version update
+            CPU OC/UC削除
+            compile optionの最適化
+            exFAT削除
+
+    V1.3.0  kernelパラメータ調整
+            TweakGS3サポート
+
+    V1.2.0  各種CPU Gov追加
+            各種I/O Sched追加
+            CPU OC/UC追加
+            CPU Voltage control追加
+            RAM Consoleサポート
+
+    V1.1.0  bootanimation,bootsound対応
+            vendor/bin削除
+
+    V1.0.0  初版作成
+

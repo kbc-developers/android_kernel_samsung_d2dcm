@@ -3,8 +3,8 @@
 ###########################################################
 TARGET_DEVICE=SC06D-ICS
 BUILD_MOD=KBC
-BUILD_VERSION=V1.3.2
-BUILD_RECOVERY_VER=CWM-V6.0.1.1_r2
+BUILD_VERSION=V1.3.3
+BUILD_RECOVERY_VER=CWM-V6.0.1.2_r1
 
 
 ###########################################################
