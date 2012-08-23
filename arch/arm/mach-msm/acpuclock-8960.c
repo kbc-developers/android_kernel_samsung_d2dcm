@@ -70,12 +70,10 @@
 
 #define STBY_KHZ		1
 
-#ifdef CONFIG_MSM_USE_OVERCLOCK
-#define MAX_VDD_SC		1350000 /* uV */
-#define MIN_VDD_SC		 800000 /* uV */
-#else
+#ifdef CONFIG_CPU_VOLTAGE_TABLE
 #define MAX_VDD_SC		1300000 /* uV */
-#define MIN_VDD_SC		 850000 /* uV */
+#define MIN_VDD_SC		 800000 /* uV */
+#define INIT_MIN_VDD		1150000 /* uV */
 #endif
 #define HFPLL_NOMINAL_VDD	1050000
 #define HFPLL_LOW_VDD		 850000
@@ -1697,8 +1695,13 @@ static const int krait_needs_vmin(void)
 static void kraitv2_apply_vmin(struct acpu_level *tbl)
 {
 	for (; tbl->speed.khz != 0; tbl++)
-		if (tbl->vdd_core < MIN_VDD_SC)
-			tbl->vdd_core = MIN_VDD_SC;
+#ifdef CONFIG_CPU_VOLTAGE_TABLE
+		if (tbl->vdd_core < INIT_MIN_VDD)
+			tbl->vdd_core = INIT_MIN_VDD;
+#else
+		if (tbl->vdd_core < 1150000)
+			tbl->vdd_core = 1150000;
+#endif
 }
 
 #ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
