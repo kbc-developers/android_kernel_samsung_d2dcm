@@ -371,6 +371,9 @@ static struct scalable scalable_8627[] = {
 static struct scalable *scalable;
 static struct l2_level *l2_freq_tbl;
 static struct acpu_level *acpu_freq_tbl;
+#ifdef CONFIG_CPU_VOLTAGE_TABLE
+static unsigned int acpu_default_vdd_tbl[FREQ_TABLE_SIZE];
+#endif
 static int l2_freq_tbl_size;
 uint32_t global_pvs; /*  This code is temporary code */
 
@@ -1437,6 +1440,29 @@ ssize_t acpuclk_get_vdd_levels_str(char *buf, int isApp) {
 	return len;
 }
 
+ssize_t acpuclk_get_default_vdd_levels_str(char *buf, int isApp)
+{
+	int i, len = 0;
+
+	if (buf) {
+		mutex_lock(&driver_lock);
+
+		if (isApp == 0)
+		{
+			for (i = 0; acpu_freq_tbl[i+1].speed.khz; i++)
+				len += sprintf(buf + len, "%8u: %8d\n", acpu_freq_tbl[i+1].speed.khz, acpu_default_vdd_tbl[i+1]);
+		}
+		else
+		{
+			for (i = isApp-1; i >= 0; i--)
+				len += sprintf(buf + len, "%dmhz: %d mV\n", acpu_freq_tbl[i+1].speed.khz/1000, acpu_default_vdd_tbl[i+1]/1000);
+		}
+		mutex_unlock(&driver_lock);
+
+		}
+	return len;
+}
+
 void acpuclk_set_vdd(unsigned int khz, int vdd_uv) {
 
 	int i;
@@ -1704,6 +1730,26 @@ static void kraitv2_apply_vmin(struct acpu_level *tbl)
 #endif
 }
 
+#ifdef CONFIG_CPU_VOLTAGE_TABLE
+static void krait_store_vdd(struct acpu_level *tbl)
+{
+	int i = 0;
+	for (; tbl->speed.khz != 0; tbl++) {
+		acpu_default_vdd_tbl[i++] = tbl->vdd_core;
+	}
+}
+
+#if 0
+static void krait_restore_vdd(struct acpu_level *tbl)
+{
+	int i = 0;
+	for (; tbl->speed.khz != 0; tbl++) {
+		tbl->vdd_core = acpu_default_vdd_tbl[i++];
+	}
+}
+#endif
+#endif
+
 #ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
 uint32_t global_sec_pvs_value;
 static int __init sec_pvs_setup(char *str)
@@ -1799,6 +1845,11 @@ static struct acpu_level * __init select_freq_plan(void)
 	} else {
 		BUG();
 	}
+
+#ifdef CONFIG_CPU_VOLTAGE_TABLE
+	krait_store_vdd(acpu_freq_tbl);
+#endif
+
 	if (krait_needs_vmin())
 		kraitv2_apply_vmin(acpu_freq_tbl);
 

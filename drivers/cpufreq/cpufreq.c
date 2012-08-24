@@ -699,6 +699,7 @@ static ssize_t show_bios_limit(struct cpufreq_policy *policy, char *buf)
 #ifdef CONFIG_CPU_VOLTAGE_TABLE
 
 extern ssize_t acpuclk_get_vdd_levels_str(char *buf, int isApp);
+extern ssize_t acpuclk_get_default_vdd_levels_str(char *buf, int isApp);
 extern void acpuclk_set_vdd(unsigned acpu_khz, int vdd);
 extern void acpuclk_UV_mV_table(int cnt, int vdd_uv[]);
 
@@ -727,6 +728,10 @@ ssize_t store_UV_mV_table(struct cpufreq_policy *policy,
 	return count;
 }
 
+ssize_t show_UV_mV_default_table(struct cpufreq_policy *policy, char *buf)
+{
+	return acpuclk_get_default_vdd_levels_str(buf, FREQ_STEPS);
+}
 #endif	/* CONFIG_CPU_VOLTAGE_TABLE */
 
 cpufreq_freq_attr_ro_perm(cpuinfo_cur_freq, 0400);
@@ -748,6 +753,7 @@ cpufreq_freq_attr_rw(scaling_governor);
 cpufreq_freq_attr_rw(scaling_setspeed);
 #ifdef CONFIG_CPU_VOLTAGE_TABLE
 cpufreq_freq_attr_rw(UV_mV_table);
+cpufreq_freq_attr_ro(UV_mV_default_table);
 #endif
 
 static struct attribute *default_attrs[] = {
@@ -767,6 +773,7 @@ static struct attribute *default_attrs[] = {
 	&scaling_setspeed.attr,
 #ifdef CONFIG_CPU_VOLTAGE_TABLE
 	&UV_mV_table.attr,
+	&UV_mV_default_table.attr,
 #endif
 	NULL
 };
