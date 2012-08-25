@@ -71,12 +71,14 @@
 #define STBY_KHZ		1
 
 #ifdef CONFIG_CPU_VOLTAGE_TABLE
-#define MAX_VDD_SC		1300000 /* uV */
-#define MIN_VDD_SC		 800000 /* uV */
-#define INIT_MIN_VDD		1150000 /* uV */
-#endif
+#define HFPLL_MAX_VDD    1300000
+#define HFPLL_NOMINAL_VDD   950000
+#define HFPLL_LOW_VDD     800000
+#else
 #define HFPLL_NOMINAL_VDD	1050000
-#define HFPLL_LOW_VDD		 850000
+#define HFPLL_LOW_VDD     850000
+#endif
+
 #define HFPLL_LOW_VDD_PLL_L_MAX	0x28
 
 #define SECCLKAGD		BIT(4)
@@ -754,10 +756,10 @@ static struct acpu_level acpu_freq_tbl_8960_kraitv2_slow[] = {
 	{ 1, {   756000, HFPLL, 1, 0, 0x1C }, L2(7),  1075000 },
 	{ 1, {   864000, HFPLL, 1, 0, 0x20 }, L2(7),  1100000 },
 	{ 1, {   972000, HFPLL, 1, 0, 0x24 }, L2(7),  1125000 },
-	{ 1, {  1080000, HFPLL, 1, 0, 0x28 }, L2(16), 1175000 },
-	{ 1, {  1188000, HFPLL, 1, 0, 0x2C }, L2(16), 1200000 },
-	{ 1, {  1296000, HFPLL, 1, 0, 0x30 }, L2(16), 1225000 },
-	{ 1, {  1404000, HFPLL, 1, 0, 0x34 }, L2(16), 1237500 },
+	{ 1, {  1080000, HFPLL, 1, 0, 0x28 }, L2(16), 1150000 },
+	{ 1, {  1188000, HFPLL, 1, 0, 0x2C }, L2(16), 1175000 },
+	{ 1, {  1296000, HFPLL, 1, 0, 0x30 }, L2(16), 1200000 },
+	{ 1, {  1404000, HFPLL, 1, 0, 0x34 }, L2(16), 1225000 },
 #ifndef CONFIG_MSM_USE_OVERCLOCK
 	{ 1, {  1512000, HFPLL, 1, 0, 0x38 }, L2(16), 1250000 },
 #else
@@ -1427,12 +1429,14 @@ ssize_t acpuclk_get_vdd_levels_str(char *buf, int isApp) {
 		if (isApp == 0)
 		{
 			for (i = 0; acpu_freq_tbl[i+1].speed.khz; i++)
-				len += sprintf(buf + len, "%8u: %8d\n", acpu_freq_tbl[i+1].speed.khz, acpu_freq_tbl[i+1].vdd_core );
+				len += sprintf(buf + len, "%8u: %8d\n", acpu_freq_tbl[i+1].speed.khz,
+				acpu_freq_tbl[i+1].vdd_core );
 		}
 		else
 		{
 			for (i = isApp-1; i >= 0; i--)
-				len += sprintf(buf + len, "%dmhz: %d mV\n", acpu_freq_tbl[i+1].speed.khz/1000,acpu_freq_tbl[i+1].vdd_core/1000);
+				len += sprintf(buf + len, "%dmhz: %d mV\n", acpu_freq_tbl[i+1].speed.khz/1000,
+				acpu_freq_tbl[i+1].vdd_core/1000);
 		}
 		mutex_unlock(&driver_lock);
 
@@ -1450,12 +1454,13 @@ ssize_t acpuclk_get_default_vdd_levels_str(char *buf, int isApp)
 		if (isApp == 0)
 		{
 			for (i = 0; acpu_freq_tbl[i+1].speed.khz; i++)
-				len += sprintf(buf + len, "%8u: %8d\n", acpu_freq_tbl[i+1].speed.khz, acpu_default_vdd_tbl[i+1]);
+				len += sprintf(buf + len, "%8u: %8d\n", acpu_freq_tbl[i+1].speed.khz,
+				acpu_default_vdd_tbl[i+1]);
 		}
 		else
 		{
 			for (i = isApp-1; i >= 0; i--)
-				len += sprintf(buf + len, "%dmhz: %d mV\n", acpu_freq_tbl[i+1].speed.khz/1000, acpu_default_vdd_tbl[i+1]/1000);
+				len += sprintf(buf + len, "%dmhz: %d mV\n", acpu_freq_tbl[i+1].speed.khz/1000, 					acpu_default_vdd_tbl[i+1]/1000);
 		}
 		mutex_unlock(&driver_lock);
 
@@ -1472,9 +1477,10 @@ void acpuclk_set_vdd(unsigned int khz, int vdd_uv) {
 
 	for (i = 0; acpu_freq_tbl[i+1].speed.khz; i++) {
 		if (khz == 0)
-			new_vdd_uv = min(max((acpu_freq_tbl[i+1].vdd_core + vdd_uv), (unsigned int)MIN_VDD_SC), (unsigned int)MAX_VDD_SC);
+			new_vdd_uv = min(max((acpu_freq_tbl[i+1].vdd_core + vdd_uv),
+			(unsigned int)HFPLL_LOW_VDD), (unsigned int)HFPLL_MAX_VDD);
 		else if ( acpu_freq_tbl[i+1].speed.khz == khz)
-			new_vdd_uv = min(max((unsigned int)vdd_uv, (unsigned int)MIN_VDD_SC), (unsigned int)MAX_VDD_SC);
+			new_vdd_uv = min(max((unsigned int)vdd_uv, (unsigned int)HFPLL_LOW_VDD), (unsigned int)HFPLL_MAX_VDD);
 		else 
 			continue;
 
@@ -1493,7 +1499,7 @@ void acpuclk_UV_mV_table(int cnt, int vdd_uv[]) {
 	if (vdd_uv[0] < vdd_uv[cnt-1])
 	{
 		for (i = 0; i < cnt; i++) {
-		    if ((vdd_uv[i]*1000) >= MIN_VDD_SC && (vdd_uv[i]*1000) <= MAX_VDD_SC)
+		    if ((vdd_uv[i]*1000) >= HFPLL_LOW_VDD && (vdd_uv[i]*1000) <= HFPLL_MAX_VDD)
 			acpu_freq_tbl[i+1].vdd_core = vdd_uv[i]*1000;
 		}
 	}
@@ -1501,7 +1507,7 @@ void acpuclk_UV_mV_table(int cnt, int vdd_uv[]) {
 	{
 		j = cnt-1;
 		for (i = 0; i < cnt; i++) {
-		    if ((vdd_uv[j]*1000) >= MIN_VDD_SC && (vdd_uv[j]*1000) <= MAX_VDD_SC)
+		    if ((vdd_uv[j]*1000) >= HFPLL_LOW_VDD && (vdd_uv[j]*1000) <= HFPLL_MAX_VDD)
 			acpu_freq_tbl[i+1].vdd_core = vdd_uv[j]*1000;
 		    j--;
 		}
@@ -1721,13 +1727,8 @@ static const int krait_needs_vmin(void)
 static void kraitv2_apply_vmin(struct acpu_level *tbl)
 {
 	for (; tbl->speed.khz != 0; tbl++)
-#ifdef CONFIG_CPU_VOLTAGE_TABLE
-		if (tbl->vdd_core < INIT_MIN_VDD)
-			tbl->vdd_core = INIT_MIN_VDD;
-#else
 		if (tbl->vdd_core < 1150000)
 			tbl->vdd_core = 1150000;
-#endif
 }
 
 #ifdef CONFIG_CPU_VOLTAGE_TABLE
