@@ -479,8 +479,7 @@ static ssize_t store_scaling_min_freq
 	if (ret != 1)
 		return -EINVAL;
 
-	if (value < safe_scaling_min_freq)
-		safe_scaling_min_freq = value;
+	safe_scaling_min_freq = value;
 	if (safe_scaling_min_freq < MIN_FREQ_LIMIT)
 		safe_scaling_min_freq = MIN_FREQ_LIMIT;
 
@@ -504,8 +503,7 @@ static ssize_t store_scaling_max_freq
 	if (ret != 1)
 		return -EINVAL;
 
-	if (value > safe_scaling_max_freq)
-		safe_scaling_max_freq = value;
+	safe_scaling_max_freq = value;
 	if (safe_scaling_max_freq > MAX_FREQ_LIMIT)
 		safe_scaling_max_freq = MAX_FREQ_LIMIT;
 
@@ -925,9 +923,15 @@ static int cpufreq_add_dev_policy(unsigned int cpu,
 	if (per_cpu(cpufreq_policy_save, cpu).min) {
 		policy->min = per_cpu(cpufreq_policy_save, cpu).min;
 		policy->user_policy.min = policy->min;
+	} else {
+		policy->min = MIN_FREQ_LIMIT_STARTUP;
+		policy->user_policy.min = policy->min;
 	}
 	if (per_cpu(cpufreq_policy_save, cpu).max) {
 		policy->max = per_cpu(cpufreq_policy_save, cpu).max;
+		policy->user_policy.max = policy->max;
+	} else {
+		policy->max = MAX_FREQ_LIMIT_STARTUP;
 		policy->user_policy.max = policy->max;
 	}
 	pr_debug("Restoring CPU%d min %d and max %d\n",
@@ -2188,6 +2192,11 @@ int cpufreq_update_policy(unsigned int cpu)
 		ret = -EINVAL;
 		goto fail;
 	}
+
+	if (data->user_policy.max > safe_scaling_max_freq)
+		data->user_policy.max = safe_scaling_max_freq;
+	if (data->user_policy.min > safe_scaling_min_freq)
+		data->user_policy.min = safe_scaling_min_freq;
 
 	pr_debug("updating policy for CPU %u\n", cpu);
 	memcpy(&policy, data, sizeof(struct cpufreq_policy));
