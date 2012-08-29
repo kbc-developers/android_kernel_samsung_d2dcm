@@ -326,15 +326,16 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 };
 
 
-#define MSM_PMEM_ADSP_SIZE                 0x9600000 /* 150 Mbytes */
-#define MSM_PMEM_ADSP_SIZE_FOR_2GB         0x9600000 /* 150 Mbytes */
-#define MSM_PMEM_AUDIO_SIZE        0x160000 /* 1.375 Mbytes */
+#define MSM_PMEM_ADSP_SIZE                 0x9600000
+#define MSM_PMEM_ADSP_SIZE_FOR_2GB         0x9600000
+#define MSM_PMEM_AUDIO_SIZE                0x4CF000
 #define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
 #define MSM_HDMI_PRIM_PMEM_SIZE 0x4000000 /* 64 Mbytes */
 
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-#define MSM_PMEM_KERNEL_EBI1_SIZE  0x280000 /* 2.5MB */
+#define MSM_PMEM_KERNEL_EBI1_SIZE  0x65000
+#define HOLE_SIZE 0x20000
 #ifdef CONFIG_MSM_IOMMU
 #define MSM_ION_MM_SIZE     0x3800000
 #define MSM_ION_SF_SIZE_FOR_2GB		0x0
@@ -345,20 +346,21 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 #define MSM_ION_SF_SIZE             0x5000000 /* 80MB */
 #define MSM_ION_SF_SIZE_FOR_2GB		0x6400000 /* 100MB */
 #define MSM_ION_MM_SIZE		MSM_PMEM_ADSP_SIZE
-#define MSM_ION_QSECOM_SIZE	0x1700000 /* (24MB) */
+#define MSM_ION_QSECOM_SIZE	0x600000 /* (6MB) */
 #define MSM_ION_HEAP_NUM	8
 #endif
-#define MSM_ION_MM_FW_SIZE	0x200000 /* (2MB) */
+#define MSM_ION_MM_FW_SIZE     (0x200000 - HOLE_SIZE) /* 128kb */
 #define MSM_ION_MFC_SIZE	SZ_8K
-#define MSM_ION_AUDIO_SIZE	0x1000 /* 4KB */
+#define MSM_ION_AUDIO_SIZE	MSM_PMEM_AUDIO_SIZE
 #define MSM_LIQUID_ION_MM_SIZE (MSM_ION_MM_SIZE + 0x600000)
 #define MSM_LIQUID_ION_SF_SIZE MSM_LIQUID_PMEM_SIZE
 #define MSM_HDMI_PRIM_ION_SF_SIZE MSM_HDMI_PRIM_PMEM_SIZE
 
-#define MSM8960_FIXED_AREA_START 0xb0000000
+#define MSM_MM_FW_SIZE         (0x200000 - HOLE_SIZE) /* 2mb -128kb*/
+#define MSM8960_FIXED_AREA_START (0xa0000000 - (MSM_ION_MM_FW_SIZE + \
+                                                       HOLE_SIZE))
 #define MAX_FIXED_AREA_SIZE	0x10000000
-#define MSM_MM_FW_SIZE		0x200000
-#define MSM8960_FW_START	(MSM8960_FIXED_AREA_START - MSM_MM_FW_SIZE)
+#define MSM8960_FW_START       MSM8960_FIXED_AREA_START
 
 static unsigned msm_ion_sf_size = MSM_ION_SF_SIZE;
 #else
@@ -527,8 +529,8 @@ static void __init size_pmem_devices(void)
 	}
 
 	android_pmem_pdata.size = pmem_size;
-#endif
 	android_pmem_audio_pdata.size = MSM_PMEM_AUDIO_SIZE;
+#endif
 #endif
 }
 
@@ -543,8 +545,8 @@ static void __init reserve_pmem_memory(void)
 #ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
 	reserve_memory_for(&android_pmem_adsp_pdata);
 	reserve_memory_for(&android_pmem_pdata);
-#endif
 	reserve_memory_for(&android_pmem_audio_pdata);
+#endif
 	msm8960_reserve_table[MEMTYPE_EBI1].size += pmem_kernel_ebi1_size;
 #endif
 }
@@ -694,17 +696,17 @@ static void __init adjust_mem_for_liquid(void)
 			msm_ion_sf_size = MSM_HDMI_PRIM_ION_SF_SIZE;
 
 		if (machine_is_msm8960_liquid() || hdmi_is_primary) {
-			for (i = 0; i < ion_pdata.nr; i++) {
-				if (ion_pdata.heaps[i].id == ION_SF_HEAP_ID) {
-					ion_pdata.heaps[i].size =
+		for (i = 0; i < ion_pdata.nr; i++) {
+					if (ion_pdata.heaps[i].id == ION_SF_HEAP_ID) {
+						ion_pdata.heaps[i].size =
 							msm_ion_sf_size;
-					pr_debug("msm_ion_sf_size 0x%x\n",
+						pr_debug("msm_ion_sf_size 0x%x\n",
 							msm_ion_sf_size);
-					break;
-				}
+				break;
 			}
 		}
 	}
+}
 }
 
 static void __init reserve_mem_for_ion(enum ion_memory_types mem_type,
@@ -856,14 +858,20 @@ fmem_pdata.align = align;
 		return;
 
 	if (fmem_pdata.size) {
-		fmem_pdata.reserved_size_low = fixed_low_size;
+		fmem_pdata.reserved_size_low = fixed_low_size + HOLE_SIZE;
 		fmem_pdata.reserved_size_high = fixed_high_size;
+		fmem_pdata.size += HOLE_SIZE;
 	}
 
-	msm8960_reserve_fixed_area(fixed_size + MSM_MM_FW_SIZE);
+    /* Since the fixed area may be carved out of lowmem,
+     * make sure the length is a multiple of 1M.
+     */
+    fixed_size = (fixed_size + HOLE_SIZE + SECTION_SIZE - 1)
+            & SECTION_MASK;
+    msm8960_reserve_fixed_area(fixed_size);
 
 	fixed_low_start = MSM8960_FIXED_AREA_START;
-	fixed_middle_start = fixed_low_start + fixed_low_size;
+	fixed_middle_start = fixed_low_start + fixed_low_size + HOLE_SIZE;
 	fixed_high_start = fixed_middle_start + fixed_middle_size;
 
 	for (i = 0; i < ion_pdata.nr; ++i) {
@@ -871,11 +879,13 @@ fmem_pdata.align = align;
 
 		if (heap->extra_data) {
 			int fixed_position = NOT_FIXED;
+			struct ion_cp_heap_pdata *pdata;
 
 			switch (heap->type) {
 			case ION_HEAP_TYPE_CP:
-				fixed_position = ((struct ion_cp_heap_pdata *)
-					heap->extra_data)->fixed_position;
+				pdata =
+				(struct ion_cp_heap_pdata *)heap->extra_data;
+				fixed_position = pdata->fixed_position;
 				break;
 			case ION_HEAP_TYPE_CARVEOUT:
 				fixed_position = ((struct ion_co_heap_pdata *)
@@ -891,6 +901,9 @@ fmem_pdata.align = align;
 				break;
 			case FIXED_MIDDLE:
 				heap->base = fixed_middle_start;
+				pdata->secure_base = fixed_middle_start
+										- HOLE_SIZE;
+				pdata->secure_size = HOLE_SIZE + heap->size;
 				break;
 			case FIXED_HIGH:
 				heap->base = fixed_high_start;
@@ -974,6 +987,8 @@ static void __init locate_unstable_memory(void)
 	unsigned long low, high;
 
 	bank_size = msm8960_memory_bank_size();
+	msm8960_reserve_info.bank_size = bank_size;
+
 	low = meminfo.bank[0].start;
 	high = mb->start + mb->size;
 
@@ -983,12 +998,14 @@ static void __init locate_unstable_memory(void)
 		mb->size-= 1 << 12;
 	}
 
+	if (high < MAX_FIXED_AREA_SIZE + MSM8960_FIXED_AREA_START)
+		panic("fixed area extends beyond end of memory\n");
+
 	low &= ~(bank_size - 1);
 
 	if (high - low <= bank_size)
-		return;
+		goto no_dmm;
 
-	msm8960_reserve_info.bank_size = bank_size;
 #ifdef CONFIG_ENABLE_DMM
 	msm8960_reserve_info.low_unstable_address = mb->start -
 					MIN_MEMORY_BLOCK_SIZE + mb->size;
@@ -997,10 +1014,11 @@ static void __init locate_unstable_memory(void)
 		msm8960_reserve_info.low_unstable_address,
 		msm8960_reserve_info.max_unstable_size,
 		msm8960_reserve_info.bank_size);
-#else
-	msm8960_reserve_info.low_unstable_address = 0;
-	msm8960_reserve_info.max_unstable_size = 0;
+	return;
 #endif
+no_dmm:
+	msm8960_reserve_info.low_unstable_address = high;
+	msm8960_reserve_info.max_unstable_size = 0;
 }
 
 static void __init place_movable_zone(void)
@@ -1067,8 +1085,7 @@ static void __init msm8960_reserve(void)
 	msm_reserve();
 	if (fmem_pdata.size) {
 #if defined(CONFIG_ION_MSM) && defined(CONFIG_MSM_MULTIMEDIA_USE_ION)
-		fmem_pdata.phys = reserve_info->fixed_area_start +
-			MSM_MM_FW_SIZE;
+		fmem_pdata.phys = reserve_info->fixed_area_start;
 		pr_info("mm fw at %lx (fixed) size %x\n",
 			reserve_info->fixed_area_start, MSM_MM_FW_SIZE);
 		pr_info("fmem start %lx (fixed) size %lx\n",
@@ -1317,6 +1334,7 @@ static void fsa9485_usb_cb(bool attached)
 	if (system_rev >= 0x01) {
 		if (attached) {
 			pr_info("%s set vbus state\n", __func__);
+
 			msm_otg_set_vbus_state(attached);
 		}
 	}
@@ -4524,6 +4542,7 @@ static struct platform_device *common_devices[] __initdata = {
 #ifdef CONFIG_MSM_CACHE_DUMP
 	&msm_cache_dump_device,
 #endif
+	&msm8960_iommu_domain_device,
 	&msm8960_cpu_idle_device,
 	&msm8960_msm_gov_device,
 };
@@ -4624,7 +4643,7 @@ static struct platform_device *m2_dcm_devices[] __initdata = {
 	&vibetonz_device,
 #endif /* CONFIG_VIBETONZ */
 #ifdef CONFIG_ANDROID_RAM_CONSOLE
-	&ram_console_device,
+    &ram_console_device,
 #endif
 };
 
