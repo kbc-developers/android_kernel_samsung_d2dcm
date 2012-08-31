@@ -184,6 +184,12 @@ struct tsp_callbacks {
 };
 #endif
 
+#ifdef CONFIG_FB_MSM_HDMI_AS_PRIMARY
+static unsigned char hdmi_is_primary = 1;
+#else
+static unsigned char hdmi_is_primary;
+#endif
+
 static struct platform_device msm_fm_platform_init = {
 	.name = "iris_fm",
 	.id   = -1,
