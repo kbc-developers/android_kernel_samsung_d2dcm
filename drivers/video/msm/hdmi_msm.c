@@ -1393,7 +1393,9 @@ static void msm_hdmi_init_ddc(void)
 	HDMI_OUTP_ND(0x0220, (10 << 16) | (2 << 0));
 
 	/* 0x0224 HDMI_DDC_SETUP */
-	HDMI_OUTP_ND(0x0224, 0);
+	/* MHL CTS 6.3.18.2 6.3.18.4 2nd entry */
+	/* Increase waiting time limit 0x00 -> 0xff */
+	HDMI_OUTP_ND(0x0224, 0xff000000);
 
 	/* 0x027C HDMI_DDC_REF
 	   [6] REFTIMER_ENABLE	Enable the timer

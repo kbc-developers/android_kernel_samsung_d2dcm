@@ -1410,6 +1410,9 @@ void sii9234_process_msc_work(struct work_struct *work)
 	struct sii9234_data *sii9234 = container_of(work,
 						struct sii9234_data,
 						msc_work);
+	/*Do not process msc untill STATE_ESTABLISHED*/
+	if (sii9234->state != STATE_ESTABLISHED)
+		return;
 
 	mutex_lock(&sii9234->cbus_lock);
 	mutex_lock(&sii9234->lock);
@@ -1609,9 +1612,6 @@ static int sii9234_msc_req_locked(struct sii9234_data *sii9234,
 {
 	int ret;
 	u8 start_command;
-
-	if (sii9234->state != STATE_ESTABLISHED)
-		return -ENOENT;
 
 	init_completion(&sii9234->msc_complete);
 

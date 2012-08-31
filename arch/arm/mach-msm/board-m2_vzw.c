@@ -171,6 +171,10 @@
 #include <linux/sec_jack.h>
 #endif
 
+#ifdef CONFIG_KEXEC_HARDBOOT
+#include <asm/kexec.h>
+#endif
+
 #ifdef CONFIG_TOUCHSCREEN_MMS144
 struct tsp_callbacks *charger_callbacks;
 struct tsp_callbacks {
@@ -337,8 +341,8 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 };
 
 
-#define MSM_PMEM_ADSP_SIZE         0x7800000 /* 120 Mbytes */
-#define MSM_PMEM_ADSP_SIZE_FOR_2GB         0x8400000 /* 132 Mbytes */
+#define MSM_PMEM_ADSP_SIZE                 0x9600000 /* 150 Mbytes */
+#define MSM_PMEM_ADSP_SIZE_FOR_2GB         0x9600000 /* 150 Mbytes */
 #define MSM_PMEM_AUDIO_SIZE        0x160000 /* 1.375 Mbytes */
 #define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
@@ -350,7 +354,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 #define MSM_ION_SF_SIZE_FOR_2GB		0x6400000 /* 100MB */
 #define MSM_ION_MM_FW_SIZE	0x200000 /* (2MB) */
 #define MSM_ION_MM_SIZE		MSM_PMEM_ADSP_SIZE
-#define MSM_ION_QSECOM_SIZE	0x600000 /* (6MB) */
+#define MSM_ION_QSECOM_SIZE	0x1700000 /* (24MB) */
 #define MSM_ION_MFC_SIZE	SZ_8K
 #define MSM_ION_AUDIO_SIZE	0x1000 /* 4KB */
 #define MSM_ION_HEAP_NUM	8
@@ -358,7 +362,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 #define MSM_LIQUID_ION_SF_SIZE MSM_LIQUID_PMEM_SIZE
 #define MSM_HDMI_PRIM_ION_SF_SIZE MSM_HDMI_PRIM_PMEM_SIZE
 
-#define MSM8960_FIXED_AREA_START 0xb0000000
+#define MSM8960_FIXED_AREA_START 0xad000000
 #define MAX_FIXED_AREA_SIZE	0x10000000
 #define MSM_MM_FW_SIZE		0x280000
 #define MSM8960_FW_START	(MSM8960_FIXED_AREA_START - MSM_MM_FW_SIZE)
@@ -1014,6 +1018,25 @@ static int __init ext_display_setup(char *param)
 }
 early_param("ext_display", ext_display_setup);
 
+/* Exclude the last 4 kB to preserve the kexec hardboot page. */
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+#define RAM_CONSOLE_START 0xfff00000
+#define RAM_CONSOLE_SIZE  (SZ_1M-SZ_4K)
+
+static struct resource ram_console_resource[] = {
+	{
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device ram_console_device = {
+	.name          = "ram_console",
+	.id            = -1,
+	.num_resources = ARRAY_SIZE(ram_console_resource),
+	.resource      = ram_console_resource,
+};
+#endif
+
 unsigned int address = 0xea000000;
 unsigned int size = 0x100000;
 
@@ -1039,6 +1062,17 @@ static void __init msm8960_reserve(void)
 		ret = memblock_remove(address, size);
 		BUG_ON(ret);
 	}
+
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+	if (memblock_remove(RAM_CONSOLE_START, RAM_CONSOLE_SIZE) == 0) {
+		ram_console_resource[0].start = RAM_CONSOLE_START;
+		ram_console_resource[0].end   = RAM_CONSOLE_START+RAM_CONSOLE_SIZE-1;
+	}
+#endif
+
+#ifdef CONFIG_KEXEC_HARDBOOT
+	memblock_remove(KEXEC_HB_PAGE_ADDR, SZ_4K);
+#endif
 }
 
 static int msm8960_change_memory_power(u64 start, u64 size,
@@ -4410,6 +4444,9 @@ static struct platform_device *m2_vzw_devices[] __initdata = {
 #ifdef CONFIG_VIBETONZ
 	&vibetonz_device,
 #endif /* CONFIG_VIBETONZ */
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+	&ram_console_device,
+#endif
 };
 
 static void __init msm8960_i2c_init(void)
@@ -4527,13 +4564,6 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(ON, GDHS, MAX, ACTIVE),
-		false,
-		8500, 51, 1122000, 8500,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, MAX, ACTIVE),
 		false,
 		9000, 51, 1130300, 9000,
@@ -4543,13 +4573,6 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, ACTIVE, RET_HIGH),
 		false,
 		10000, 51, 1130300, 10000,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(OFF, GDHS, MAX, ACTIVE),
-		false,
-		12000, 14, 2205900, 12000,
 	},
 
 	{

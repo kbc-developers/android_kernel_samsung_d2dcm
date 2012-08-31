@@ -115,8 +115,23 @@ static struct pm8xxx_gpio_init pm8921_gpios[] __initdata = {
 #else
 	PM8XXX_GPIO_OUTPUT(17,	 0),	 /* DISP 3.3 V Boost */
 #endif
-#if defined(CONFIG_MACH_ESPRESSO_VZW) || defined(CONFIG_MACH_ESPRESSO10_VZW)
+#if defined(CONFIG_MACH_ESPRESSO_VZW) || defined(CONFIG_MACH_ESPRESSO10_VZW) \
+		|| defined(CONFIG_MACH_ESPRESSO10_ATT) \
+		|| defined(CONFIG_MACH_ESPRESSO10_SPR) \
+		|| defined(CONFIG_MACH_ESPRESSO_SPR)
 	PM8XXX_GPIO_OUTPUT(38,   1),
+#endif
+
+#if defined(CONFIG_MACH_AEGIS2) /* Disable NC GPIOs for AEGIS2*/
+	PM8XXX_GPIO_DISABLE(1),
+	PM8XXX_GPIO_DISABLE(2),
+	PM8XXX_GPIO_DISABLE(9),
+	PM8XXX_GPIO_DISABLE(15),
+	PM8XXX_GPIO_DISABLE(23),
+	PM8XXX_GPIO_DISABLE(28),
+	PM8XXX_GPIO_DISABLE(35),
+	PM8XXX_GPIO_DISABLE(40),
+	PM8XXX_GPIO_DISABLE(41),
 #endif
 };
 
@@ -549,13 +564,13 @@ static struct led_info pm8921_led_info[] = {
 		.name			= "led:b",
 	},
 	[PM8XXX_LED_PAT8_RED] = {
-		.name			= "led:r",
+		.name			= "led:blink_red",
 	},
 	[PM8XXX_LED_PAT8_GREEN] = {
-		.name			= "led:g",
+		.name			= "led:blink_green",
 	},
 	[PM8XXX_LED_PAT8_BLUE] = {
-		.name			= "led:b",
+		.name			= "led:blink_blue",
 	},
 	[PM8XXX_LED_KB_LED] = {
 		.name = "kb:backlight",
@@ -621,16 +636,15 @@ static int pm8921_led0_pat6_blue_pwm_duty_pcts[] = {
 	94, 95, 96, 97, 98, 99, 100,
 };
 
-static int pm8921_led0_pat8_red_pwm_duty_pcts[] = {
+int pm8921_led0_pat8_red_pwm_duty_pcts[] = {
 	0, 100
 };
-static int pm8921_led0_pat8_green_pwm_duty_pcts[] = {
+int pm8921_led0_pat8_green_pwm_duty_pcts[] = {
 	0, 100
 };
-static int pm8921_led0_pat8_blue_pwm_duty_pcts[] = {
+int pm8921_led0_pat8_blue_pwm_duty_pcts[] = {
 	0, 100
 };
-
 
 
 static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat5_red_duty_cycles = {
@@ -751,6 +765,9 @@ static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat8_blue_duty_cycles = {
 	.start_idx =  ARRAY_SIZE(pm8921_led0_pat8_red_pwm_duty_pcts) +
 			ARRAY_SIZE(pm8921_led0_pat8_green_pwm_duty_pcts),
 };
+
+
+
 
 static struct pm8xxx_led_config pm8921_led_configs[] = {
 	/*pattern 1 Charging*/

@@ -278,6 +278,18 @@ static int __devinit mipi_esd_refresh_probe(struct platform_device *pdev)
 		pr_err("%s : Failed to request_irq.:ret=%d", __func__, ret);
 		goto err_request_detect_irq;
 	}
+#if defined(CONFIG_SAMSUNG_CMC624)
+	if (samsung_has_cmc624()) {
+		ret = request_threaded_irq(pdata->esd_gpio_cmc_irq, NULL,
+			sec_esd_irq_handler,
+			IRQF_TRIGGER_RISING |
+			IRQF_ONESHOT, "esd_detect2", p_esd_data);
+		if (ret) {
+			pr_err("%s:Fail to request_irq.:ret=%d", __func__, ret);
+			goto err_request_detect_irq2;
+		}
+	}
+#endif
 	set_esd_disable();
 	return 0;
 
