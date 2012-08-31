@@ -19,8 +19,10 @@ struct pil_q6v4_pdata {
 	void __iomem *aclk_reg;
 	void __iomem *jtag_clk_reg;
 	const int xo_id;
+#if defined(CONFIG_MACH_M2_DCM)
 	const int xo1_id;
 	const int xo2_id;
+#endif
 	const char *name;
 	const char *depends;
 	const unsigned pas_id;

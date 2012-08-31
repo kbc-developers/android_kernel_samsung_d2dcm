@@ -3282,8 +3282,13 @@ static int s5c73m3_read_vdd_core(void)
 		s5c73m3_ctrl->sensordata->sensor_platform_info
 		->sensor_set_isp_core(1000000);
 	else
+#if defined(CONFIG_MACH_M2_DCM)
+		s5c73m3_ctrl->sensordata->sensor_platform_info
+		->sensor_set_isp_core(1230000);
+#else
 		s5c73m3_ctrl->sensordata->sensor_platform_info
 		->sensor_set_isp_core(1150000);
+#endif
 
 	CAM_DBG_H("X\n");
 

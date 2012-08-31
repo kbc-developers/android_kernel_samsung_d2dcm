@@ -301,4 +301,3 @@ use __cpufreq_driver_target only in these cases. In all other cases
 every second), use cpufreq_driver_target to lock the cpufreq per-CPU
 lock before the command is passed to the cpufreq processor driver.
 
-

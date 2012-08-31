@@ -1282,7 +1282,7 @@ static void setup_vmalloc_vm(struct vm_struct *vm, struct vmap_area *va,
 static void insert_vmalloc_vmlist(struct vm_struct *vm)
 {
 	struct vm_struct *tmp, **p;
- 
+
 	vm->flags &= ~VM_UNLIST;
 	write_lock(&vmlist_lock);
 	for (p = &vmlist; (tmp = *p) != NULL; p = &tmp->next) {

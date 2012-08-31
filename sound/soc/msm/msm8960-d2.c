@@ -109,6 +109,7 @@ static struct clk *rx_bit_clk;
 static struct clk *tx_osr_clk;
 static struct clk *tx_bit_clk;
 
+static struct mutex cdc_mclk_mutex;
 struct ext_amp_work {
 	struct delayed_work dwork;
 };
@@ -337,38 +338,45 @@ static int msm8960_cdc_vps_event(struct snd_soc_dapm_widget *w,
 int msm8960_enable_codec_ext_clk(
 		struct snd_soc_codec *codec, int enable)
 {
-	pr_info("%s: enable = %d\n", __func__, enable);
+	int r = 0;
+	pr_debug("%s: enable = %d\n", __func__, enable);
+	mutex_lock(&cdc_mclk_mutex);
 	if (enable) {
 		clk_users++;
 		pr_debug("%s: clk_users = %d\n", __func__, clk_users);
-		if (clk_users != 1)
-			return 0;
-
-		codec_clk = clk_get(NULL, "i2s_spkr_osr_clk");
-		if (codec_clk) {
-			clk_set_rate(codec_clk, TABLA_EXT_CLK_RATE);
-			clk_enable(codec_clk);
-			tabla_mclk_enable(codec, 1);
-		} else {
-			pr_err("%s: Error setting Tabla MCLK\n", __func__);
-			clk_users--;
-			return -EINVAL;
+		if (clk_users == 1) {
+			codec_clk = clk_get(NULL, "i2s_spkr_osr_clk");
+			if (codec_clk) {
+				clk_set_rate(codec_clk, TABLA_EXT_CLK_RATE);
+				clk_enable(codec_clk);
+				tabla_mclk_enable(codec, 1);
+			} else {
+				pr_err("%s: Error setting Tabla MCLK\n",
+					__func__);
+				clk_users--;
+				r = -EINVAL;
+			}
 		}
 	} else {
-		pr_debug("%s: clk_users = %d\n", __func__, clk_users);
-		if (clk_users == 0)
-			return 0;
-		clk_users--;
-		if (!clk_users) {
-			pr_debug("%s: disabling MCLK. clk_users = %d\n",
+		if (clk_users > 0) {
+			clk_users--;
+			pr_debug("%s: clk_users = %d\n", __func__,
+					 clk_users);
+			if (clk_users == 0) {
+				pr_debug("%s: disabling MCLK. clk_users = %d\n",
 					__func__, clk_users);
-			clk_disable(codec_clk);
-			clk_put(codec_clk);
-			tabla_mclk_enable(codec, 0);
+				clk_disable(codec_clk);
+				clk_put(codec_clk);
+				tabla_mclk_enable(codec, 0);
+			}
+		} else {
+				pr_err("%s: Error releasing Tabla MCLK\n",
+				 __func__);
+				r = -EINVAL;
 		}
 	}
-	return 0;
-
+	mutex_unlock(&cdc_mclk_mutex);
+	return r;
 }
 
 static int msm8960_mclk_event(struct snd_soc_dapm_widget *w,
@@ -2138,6 +2146,7 @@ static int __init msm8960_audio_init(void)
 
 	INIT_DELAYED_WORK(&ext_amp_dwork.dwork,
 			external_speaker_amp_work);
+	mutex_init(&cdc_mclk_mutex);
 	return ret;
 
 }
@@ -2149,6 +2158,7 @@ static void __exit msm8960_audio_exit(void)
 	kfree(msm8960_dai_list);
 	platform_device_unregister(msm8960_snd_device);
 	kfree(tabla_mbhc_cal);
+	mutex_destroy(&cdc_mclk_mutex);
 }
 module_exit(msm8960_audio_exit);
 

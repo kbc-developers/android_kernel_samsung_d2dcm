@@ -5798,27 +5798,29 @@ wl_notify_connect_status_ap(struct wl_priv *wl, struct net_device *ndev,
 	}
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 2, 0)) && !CFG80211_STA_EVENT_AVAILABLE
-	WL_DBG(("Enter \n"));
+	WL_DBG(("Enter\n"));
 	if (!len && (event == WLC_E_DEAUTH)) {
 		len = 2; /* reason code field */
 		data = &reason;
 	}
 	if (len) {
-	body=kzalloc(len, GFP_KERNEL);
+		body = kzalloc(len, GFP_KERNEL);
 
-	if(body==NULL) {
-		WL_ERR(("wl_notify_connect_status: Failed to allocate body\n"));
+		if (body == NULL) {
+			WL_ERR(("wl_notify_connect_status: Failed to allocate body\n"));
+			return WL_INVALID;
+		}
+	} else
 		return WL_INVALID;
-	}
-	}
+
 	memset(&bssid, 0, ETHER_ADDR_LEN);
-	WL_DBG(("Enter \n"));
+	WL_DBG(("Enter\n"));
 	if (wl_get_mode_by_netdev(wl, ndev) == WL_INVALID) {
 		kfree(body);
 		return WL_INVALID;
 	}
 	if (len)
-	memcpy(body, data, len);
+		memcpy(body, data, len);
 
 	wldev_iovar_getbuf_bsscfg(ndev, "cur_etheraddr",
 		NULL, 0, wl->ioctl_buf, WLC_IOCTL_SMLEN, bsscfgidx, &wl->ioctl_buf_sync);
@@ -7570,23 +7572,22 @@ static s32 wl_notifier_change_state(struct wl_priv *wl, struct net_info *_net_in
 							wl_update_prof(wl, iter->ndev, NULL, &chan, WL_PROF_CHAN);
 						}
 						if ((wl_get_mode_by_netdev(wl, iter->ndev) == WL_MODE_BSS)) {
-						pm = htod32(pm);
-						WL_DBG(("power save %s\n", (pm ? "enabled" : "disabled")));
-						err = wldev_ioctl(iter->ndev, WLC_SET_PM, &pm, sizeof(pm), true);
-						if (unlikely(err)) {
-							if (err == -ENODEV)
-								WL_DBG(("net_device is not ready yet\n"));
-							else
-								WL_ERR(("error (%d)\n", err));
+							pm = htod32(pm);
+							WL_DBG(("power save %s\n", (pm ? "enabled" : "disabled")));
+							err = wldev_ioctl(iter->ndev, WLC_SET_PM, &pm, sizeof(pm), true);
+							if (unlikely(err)) {
+								if (err == -ENODEV)
+									WL_DBG(("net_device is not ready yet\n"));
+								else
+									WL_ERR(("error (%d)\n", err));
 								break;
+							}
 						}
-					}
 						if (connected_cnt  > 1) {
 							if (!prev_chan && chan)
 								prev_chan = chan;
-							else if (prev_chan && (prev_chan != chan)) {
+							else if (prev_chan && (prev_chan != chan))
 								wl->vsdb_mode = true;
-							}
 						}
 					}
 				}
