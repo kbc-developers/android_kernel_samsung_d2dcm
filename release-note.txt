@@ -1,9 +1,10 @@
 
-  *** SC-06D Custom Kernel ***
+  *** SC-06D Custom Kernel for Jelly Bean ***
 
   1. 内容
     CPU Freq
-      384MHz ～ 1512MHz
+      SAM向け: 384MHz ～ 1512MHz
+      AOSP向け: 192MHz ～ 1728MHz
 
     CPU Governor
       Performance
@@ -19,7 +20,7 @@
 
     I/O Scheduler
       cfq (default)
-      bfq v3r4
+      bfq v4
       sio
       deadline
       noop
@@ -41,12 +42,13 @@
       RAM Console support
 
     Others
-      kernel version 3.0.8 -> 3.0.41
+      kernel version 3.0.8 -> 3.0.42
       Use compiler linaro 2012.07
 
 
   2. 注意事項
     Odinで焼いた場合countが上がり保証が切れます
+    rootを取った時点で保証は切れていますので構いませんよね
     文鎮化の可能性があります
 
     root取得について
@@ -62,8 +64,8 @@
 
 
   3. 導入方法:
-    SC06D-ICS-KBC-XXX-odin.tar.md5 : Odinで煮込んでください
-    SC06D-ICS-KBC-XXX-sign.zip : CWM Recovery からinstallしてください
+    SC06D-JB-KBC-XXX-odin.tar.md5 : Odinで煮込んでください
+    SC06D-JB-KBC-XXX-sign.zip : CWM Recovery からinstallしてください
 
 
   4. その他
@@ -76,27 +78,5 @@
 
 
   5. 更新履歴
-    V1.3.2  kernel version update
-            Voltage Control削除
-            電圧値調整
-            その他kernelパラメータの調整
-
-    V1.3.1  kernel version update
-            CPU OC/UC削除
-            compile optionの最適化
-            exFAT削除
-
-    V1.3.0  kernelパラメータ調整
-            TweakGS3サポート
-
-    V1.2.0  各種CPU Gov追加
-            各種I/O Sched追加
-            CPU OC/UC追加
-            CPU Voltage control追加
-            RAM Consoleサポート
-
-    V1.1.0  bootanimation,bootsound対応
-            vendor/bin削除
-
-    V1.0.0  初版作成
+    V2.0.0  初版
 
