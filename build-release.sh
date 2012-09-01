@@ -14,7 +14,7 @@ if [ ! -n "`git status | grep clean`" ]; then
   echo "error: $RAMDISK_NAME is not clean"
   exit -1
 fi
-git checkout mbs-ics
+git checkout aosp-jb
 RAMDISK_DIR=$PWD
 
 cd $KERNEL_DIR
@@ -32,14 +32,14 @@ if [ ! -d $RELEASE_DIR ]; then
   mkdir -p $RELEASE_DIR
 fi
 
-# build for samsung boot.img
-cd $KERNEL_DIR
-bash ./build-bootimg-samsung.sh a $1
-if [ $? != 0 ]; then
-  echo 'error: samsung boot.img build fail'
-  exit -1
-fi
-cp -v ./out/SAM/bin/SC06D* $RELEASE_DIR/
+## build for samsung boot.img
+#cd $KERNEL_DIR
+#bash ./build-bootimg-samsung.sh a $1
+#if [ $? != 0 ]; then
+#  echo 'error: samsung boot.img build fail'
+#  exit -1
+#fi
+#cp -v ./out/SAM/bin/SC06D* $RELEASE_DIR/
 
 
 # build for aosp boot.img
