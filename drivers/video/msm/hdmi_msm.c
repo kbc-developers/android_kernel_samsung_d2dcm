@@ -4653,7 +4653,7 @@ static struct platform_device this_device = {
 
 static int __init hdmi_msm_init(void)
 {
-	int rc=0;
+	int rc;
 
 	if (cpu_is_msm8930())
 		return 0;
