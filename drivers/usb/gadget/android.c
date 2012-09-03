@@ -1813,7 +1813,7 @@ static void android_disconnect(struct usb_gadget *gadget)
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	printk(KERN_DEBUG "usb: %s cable state (%d)\n",
 		__func__, cdev->cable_connect);
-	if (cdev->cable_connect == NULL) {
+	if (cdev->cable_connect == 0) {
 		set_ncm_ready(false);
 		printk(KERN_DEBUG "usb: set ncm ready false\n");
 	}
