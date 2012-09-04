@@ -106,7 +106,7 @@ void unlock_policy_rwsem_write(int cpu)
 }
 
 #ifdef CONFIG_MSM_USE_OVERCLOCK
-#define FREQ_STEPS  14
+#define FREQ_STEPS  16
 #else
 #define FREQ_STEPS  12
 #endif
@@ -688,8 +688,9 @@ ssize_t store_UV_mV_table(struct cpufreq_policy *policy,
 	unsigned int ret = -EINVAL;
 	int u[FREQ_STEPS];
 #ifdef CONFIG_MSM_USE_OVERCLOCK
-	ret = sscanf(buf, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d",
-		 &u[0], &u[1], &u[2], &u[3], &u[4], &u[5], &u[6], &u[7], &u[8], &u[9], &u[10], &u[11], &u[12], &u[13]);
+	ret = sscanf(buf, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+		 &u[0], &u[1], &u[2], &u[3], &u[4], &u[5], &u[6], &u[7], &u[8], &u[9], &u[10], &u[11],
+		 &u[12], &u[13],&u[14], &u[15]);
 #else
 	ret = sscanf(buf, "%d %d %d %d %d %d %d %d %d %d %d %d",
 		 &u[0], &u[1], &u[2], &u[3], &u[4], &u[5], &u[6], &u[7], &u[8], &u[9], &u[10], &u[11]);
