@@ -2319,6 +2319,10 @@ config MSM_USE_OVERCLOCK
 	bool "Use CPU Over Frequency"
 	default n
 
+config BOOST_L2_BANDWIDTH
+	bool "Boost L2 Bandwidth"
+	default n
+
 config GPU_OVERCLOCK
 	bool "Enable GPU Overclocking option"
 	default n
