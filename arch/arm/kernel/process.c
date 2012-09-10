@@ -201,16 +201,12 @@ void cpu_idle_wait(void)
 EXPORT_SYMBOL_GPL(cpu_idle_wait);
 
 /*
- * This is our default idle handler.
+ * This is our default idle handler.  We need to disable
+ * interrupts here to ensure we don't miss a wakeup call.
  */
-
-void (*arm_pm_idle)(void);
-
 static void default_idle(void)
 {
-	if (arm_pm_idle)
-		arm_pm_idle();
-	else
+	if (!need_resched())
 		arch_idle();
 	local_irq_enable();
 }
@@ -238,10 +234,6 @@ void cpu_idle(void)
 				cpu_die();
 #endif
 
-			/*
-			 * We need to disable interrupts here
-			 * to ensure we don't miss a wakeup call.
-			 */
 			local_irq_disable();
 #ifdef CONFIG_PL310_ERRATA_769419
 			wmb();
@@ -249,17 +241,18 @@ void cpu_idle(void)
 			if (hlt_counter) {
 				local_irq_enable();
 				cpu_relax();
-			} else if (!need_resched()) {
+			} else {
 				stop_critical_timings();
 				pm_idle();
 				start_critical_timings();
 				/*
-				 * pm_idle functions must always
-				 * return with IRQs enabled.
+				 * This will eventually be removed - pm_idle
+				 * functions should always return with IRQs
+				 * enabled.
 				 */
 				WARN_ON(irqs_disabled());
-			} else
 				local_irq_enable();
+			}
 		}
 		tick_nohz_restart_sched_tick();
 		idle_notifier_call_chain(IDLE_END);
