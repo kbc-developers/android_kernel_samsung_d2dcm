@@ -46,6 +46,7 @@ static LIST_HEAD(inactive_locks);
 static struct list_head active_wake_locks[WAKE_LOCK_TYPE_COUNT];
 static int current_event_num;
 struct workqueue_struct *suspend_work_queue;
+struct workqueue_struct *sync_work_queue;
 struct wake_lock main_wake_lock;
 struct wake_lock sync_wake_lock;
 suspend_state_t requested_suspend_state = PM_SUSPEND_MEM;
@@ -847,6 +848,12 @@ static int __init wakelocks_init(void)
 		goto err_suspend_work_queue;
 	}
 
+	sync_work_queue = create_singlethread_workqueue("sync_system_work");
+	if (sync_work_queue == NULL) {
+		ret = -ENOMEM;
+		goto err_sync_work_queue;
+	}
+
 #ifdef CONFIG_WAKELOCK_STAT
 	proc_create("wakelocks", S_IRUGO, NULL, &wakelock_stats_fops);
 	proc_create("wakelocks_total", S_IRUGO, NULL, &wakelock_total_stats_fops);
@@ -855,6 +862,8 @@ static int __init wakelocks_init(void)
 
 	return 0;
 
+err_sync_work_queue:
+	destroy_workqueue(suspend_work_queue);
 err_suspend_work_queue:
 	platform_driver_unregister(&power_driver);
 err_platform_driver_register:
@@ -880,6 +889,7 @@ static void  __exit wakelocks_exit(void)
 	remove_proc_entry("wakelocks", NULL);
 #endif
 	destroy_workqueue(suspend_work_queue);
+	destroy_workqueue(sync_work_queue);
 	platform_driver_unregister(&power_driver);
 	platform_device_unregister(&power_device);
 	wake_lock_destroy(&suspend_backoff_lock);
