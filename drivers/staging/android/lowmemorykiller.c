@@ -111,7 +111,7 @@ static int lmk_hotplug_callback(struct notifier_block *self,
 
 static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 {
-	struct task_struct *tsk;
+	struct task_struct *p;
 	struct task_struct *selected = NULL;
 	int rem = 0;
 	int tasksize;
@@ -180,17 +180,15 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	selected_oom_adj = min_adj;
 
 	rcu_read_lock();
-	for_each_process(tsk) {
-		struct task_struct *p;
+	for_each_process(p) {
+		struct mm_struct *mm;
 		struct signal_struct *sig;
 		int oom_adj;
 
-		p = find_lock_task_mm(tsk);
-		if (!p)
-			continue;
-
+		task_lock(p);
+		mm = p->mm;
 		sig = p->signal;
-		if (!sig) {
+		if (!mm || !sig) {
 			task_unlock(p);
 			continue;
 		}
@@ -199,7 +197,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			task_unlock(p);
 			continue;
 		}
-		tasksize = get_mm_rss(p->mm);
+		tasksize = get_mm_rss(mm);
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;
