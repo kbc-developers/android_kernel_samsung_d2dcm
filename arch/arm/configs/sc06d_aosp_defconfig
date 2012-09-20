@@ -1,6 +1,6 @@
 #
 # Automatically generated make config: don't edit
-# Linux/arm 3.0.42 Kernel Configuration
+# Linux/arm 3.0.43 Kernel Configuration
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -447,7 +447,6 @@ CONFIG_MSM_JTAG=y
 CONFIG_MSM_QDSS=y
 CONFIG_MSM_QDSS_ETM_DEFAULT_ENABLE=y
 CONFIG_CLOCK_MAP=y
-CONFIG_MSM_SLEEP_STATS=y
 # CONFIG_MSM_SLEEP_STATS_DEVICE is not set
 CONFIG_MSM_RUN_QUEUE_STATS=y
 # CONFIG_MSM_STANDALONE_POWER_COLLAPSE is not set
@@ -3432,7 +3431,7 @@ CONFIG_CRYPTO_TWOFISH_COMMON=y
 #
 CONFIG_CRYPTO_DEFLATE=y
 # CONFIG_CRYPTO_ZLIB is not set
-# CONFIG_CRYPTO_LZO is not set
+CONFIG_CRYPTO_LZO=y
 
 #
 # Random Number Generation
