@@ -2733,11 +2733,6 @@ struct vfsmount *kern_mount_data(struct file_system_type *type, void *data)
 }
 EXPORT_SYMBOL_GPL(kern_mount_data);
 
-bool our_mnt(struct vfsmount *mnt)
-{
-	return check_mnt(mnt);
-}
-
 void kern_unmount(struct vfsmount *mnt)
 {
 	/* release long term mount so mount point can be released */
@@ -2747,3 +2742,8 @@ void kern_unmount(struct vfsmount *mnt)
 	}
 }
 EXPORT_SYMBOL(kern_unmount);
+
+bool our_mnt(struct vfsmount *mnt)
+{
+	return check_mnt(mnt);
+}

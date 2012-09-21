@@ -3,8 +3,7 @@
 
   1. 内容
     CPU Freq
-      SAM向け: 384MHz ～ 1512MHz
-      AOSP向け: 192MHz ～ 1728MHz
+      384MHz ～ 1512MHz
 
     CPU Governor
       Performance
@@ -39,6 +38,7 @@
       bootmovie support
         -> /data/local/bootmovie.mp4
       exfat "not" support -> (ext4かFAT32でformatしちゃおう)
+      external sd ext4 format support
       RAM Console support
 
     Others
