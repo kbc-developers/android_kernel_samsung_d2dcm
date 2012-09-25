@@ -525,9 +525,9 @@ struct gpio_regulator_platform_data msm_gpio_regulator_pdata[] __devinitdata = {
 #ifdef CONFIG_MSM_USE_OVERCLOCK
 struct regulator_init_data msm_saw_regulator_pdata_s5 =
 	/*	      ID  vreg_name	       min_uV   max_uV */
-	SAW_VREG_INIT(S5, "8921_s5",	       700000, 1450000);
+	SAW_VREG_INIT(S5, "8921_s5",	       700000, 1400000);
 struct regulator_init_data msm_saw_regulator_pdata_s6 =
-	SAW_VREG_INIT(S6, "8921_s6",	       700000, 1450000);
+	SAW_VREG_INIT(S6, "8921_s6",	       700000, 1400000);
 #else
 struct regulator_init_data msm_saw_regulator_pdata_s5 =
 	/*	      ID  vreg_name	       min_uV   max_uV */
