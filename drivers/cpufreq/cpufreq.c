@@ -665,6 +665,34 @@ static ssize_t show_scaling_setspeed(struct cpufreq_policy *policy, char *buf)
 	return policy->governor->show_setspeed(policy, buf);
 }
 
+static ssize_t show_boost_cpufreq(struct cpufreq_policy *policy, char *buf)
+{
+	if (!policy->governor || !policy->governor->boost_cpu_freq)
+		return sprintf(buf, "<unsupported>\n");
+
+	return sprintf(buf, "%d\n", 0);
+}
+
+static ssize_t store_boost_cpufreq(struct cpufreq_policy *policy,
+					const char *buf, size_t count)
+{
+	unsigned int boost = 0;
+	unsigned int ret;
+
+	if (!policy->governor)
+		return -EINVAL;
+
+	ret = sscanf(buf, "%u", &boost);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (policy->governor->boost_cpu_freq)
+		policy->governor->boost_cpu_freq(policy);
+
+	return count;
+
+}
+
 /**
  * show_scaling_driver - show the current cpufreq HW/BIOS limitation
  */
@@ -738,6 +766,7 @@ cpufreq_freq_attr_rw(scaling_setspeed);
 cpufreq_freq_attr_rw(UV_mV_table);
 cpufreq_freq_attr_ro(UV_mV_default_table);
 #endif
+cpufreq_freq_attr_rw(boost_cpufreq);
 
 static struct attribute *default_attrs[] = {
 	&cpuinfo_min_freq.attr,
@@ -756,6 +785,7 @@ static struct attribute *default_attrs[] = {
 	&UV_mV_table.attr,
 	&UV_mV_default_table.attr,
 #endif
+	&boost_cpufreq.attr,
 	NULL
 };
 
