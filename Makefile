@@ -247,8 +247,8 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 
 HOSTCC       = gcc
 HOSTCXX      = g++
-HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer
-HOSTCXXFLAGS = -O2
+HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O3 -fomit-frame-pointer
+HOSTCXXFLAGS = -O3
 
 # Decide whether to build built-in, modular, or both.
 # Normally, just do built-in.
@@ -356,7 +356,9 @@ CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 ifeq ($(USE_CFLAGS_OPTION),y)
 CFLAGS_MODULE   = -fgcse-lm -fgcse-sm -fsched-spec-load -fforce-addr \
 		  -ffast-math -fsingle-precision-constant \
-		  -march=armv7-a -mfpu=neon -ftree-vectorize -funswitch-loops
+		  -fmodulo-sched -fmodulo-sched-allow-regmoves \
+		  -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
+		  -march=armv7-a -mfpu=neon -ftree-vectorize
 ifeq ($(HAVE_TUNE_CORTEX_A15),y)
 CFLAGS_MODULE  += -mtune=cortex-a15
 else
@@ -370,7 +372,9 @@ LDFLAGS_MODULE  =
 ifeq ($(USE_CFLAGS_OPTION),y)
 CFLAGS_KERNEL	= -fgcse-lm -fgcse-sm -fsched-spec-load -fforce-addr \
 		  -ffast-math -fsingle-precision-constant \
-		  -march=armv7-a -mfpu=neon -ftree-vectorize -funswitch-loops
+		  -fmodulo-sched -fmodulo-sched-allow-regmoves \
+		  -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
+		  -march=armv7-a -mfpu=neon -ftree-vectorize
 ifeq ($(HAVE_TUNE_CORTEX_A15),y)
 CFLAGS_KERNEL  += -mtune=cortex-a15
 else
@@ -595,7 +599,7 @@ all: vmlinux
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
-KBUILD_CFLAGS	+= -O2
+KBUILD_CFLAGS	+= -O3
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
