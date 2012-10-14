@@ -42,8 +42,8 @@
       RAM Console support
 
     Others
-      kernel version 3.0.8 -> 3.0.42
-      Use compiler linaro 2012.07
+      kernel version 3.0.8 -> 3.0.45
+      Use compiler linaro 2012.09
 
 
   2. 注意事項
@@ -78,5 +78,8 @@
 
 
   5. 更新履歴
+    V2.0.1  ext4 formatのSDカードに対応
+             様々な不具合修正
+
     V2.0.0  初版
 
