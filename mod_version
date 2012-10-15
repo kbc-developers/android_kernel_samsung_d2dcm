@@ -3,8 +3,8 @@
 ###########################################################
 TARGET_DEVICE=SC06D-JB
 BUILD_MOD=KBC
-BUILD_VERSION=V2.0.1
-BUILD_RECOVERY_VER=CWM-V6.0.1.2_r7
+BUILD_VERSION=V2.0.2
+BUILD_RECOVERY_VER=CWM-V6.0.1.2_r9
 
 
 ###########################################################
