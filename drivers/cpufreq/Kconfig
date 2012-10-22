@@ -156,6 +156,13 @@ config CPU_FREQ_DEFAULT_GOV_LAZY
 	select CPU_FREQ_GOV_PERFORMANCE
 	help
 	  Use the CPUFreq governor 'lazy' as default.
+
+config CPU_FREQ_DEFAULT_GOV_SLEEPY
+	bool "sleepy"
+	select CPU_FREQ_GOV_SCARY
+	help
+	  Use the CPUFreq governor 'sleepy' as default.
+
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -306,6 +313,12 @@ config CPU_FREQ_GOV_LAGFREE
           its optimisation for better suitability in a battery powered
           environment.  The frequency is gracefully increased and decreased
           rather than jumping to 100% when speed is required.
+
+config CPU_FREQ_GOV_SLEEPY
+	tristate "'sleepy' cpufreq governor"
+	depends on CPU_FREQ
+	help
+          'sleepy' - an "ondemandx" based tweaked, smart and smooth optimized governor!
 
 menu "x86 CPU frequency scaling drivers"
 depends on X86
