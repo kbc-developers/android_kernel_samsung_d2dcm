@@ -12,7 +12,7 @@ BUILD_RECOVERY_VER=CWM-V6.0.1.2_r10
 ###########################################################
 export KBUILD_BUILD_VERSION="1"
 export KBUILD_BUILD_USER="HomuHomu,Kyapa,Sakuramilk"
-export KBUILD_BUILD_HOST="この戦いが終わったら一緒に暮らそう"
+export KBUILD_BUILD_HOST="パンツは私が脱ぐわ"
 
 
 ###########################################################
