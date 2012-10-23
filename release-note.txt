@@ -41,12 +41,12 @@
       RAM Console support
 
     Others
-      kernel version 3.0.8 -> 3.0.41
-      Use compiler linaro 2012.07
+      kernel version 3.0.8 -> 3.0.47
+      Use compiler linaro 2012.09
 
 
   2. 注意事項
-    Odinで焼いた場合countが上がり保証が切れます
+    使用すると保証が切れます
     文鎮化の可能性があります
 
     root取得について
@@ -76,6 +76,10 @@
 
 
   5. 更新履歴
+    V1.3.4  kernel version update
+            ext4 formatのsdcardをサポート
+            compiler update (Linaro 2012.07 -> 2012.09)
+
     V1.3.2  kernel version update
             Voltage Control削除
             電圧値調整
