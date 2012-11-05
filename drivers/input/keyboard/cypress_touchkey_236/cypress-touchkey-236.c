@@ -94,7 +94,9 @@ struct cypress_touchkey_info {
 	struct workqueue_struct			*led_wq;
 	struct work_struct			led_work;
 	bool is_powering_on;
-
+#ifdef CONFIG_TWEAK_REPLACE_BACK_MENU
+	int replace_back_menu;
+#endif
 };
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -240,6 +242,20 @@ static irqreturn_t cypress_touchkey_interrupt(int irq, void *dev_id)
 		printk(KERN_ERR "[TouchKey] touch_pressed = %d\n",
 							touch_is_pressed);
 	} else {
+#ifdef CONFIG_TWEAK_REPLACE_BACK_MENU
+		if (info->replace_back_menu) {
+			printk("replace key\n");
+			if (info->keycode[code] == KEY_BACK) {
+				printk("replace key BACK -> MENU\n");
+				input_report_key(info->input_dev, KEY_MENU, press);
+			} else if (info->keycode[code] == KEY_MENU) {
+				printk("replace key MENU -> BACK\n");
+				input_report_key(info->input_dev, KEY_BACK, press);
+			} else {
+				input_report_key(info->input_dev, info->keycode[code], press);
+			}
+		} else
+#endif
 		input_report_key(info->input_dev, info->keycode[code], press);
 		input_sync(info->input_dev);
 	}
@@ -797,6 +813,23 @@ static ssize_t autocalibration_status(struct device *dev,
 		return sprintf(buf, "Disabled\n");
 }
 
+#ifdef CONFIG_TWEAK_REPLACE_BACK_MENU
+static ssize_t touchkey_replace_back_menu_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct cypress_touchkey_info *info = dev_get_drvdata(dev);
+	return sprintf(buf, "%d\n", info->replace_back_menu);
+}
+
+static ssize_t touchkey_replace_back_menu_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct cypress_touchkey_info *info = dev_get_drvdata(dev);
+	sscanf(buf, "%d", &info->replace_back_menu);
+	return size;
+}
+#endif
+
 static DEVICE_ATTR(touchkey_firm_update_status,
 		S_IRUGO | S_IWUSR | S_IWGRP, touchkey_firm_status_show, NULL);
 static DEVICE_ATTR(touchkey_firm_version_panel, S_IRUGO,
@@ -827,7 +860,11 @@ static DEVICE_ATTR(autocal_stat, S_IRUGO | S_IWUSR | S_IWGRP,
 		   autocalibration_status, NULL);
 static DEVICE_ATTR(touchkey_brightness_level, S_IRUGO | S_IWUSR | S_IWGRP,
 				brightness_level_show, brightness_control);
-
+#ifdef CONFIG_TWEAK_REPLACE_BACK_MENU
+static DEVICE_ATTR(touchkey_replace_back_menu, 0666,
+				touchkey_replace_back_menu_show,
+				touchkey_replace_back_menu_store);
+#endif
 
 static int __devinit cypress_touchkey_probe(struct i2c_client *client,
 				  const struct i2c_device_id *id)
@@ -873,6 +910,9 @@ static int __devinit cypress_touchkey_probe(struct i2c_client *client,
 	input_dev->phys = info->phys;
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = &client->dev;
+#ifdef CONFIG_TWEAK_REPLACE_BACK_MENU
+	info->replace_back_menu = 0;
+#endif
 
 	info->is_powering_on = true;
 
@@ -1121,6 +1161,14 @@ static int __devinit cypress_touchkey_probe(struct i2c_client *client,
 		dev_attr_touchkey_brightness_level.attr.name);
 		goto err_sysfs;
 	}
+#ifdef CONFIG_TWEAK_REPLACE_BACK_MENU
+	if (device_create_file(sec_touchkey,
+		&dev_attr_touchkey_replace_back_menu) < 0) {
+		printk(KERN_ERR "Failed to create device file(%s)!\n",
+		dev_attr_touchkey_replace_back_menu.attr.name);
+		goto err_sysfs;
+	}
+#endif
 	info->is_powering_on = false;
 	return 0;
 
