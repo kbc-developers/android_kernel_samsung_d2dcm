@@ -1,0 +1,32 @@
+###########################################################
+# set kernel version
+###########################################################
+TARGET_DEVICE=SC06D-JB
+BUILD_MOD=KBC
+BUILD_VERSION=V2.0.2
+BUILD_RECOVERY_VER=CWM-V6.0.1.2_r10
+
+
+###########################################################
+# set build user and host
+###########################################################
+export KBUILD_BUILD_VERSION="1"
+export KBUILD_BUILD_USER="HomuHomu,Kyapa,Sakuramilk"
+export KBUILD_BUILD_HOST="六花たん可愛すぎて生きるのが辛い"
+
+
+###########################################################
+# don't edit
+###########################################################
+# release build
+if [ ! "$RELEASE_BUILD" = 'y' ]; then
+  BUILD_VERSION=`date +%Y%m%d`
+fi
+export BUILD_LOCALVERSION="$TARGET_DEVICE-$BUILD_MOD-$BUILD_VERSION-$BUILD_TARGET"
+export BUILD_RECOVERYVERSION="$TARGET_DEVICE-$BUILD_MOD-$BUILD_RECOVERY_VER"
+
+# kernel vesion
+KERNEL_VERSION=`grep '^VERSION = ' ./Makefile | cut -d' ' -f3`
+KERNEL_PATCHLEVEL=`grep '^PATCHLEVEL = ' ./Makefile | cut -d' ' -f3`
+KERNEL_SUBLEVEL=`grep '^SUBLEVEL = ' ./Makefile | cut -d' ' -f3`
+export BUILD_KERNELVERSION="$KERNEL_VERSION.$KERNEL_PATCHLEVEL.$KERNEL_SUBLEVEL"
