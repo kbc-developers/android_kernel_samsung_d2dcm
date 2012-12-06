@@ -284,6 +284,11 @@ void arch_reset(char mode, const char *cmd)
 		} else if (!strncmp(cmd, "debug", 5) /* set debug leve */
 				&& !kstrtoul(cmd + 5, 0, &value)) {
 			__raw_writel(0xabcd0000 | value, restart_reason);
+#ifdef CONFIG_SEC_SSR_DEBUG_LEVEL_CHK
+		} else if (!strncmp(cmd, "cpdebug", 7) /* set cp debug level */
+				&& !kstrtoul(cmd + 7, 0, &value)) {
+			__raw_writel(0xfedc0000 | value, restart_reason);
+#endif
 		} else if (!strncmp(cmd, "nvbackup", 8)) {
 			__raw_writel(0x77665511, restart_reason);
 		} else if (!strncmp(cmd, "nvrestore", 9)) {
