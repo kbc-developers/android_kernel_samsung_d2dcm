@@ -353,10 +353,36 @@ CC		= $(srctree)/scripts/gcc-wrapper.py $(REAL_CC)
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
+ifeq ($(USE_CFLAGS_OPTION),y)
+CFLAGS_MODULE   = -fgcse-lm -fgcse-sm -fsched-spec-load -fforce-addr \
+		  -ffast-math -fsingle-precision-constant \
+		  -fmodulo-sched -fmodulo-sched-allow-regmoves \
+		  -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
+		  -march=armv7-a -mfpu=neon -ftree-vectorize
+ifeq ($(HAVE_TUNE_CORTEX_A15),y)
+CFLAGS_MODULE  += -mtune=cortex-a15
+else
+CFLAGS_MODULE  += -mtune=cortex-a9
+endif
+else
 CFLAGS_MODULE   =
+endif
 AFLAGS_MODULE   =
 LDFLAGS_MODULE  =
+ifeq ($(USE_CFLAGS_OPTION),y)
+CFLAGS_KERNEL	= -fgcse-lm -fgcse-sm -fsched-spec-load -fforce-addr \
+		  -ffast-math -fsingle-precision-constant \
+		  -fmodulo-sched -fmodulo-sched-allow-regmoves \
+		  -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
+		  -march=armv7-a -mfpu=neon -ftree-vectorize
+ifeq ($(HAVE_TUNE_CORTEX_A15),y)
+CFLAGS_KERNEL  += -mtune=cortex-a15
+else
+CFLAGS_KERNEL  += -mtune=cortex-a9
+endif
+else
 CFLAGS_KERNEL	=
+endif
 AFLAGS_KERNEL	=
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
@@ -383,6 +409,10 @@ KBUILD_AFLAGS   := -D__ASSEMBLY__
 KBUILD_AFLAGS_MODULE  := -DMODULE
 KBUILD_CFLAGS_MODULE  := -DMODULE
 KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
+
+ifeq ($(HAVE_NO_UNALIGNED_ACCESS),y)
+KBUILD_CFLAGS += -mno-unaligned-access
+endif
 
 # Read KERNELRELEASE from include/config/kernel.release (if it exists)
 KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
@@ -569,7 +599,7 @@ all: vmlinux
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
-KBUILD_CFLAGS	+= -O2
+KBUILD_CFLAGS	+= -O3
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile

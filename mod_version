@@ -1,9 +1,9 @@
 ###########################################################
 # set kernel version
 ###########################################################
-TARGET_DEVICE=SC06D-JB
+TARGET_DEVICE=SC06D-JB-MR1
 BUILD_MOD=KBC
-BUILD_VERSION=V2.0.2
+BUILD_VERSION=V4.0.0
 BUILD_RECOVERY_VER=CWM-V6.0.1.2_r10
 
 
