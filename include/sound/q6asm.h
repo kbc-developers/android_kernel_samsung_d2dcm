@@ -15,7 +15,7 @@
 #include <mach/qdsp6v2/apr.h>
 #include <mach/msm_subsystem_map.h>
 #include <sound/apr_audio.h>
-#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && !defined(CONFIG_MACH_M2_DCM)
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
 #include <linux/ion.h>
 #endif
 
@@ -100,7 +100,7 @@ struct audio_buffer {
 	uint32_t   used;
 	uint32_t   size;/* size of buffer */
 	uint32_t   actual_size; /* actual number of bytes read by DSP */
-#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && !defined(CONFIG_MACH_M2_DCM)
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
 	struct ion_handle *handle;
 	struct ion_client *client;
 #else
@@ -315,4 +315,3 @@ int q6asm_get_apr_service_id(int session_id);
 int q6asm_media_format_block(struct audio_client *ac, uint32_t format);
 
 #endif /* __Q6_ASM_H__ */
-
