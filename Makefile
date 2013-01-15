@@ -357,8 +357,10 @@ ifeq ($(USE_CFLAGS_OPTION),y)
 CFLAGS_MODULE   = -fgcse-lm -fgcse-sm -fsched-spec-load -fforce-addr \
 		  -ffast-math -fsingle-precision-constant \
 		  -fmodulo-sched -fmodulo-sched-allow-regmoves \
-		  -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
-		  -march=armv7-a -mfpu=neon -ftree-vectorize
+		  -funroll-loops -fpredictive-commoning -fgcse-after-reload \
+		  -ftree-vectorize \
+		  -marm -march=armv7-a -mfpu=neon \
+		  -mvectorize-with-neon-quad
 ifeq ($(HAVE_TUNE_CORTEX_A15),y)
 CFLAGS_MODULE  += -mtune=cortex-a15
 else
@@ -373,8 +375,10 @@ ifeq ($(USE_CFLAGS_OPTION),y)
 CFLAGS_KERNEL	= -fgcse-lm -fgcse-sm -fsched-spec-load -fforce-addr \
 		  -ffast-math -fsingle-precision-constant \
 		  -fmodulo-sched -fmodulo-sched-allow-regmoves \
-		  -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
-		  -march=armv7-a -mfpu=neon -ftree-vectorize
+		  -funroll-loops -fpredictive-commoning -fgcse-after-reload \
+		  -ftree-vectorize \
+		  -marm -march=armv7-a -mfpu=neon \
+		  -mvectorize-with-neon-quad
 ifeq ($(HAVE_TUNE_CORTEX_A15),y)
 CFLAGS_KERNEL  += -mtune=cortex-a15
 else
