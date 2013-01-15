@@ -17,12 +17,8 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/rtc.h>
-#include <linux/syscalls.h> /* sys_sync */
 #include <linux/wakelock.h>
 #include <linux/workqueue.h>
-#ifdef CONFIG_ZRAM_FOR_ANDROID
-#include <asm/atomic.h>
-#endif /* CONFIG_ZRAM_FOR_ANDROID */
 
 #include "power.h"
 
@@ -31,12 +27,7 @@ enum {
 	DEBUG_SUSPEND = 1U << 2,
 	DEBUG_VERBOSE = 1U << 3,
 };
-static int debug_mask = DEBUG_USER_STATE;
-#ifdef CONFIG_ZRAM_FOR_ANDROID
-atomic_t optimize_comp_on = ATOMIC_INIT(0);
-EXPORT_SYMBOL(optimize_comp_on);
-#endif /* CONFIG_ZRAM_FOR_ANDROID */
-
+static int debug_mask = DEBUG_USER_STATE | DEBUG_SUSPEND;
 module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
 
 static DEFINE_MUTEX(early_suspend_lock);
@@ -84,22 +75,17 @@ static void early_suspend(struct work_struct *work)
 	struct early_suspend *pos;
 	unsigned long irqflags;
 	int abort = 0;
-	struct timer_list timer;
-	struct pm_wd_data data;
-
-	pm_wd_add_timer(&timer, &data, 30);
 
 	mutex_lock(&early_suspend_lock);
 	spin_lock_irqsave(&state_lock, irqflags);
-#ifdef CONFIG_ZRAM_FOR_ANDROID
-	atomic_set(&optimize_comp_on, 1);
-#endif /* CONFIG_ZRAM_FOR_ANDROID */
 	if (state == SUSPEND_REQUESTED)
 		state |= SUSPENDED;
 	else
 		abort = 1;
 	spin_unlock_irqrestore(&state_lock, irqflags);
 
+	if (debug_mask & DEBUG_SUSPEND)
+		pr_debug("early_suspend: begin\n");
 	if (abort) {
 		if (debug_mask & DEBUG_SUSPEND)
 			pr_info("early_suspend: abort, state %d\n", state);
@@ -111,24 +97,20 @@ static void early_suspend(struct work_struct *work)
 		pr_info("early_suspend: call handlers\n");
 	list_for_each_entry(pos, &early_suspend_handlers, link) {
 		if (pos->suspend != NULL) {
-			if (debug_mask & DEBUG_VERBOSE)
-				pr_info("early_suspend: calling %pf\n", pos->suspend);
+			pr_debug("early_suspend: calling %pf\n", pos->suspend);
 			pos->suspend(pos);
 		}
 	}
 	mutex_unlock(&early_suspend_lock);
 
+	suspend_sys_sync_queue();
 	if (debug_mask & DEBUG_SUSPEND)
-		pr_info("early_suspend: sync\n");
-
-	sys_sync();
+		pr_debug("early_suspend: done\n");
 abort:
 	spin_lock_irqsave(&state_lock, irqflags);
 	if (state == SUSPEND_REQUESTED_AND_SUSPENDED)
 		wake_unlock(&main_wake_lock);
 	spin_unlock_irqrestore(&state_lock, irqflags);
-
-	pm_wd_del_timer(&timer);
 }
 
 static void late_resume(struct work_struct *work)
@@ -136,16 +118,11 @@ static void late_resume(struct work_struct *work)
 	struct early_suspend *pos;
 	unsigned long irqflags;
 	int abort = 0;
-	struct timer_list timer;
-	struct pm_wd_data data;
-
-	pm_wd_add_timer(&timer, &data, 30);
+	if (debug_mask & DEBUG_SUSPEND)
+		pr_debug("late_resume: begin\n");
 
 	mutex_lock(&early_suspend_lock);
 	spin_lock_irqsave(&state_lock, irqflags);
-#ifdef CONFIG_ZRAM_FOR_ANDROID
-	atomic_set(&optimize_comp_on, 0);
-#endif /* CONFIG_ZRAM_FOR_ANDROID */
 	if (state == SUSPENDED)
 		state &= ~SUSPENDED;
 	else
@@ -161,8 +138,7 @@ static void late_resume(struct work_struct *work)
 		pr_info("late_resume: call handlers\n");
 	list_for_each_entry_reverse(pos, &early_suspend_handlers, link) {
 		if (pos->resume != NULL) {
-			if (debug_mask & DEBUG_VERBOSE)
-				pr_info("late_resume: calling %pf\n", pos->resume);
+			pr_debug("late_resume: calling %pf\n", pos->resume);
 
 			pos->resume(pos);
 		}
@@ -171,8 +147,6 @@ static void late_resume(struct work_struct *work)
 		pr_info("late_resume: done\n");
 abort:
 	mutex_unlock(&early_suspend_lock);
-
-	pm_wd_del_timer(&timer);
 }
 
 void request_suspend_state(suspend_state_t new_state)
@@ -211,4 +185,3 @@ suspend_state_t get_suspend_state(void)
 {
 	return requested_suspend_state;
 }
-

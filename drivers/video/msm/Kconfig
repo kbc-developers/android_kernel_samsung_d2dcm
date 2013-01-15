@@ -911,11 +911,4 @@ config FB_MSM_EBI2_PANEL_DETECT
 	default n
 	---help---
 	  Support for EBI2 panel auto detect
-
-config TGS3_MDNIE_CTRL
-	bool "Enable TweakGS3 mDNIe control"
-	default y
-	help
-	 This option enables TweakGS3 mDNIe control.
-
 endif

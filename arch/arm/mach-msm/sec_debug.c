@@ -246,11 +246,6 @@ static int force_error(const char *val, struct kernel_param *kp)
 	} else if (!strncmp(val, "undef", 5)) {
 		pr_emerg("Generating a undefined instruction exception!\n");
 		BUG();
-#ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
-	} else if (!strncmp(val, "ldcache", 7)) {
-		pr_emerg("Generating a sec_l1_dcache_check_fail!\n");
-		sec_l1_dcache_check_fail();
-#endif
 	} else if (!strncmp(val, "bushang", 7)) {
 		void __iomem *p;
 		unsigned int val;
@@ -543,25 +538,6 @@ void sec_peripheral_secure_check_fail(void)
 }
 EXPORT_SYMBOL(sec_peripheral_secure_check_fail);
 #endif
-
-
-#ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
-void sec_l1_dcache_check_fail(void)
-{
-	sec_debug_set_qc_dload_magic(0);
-	sec_debug_set_upload_magic(0x77665588);
-	pr_emerg("(%s) %s\n", __func__, sec_build_info);
-	pr_emerg("(%s) rebooting...\n", __func__);
-	flush_cache_all();
-	outer_flush_all();
-	arch_reset(0, "l1_dcache_reset");
-
-	while (1)
-		;
-}
-EXPORT_SYMBOL(sec_l1_dcache_check_fail);
-#endif
-
 
 
 #ifdef CONFIG_SEC_DEBUG_LOW_LOG
@@ -881,10 +857,10 @@ int __init sec_debug_init(void)
 
 	pr_emerg("%s: enable=%d\n", __func__, enable);
 
-	//restart_reason = ioremap_nocache((unsigned long)restart_reason, SZ_4K);
+	restart_reason = ioremap_nocache((unsigned long)restart_reason, SZ_4K);
 	/* check restart_reason here */
-	//pr_emerg("%s: restart_reason : 0x%x\n", __func__,
-	//	(unsigned int)restart_reason);
+	pr_emerg("%s: restart_reason : 0x%x\n", __func__,
+		(unsigned int)restart_reason);
 
 	register_reboot_notifier(&nb_reboot_block);
 	atomic_notifier_chain_register(&panic_notifier_list, &nb_panic_block);

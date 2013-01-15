@@ -985,10 +985,6 @@ static struct pil_q6v4_pdata msm_8960_q6_mss_fw_data = {
 	.aclk_reg = SFAB_MSS_Q6_FW_ACLK_CTL,
 	.jtag_clk_reg = MSS_Q6FW_JTAG_CLK_CTL,
 	.xo_id = MSM_XO_CXO,
-#if defined(CONFIG_MACH_M2_DCM)
-	.xo1_id = MSM_XO_TCXO_A0,
-	.xo2_id = MSM_XO_TCXO_A1,
-#endif
 	.name = "modem_fw",
 	.depends = "q6",
 	.pas_id = PAS_MODEM_FW,
@@ -2665,7 +2661,7 @@ static struct msm_bus_vectors grp3d_low_vectors[] = {
 		.src = MSM_BUS_MASTER_GRAPHICS_3D,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(1000), // bus 125 MHz
+		.ib = KGSL_CONVERT_TO_MBPS(1000),
 	},
 };
 
@@ -2674,17 +2670,16 @@ static struct msm_bus_vectors grp3d_nominal_low_vectors[] = {
 		.src = MSM_BUS_MASTER_GRAPHICS_3D,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(2048), // bus 256 MHz
+		.ib = KGSL_CONVERT_TO_MBPS(2048),
 	},
 };
 
-#if defined(CONFIG_GPU_OVERCLOCK) && defined(CONFIG_MSM_USE_OVERCLOCK)
 static struct msm_bus_vectors grp3d_nominal_high_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_GRAPHICS_3D,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(3968), // bus 496 MHz
+		.ib = KGSL_CONVERT_TO_MBPS(2656),
 	},
 };
 
@@ -2693,28 +2688,9 @@ static struct msm_bus_vectors grp3d_max_vectors[] = {
 		.src = MSM_BUS_MASTER_GRAPHICS_3D,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(4264), // bus 533 MHz
+		.ib = KGSL_CONVERT_TO_MBPS(3968),
 	},
 };
-#else
-static struct msm_bus_vectors grp3d_nominal_high_vectors[] = {
-	{
-		.src = MSM_BUS_MASTER_GRAPHICS_3D,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(2656), // bus 332 MHz
-	},
-};
-
-static struct msm_bus_vectors grp3d_max_vectors[] = {
-	{
-		.src = MSM_BUS_MASTER_GRAPHICS_3D,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(3968), // bus 496 MHz
-	},
-};
-#endif
 
 static struct msm_bus_paths grp3d_bus_scale_usecases[] = {
 	{
@@ -2873,18 +2849,6 @@ static struct kgsl_device_iommu_data kgsl_3d0_iommu_data[] = {
 
 static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 	.pwrlevel = {
-#if defined(CONFIG_GPU_OVERCLOCK) && defined(CONFIG_MSM_USE_OVERCLOCK)
-		{
-			.gpu_freq = 480000000,
-			.bus_freq = 4,
-			.io_fraction = 0,
-		},
-		{
-			.gpu_freq = 400000000,
-			.bus_freq = 3,
-			.io_fraction = 0,
-		},
-#else
 		{
 			.gpu_freq = 400000000,
 			.bus_freq = 4,
@@ -2895,7 +2859,6 @@ static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 			.bus_freq = 3,
 			.io_fraction = 33,
 		},
-#endif
 		{
 			.gpu_freq = 200000000,
 			.bus_freq = 2,

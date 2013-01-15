@@ -1616,11 +1616,7 @@ static void cam_ldo_power_off(int mode)
 }
 #endif
 #elif defined(CONFIG_S5C73M3) || defined(CONFIG_S5K6A3YX) /* D2 */
-#if defined(CONFIG_MACH_M2_DCM)
-static int vddCore = 1230000;
-#else
 static int vddCore = 1150000;
-#endif
 static bool isVddCoreSet;
 static u8 gpio_cam_flash_sw;
 static u8 pmic_gpio_msm_flash_cntl_en;
@@ -1628,29 +1624,12 @@ static bool isFlashCntlEn;
 
 static void cam_set_isp_core(int level)
 {
-
-#if defined(CONFIG_MACH_M2_DCM)
-	if (level == 1000000) {
-		pr_err("Change core voltage\n");
-		vddCore = 1060000;
-	} else if (level == 1050000) {
-		pr_err("Change core voltage\n");
-		vddCore = 1110000;
-	} else if (level == 1100000) {
-		pr_err("Change core voltage\n");
-		vddCore = 1170000;
-	} else if (level == 1150000) {
-		pr_err("Change core voltage\n");
-		vddCore = 1230000;
-	} else
-		vddCore = level;
-#else
 	if (level == 1050000) {
 		pr_err("Change core voltage\n");
 		vddCore = 1100000;
 	} else
 		vddCore = level;
-#endif
+
 	isVddCoreSet = true;
 	pr_err("ISP CORE = %d\n", vddCore);
 }
@@ -1775,20 +1754,6 @@ static void cam_ldo_power_on(int mode, int num)
 			} else
 				gpio_set_value_cansleep(CAM_CORE_EN, 1);
 #elif defined(CONFIG_MACH_M2_DCM)
-			if (system_rev >= BOARD_REV03) {
-				printk(KERN_DEBUG "[s5c73m3] vzw check vddCore : %d\n",
-					vddCore);
-
-				isp_core = regulator_get(NULL, "cam_isp_core");
-				ret = regulator_set_voltage(isp_core,
-					vddCore, vddCore);
-				if (ret)
-					cam_err("error setting voltage\n");
-
-				ret = regulator_enable(isp_core);
-				if (ret)
-					cam_err("error enabling regulator.");
-			} else
 			gpio_set_value_cansleep(gpio_rev(CAM_CORE_EN), 1);
 #else
 			gpio_set_value_cansleep(CAM_CORE_EN, 1);
@@ -1934,13 +1899,6 @@ static void cam_ldo_power_off(int mode)
 			cam_err("error disabling regulator");
 		regulator_put(isp_core);
 #elif defined(CONFIG_MACH_M2_DCM)
-		if (system_rev >= BOARD_REV03){
-			ret = regulator_disable(isp_core);
-			if (ret)
-				cam_err("error disabling regulator");
-			regulator_put(isp_core);
-		}
-		else
 		gpio_set_value_cansleep(gpio_rev(CAM_CORE_EN), 0);
 #else
 		gpio_set_value_cansleep(CAM_CORE_EN, 0);

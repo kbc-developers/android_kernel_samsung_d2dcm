@@ -636,16 +636,15 @@ static int pm8921_led0_pat6_blue_pwm_duty_pcts[] = {
 	94, 95, 96, 97, 98, 99, 100,
 };
 
-static int pm8921_led0_pat8_red_pwm_duty_pcts[] = {
+int pm8921_led0_pat8_red_pwm_duty_pcts[] = {
 	0, 100
 };
-static int pm8921_led0_pat8_green_pwm_duty_pcts[] = {
+int pm8921_led0_pat8_green_pwm_duty_pcts[] = {
 	0, 100
 };
-static int pm8921_led0_pat8_blue_pwm_duty_pcts[] = {
+int pm8921_led0_pat8_blue_pwm_duty_pcts[] = {
 	0, 100
 };
-
 
 
 static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat5_red_duty_cycles = {
@@ -766,6 +765,9 @@ static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat8_blue_duty_cycles = {
 	.start_idx =  ARRAY_SIZE(pm8921_led0_pat8_red_pwm_duty_pcts) +
 			ARRAY_SIZE(pm8921_led0_pat8_green_pwm_duty_pcts),
 };
+
+
+
 
 static struct pm8xxx_led_config pm8921_led_configs[] = {
 	/*pattern 1 Charging*/

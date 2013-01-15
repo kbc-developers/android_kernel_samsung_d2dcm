@@ -2583,7 +2583,6 @@ notest:
 non_fips_alg:
 	return -EINVAL;
 }
-EXPORT_SYMBOL_GPL(testmgr_crypto_proc_init);
 
 #endif /* CONFIG_CRYPTO_MANAGER_DISABLE_TESTS */
 

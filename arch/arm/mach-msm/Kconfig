@@ -1477,10 +1477,6 @@ config MSM_DALRPC_TEST
 	help
 	  Exercises DAL RPC calls to QDSP6.
 
-config CPU_VOLTAGE_TABLE
-	bool "Enable CPU Voltage Table via sysfs for adjustements"
-	default n
-
 config MSM_MPDEC
 	bool "Enable kernel based mpdecision"
 	depends on MSM_SMP
@@ -1989,6 +1985,15 @@ config MSM_PM8X60
 	depends on PM
 	bool
 
+config MSM_EVENT_TIMER
+	bool "Event timer"
+    default y
+	help
+		This option enables a modules that manages a list of event timers that
+		need to be monitored by the PM. The enables the PM code to monitor
+		events that require the core to be awake and ready to handle the
+		event.
+
 config MSM_NOPM
 	default y if !PM
 	bool
@@ -2283,11 +2288,6 @@ config SEC_PERIPHERAL_SECURE_CHK
 	help
 	  To check the authentication of peripheral image.
 
-config SEC_L1_DCACHE_PANIC_CHK
-	bool "L1 Dcache Panic check"
-	help
-	  To check the L1 Dcache Panic on MSM8960.
-
 config SEC_SSR_DEBUG_LEVEL_CHK
 	bool "SSR DEBUG LEVEL check"
 	help
@@ -2301,23 +2301,5 @@ config MSM_DCVS
 	  The DCVS manager allows idle driver to feed the idle information to the
 	  algorithm and the algorithm returns a frequency for the core which is
 	  passed to the frequency change driver.
-
-config MSM_USE_UNDERCLOCK
-	bool "Use CPU Under Frequency"
-	default n
-
-config MSM_USE_OVERCLOCK
-	bool "Use CPU Over Frequency"
-	default n
-
-config BOOST_L2_BANDWIDTH
-	bool "Boost L2 Bandwidth"
-	default n
-
-config GPU_OVERCLOCK
-	bool "Enable GPU Overclocking option"
-	default n
-	help
-	  Adreno2xx overclocking
 
 endif

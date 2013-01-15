@@ -205,7 +205,7 @@ static long read_local_version(struct kim_data_s *kim_gdata, char *bts_scr_name)
 		return -EIO;
 	}
 
-	if (!wait_for_completion_interruptible_timeout
+	if (!wait_for_completion_timeout
 	    (&kim_gdata->kim_rcvd, msecs_to_jiffies(CMD_RESP_TIME))) {
 		pr_err(" waiting for ver info- timed out ");
 		return -ETIMEDOUT;
@@ -361,7 +361,7 @@ static long download_firmware(struct kim_data_s *kim_gdata)
 			}
 			break;
 		case ACTION_WAIT_EVENT:  /* wait */
-			if (!wait_for_completion_interruptible_timeout
+			if (!wait_for_completion_timeout
 					(&kim_gdata->kim_rcvd,
 					 msecs_to_jiffies(CMD_RESP_TIME))) {
 				pr_err("response timeout during fw download ");
@@ -374,7 +374,7 @@ static long download_firmware(struct kim_data_s *kim_gdata)
 		case ACTION_DELAY:	/* sleep */
 			pr_info("sleep command in scr");
 			action_ptr = &(((struct bts_action *)ptr)->data[0]);
-			msleep_interruptible(((struct bts_action_delay *)action_ptr)->msec);
+			mdelay(((struct bts_action_delay *)action_ptr)->msec);
 			break;
 		}
 		len =
@@ -443,7 +443,7 @@ long st_kim_start(void *kim_data)
 		gpio_set_value(kim_gdata->nshutdown, GPIO_LOW);
 		mdelay(5);	/* FIXME: a proper toggle */
 		gpio_set_value(kim_gdata->nshutdown, GPIO_HIGH);
-		msleep_interruptible(100);
+		mdelay(100);
 		/* re-initialize the completion */
 		INIT_COMPLETION(kim_gdata->ldisc_installed);
 		/* send notification to UIM */
@@ -452,7 +452,7 @@ long st_kim_start(void *kim_data)
 		sysfs_notify(&kim_gdata->kim_pdev->dev.kobj,
 				NULL, "install");
 		/* wait for ldisc to be installed */
-		err = wait_for_completion_interruptible_timeout(&kim_gdata->ldisc_installed,
+		err = wait_for_completion_timeout(&kim_gdata->ldisc_installed,
 				msecs_to_jiffies(LDISC_TIME));
 		if (!err) {	/* timeout */
 			pr_err("line disc installation timed out ");
@@ -502,7 +502,7 @@ long st_kim_stop(void *kim_data)
 	sysfs_notify(&kim_gdata->kim_pdev->dev.kobj, NULL, "install");
 
 	/* wait for ldisc to be un-installed */
-	err = wait_for_completion_interruptible_timeout(&kim_gdata->ldisc_installed,
+	err = wait_for_completion_timeout(&kim_gdata->ldisc_installed,
 			msecs_to_jiffies(LDISC_TIME));
 	if (!err) {		/* timeout */
 		pr_err(" timed out waiting for ldisc to be un-installed");

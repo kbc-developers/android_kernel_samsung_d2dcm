@@ -24,10 +24,6 @@
 #include "acpuclock.h"
 #include <linux/ratelimit.h>
 
-#ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
-#include <mach/sec_debug.h>
-#endif
-
 #define CESR_DCTPE		BIT(0)
 #define CESR_DCDPE		BIT(1)
 #define CESR_ICTPE		BIT(2)
@@ -282,13 +278,8 @@ static irqreturn_t msm_l1_erp_irq(int irq, void *dev_id)
 	/* Clear the interrupt bits we processed */
 	write_cesr(cesr);
 
-#ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
-	if (print_regs)
-		sec_l1_dcache_check_fail();
-#else
 	if (print_regs)
 		ERP_L1_ERR("L1 cache error detected");
-#endif
 
 	return IRQ_HANDLED;
 }

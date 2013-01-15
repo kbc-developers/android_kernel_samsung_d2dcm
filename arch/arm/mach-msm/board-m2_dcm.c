@@ -190,7 +190,6 @@ static unsigned char hdmi_is_primary = 1;
 #else
 static unsigned char hdmi_is_primary;
 #endif
-extern int force_fast_charge;
 
 static struct platform_device msm_fm_platform_init = {
 	.name = "iris_fm",
@@ -567,7 +566,7 @@ static int msm8960_paddr_to_memtype(unsigned int paddr)
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
 static struct ion_cp_heap_pdata cp_mm_ion_pdata = {
 	.permission_type = IPT_TYPE_MM_CARVEOUT,
-	.align = SZ_64K,
+	.align = PAGE_SIZE,
 	.reusable = FMEM_ENABLED,
 	.mem_is_fmem = FMEM_ENABLED,
 	.fixed_position = FIXED_MIDDLE,
@@ -701,17 +700,17 @@ static void __init adjust_mem_for_liquid(void)
 			msm_ion_sf_size = MSM_HDMI_PRIM_ION_SF_SIZE;
 
 		if (machine_is_msm8960_liquid() || hdmi_is_primary) {
-		for (i = 0; i < ion_pdata.nr; i++) {
-					if (ion_pdata.heaps[i].id == ION_SF_HEAP_ID) {
-						ion_pdata.heaps[i].size =
+			for (i = 0; i < ion_pdata.nr; i++) {
+				if (ion_pdata.heaps[i].id == ION_SF_HEAP_ID) {
+					ion_pdata.heaps[i].size =
 							msm_ion_sf_size;
-						pr_debug("msm_ion_sf_size 0x%x\n",
+					pr_debug("msm_ion_sf_size 0x%x\n",
 							msm_ion_sf_size);
-				break;
+					break;
+				}
 			}
 		}
 	}
-}
 }
 
 static void __init reserve_mem_for_ion(enum ion_memory_types mem_type,
@@ -1090,15 +1089,17 @@ static void __init msm8960_reserve(void)
 	msm_reserve();
 	if (fmem_pdata.size) {
 #if defined(CONFIG_ION_MSM) && defined(CONFIG_MSM_MULTIMEDIA_USE_ION)
-		fmem_pdata.phys = reserve_info->fixed_area_start;
-		pr_info("mm fw at %lx (fixed) size %x\n",
+		if (reserve_info->fixed_area_size) {
+			fmem_pdata.phys =
+					reserve_info->fixed_area_start;
+			pr_info("mm fw at %lx (fixed) size %x\n",
 			reserve_info->fixed_area_start, MSM_MM_FW_SIZE);
-		pr_info("fmem start %lx (fixed) size %lx\n",
-			fmem_pdata.phys, fmem_pdata.size);
-#else
-		fmem_pdata.phys = reserve_memory_for_fmem(fmem_pdata.size, fmem_pdata.align);
+			pr_info("fmem start %lx (fixed) size %lx\n",
+					fmem_pdata.phys,
+					fmem_pdata.size);
+		}
 #endif
-	}
+    }
 
 	if (system_rev >= 8) {
 		pr_err("Reserving memory at address %x size: %x\n", address, size);
@@ -1339,7 +1340,6 @@ static void fsa9485_usb_cb(bool attached)
 	if (system_rev >= 0x01) {
 		if (attached) {
 			pr_info("%s set vbus state\n", __func__);
-
 			msm_otg_set_vbus_state(attached);
 		}
 	}
@@ -1613,8 +1613,7 @@ int msm8960_get_cable_type(void)
 #endif
 			break;
 		case CABLE_TYPE_USB:
-			if (!force_fast_charge) fsa9485_usb_cb(1);
-				else fsa9485_charger_cb(1);
+			fsa9485_usb_cb(1);
 			break;
 		case CABLE_TYPE_AC:
 			fsa9485_charger_cb(1);
@@ -2077,7 +2076,7 @@ static struct cm36651_platform_data cm36651_pdata = {
 	.cm36651_led_on = cm36651_led_onoff,
 	.cm36651_power_on = cm36651_power_on,
 	.irq = PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_RGB_INT),
-	.threshold = 15,
+	.threshold = 13,
 };
 #endif
 static struct i2c_board_info opt_i2c_borad_info[] = {
@@ -4294,7 +4293,7 @@ static struct sec_jack_zone jack_zones[] = {
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[2] = {
-		.adc_high	= 1720,
+		.adc_high	= 1700,
 		.delay_ms	= 10,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_4POLE,
@@ -4691,15 +4690,28 @@ static struct msm_cpuidle_state msm_cstates[] __initdata = {
 	{0, 0, "C0", "WFI",
 		MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT},
 
-	{0, 1, "C2", "POWER_COLLAPSE",
+	{0, 1, "C1", "STANDALONE_POWER_COLLAPSE",
+		MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE},
+
+	{0, 2, "C2", "POWER_COLLAPSE",
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE},
 
 	{1, 0, "C0", "WFI",
 		MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT},
+
+	{1, 1, "C1", "STANDALONE_POWER_COLLAPSE",
+		MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE},
 };
 
 static struct msm_pm_platform_data msm_pm_data[MSM_PM_SLEEP_MODE_NR * 2] = {
 	[MSM_PM_MODE(0, MSM_PM_SLEEP_MODE_POWER_COLLAPSE)] = {
+		.idle_supported = 1,
+		.suspend_supported = 1,
+		.idle_enabled = 0,
+		.suspend_enabled = 0,
+	},
+
+	[MSM_PM_MODE(0, MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE)] = {
 		.idle_supported = 1,
 		.suspend_supported = 1,
 		.idle_enabled = 0,
@@ -4720,6 +4732,13 @@ static struct msm_pm_platform_data msm_pm_data[MSM_PM_SLEEP_MODE_NR * 2] = {
 		.suspend_enabled = 0,
 	},
 
+	[MSM_PM_MODE(1, MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE)] = {
+		.idle_supported = 1,
+		.suspend_supported = 1,
+		.idle_enabled = 0,
+		.suspend_enabled = 0,
+	},
+
 	[MSM_PM_MODE(1, MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT)] = {
 		.idle_supported = 1,
 		.suspend_supported = 0,
@@ -4734,6 +4753,13 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 		MSM_RPMRS_LIMITS(ON, ACTIVE, MAX, ACTIVE),
 		true,
 		100, 650, 801, 200,
+	},
+
+	{
+		MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE,
+		MSM_RPMRS_LIMITS(ON, ACTIVE, MAX, ACTIVE),
+		true,
+		2000, 200, 576000, 2000,
 	},
 
 	{

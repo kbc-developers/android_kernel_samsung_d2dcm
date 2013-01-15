@@ -1207,7 +1207,7 @@ static struct task_struct *pick_next_highest_task_rt(struct rq *rq, int cpu)
 next_idx:
 		if (idx >= MAX_RT_PRIO)
 			continue;
-		if (next && next->prio <= idx)
+		if (next && next->prio < idx)
 			continue;
 		list_for_each_entry(rt_se, array->queue + idx, run_list) {
 			struct task_struct *p;
@@ -1763,8 +1763,6 @@ static void watchdog(struct rq *rq, struct task_struct *p)
 
 static void task_tick_rt(struct rq *rq, struct task_struct *p, int queued)
 {
-	struct sched_rt_entity *rt_se = &p->rt;
-
 	update_curr_rt(rq);
 
 	watchdog(rq, p);
@@ -1782,15 +1780,12 @@ static void task_tick_rt(struct rq *rq, struct task_struct *p, int queued)
 	p->rt.time_slice = DEF_TIMESLICE;
 
 	/*
-	 * Requeue to the end of queue if we (and all of our ancestors) are the
-	 * only element on the queue
+	 * Requeue to the end of queue if we are not the only element
+	 * on the queue:
 	 */
-	for_each_sched_rt_entity(rt_se) {
-	    if (rt_se->run_list.prev != rt_se->run_list.next) {
-	        requeue_task_rt(rq, p, 0);
+	if (p->rt.run_list.prev != p->rt.run_list.next) {
+		requeue_task_rt(rq, p, 0);
 		set_tsk_need_resched(p);
-		return;
-	    }
 	}
 }
 

@@ -275,11 +275,6 @@ void arch_reset(char mode, const char *cmd)
 			__raw_writel(0x77665507, restart_reason);
 			printk(KERN_NOTICE "peripheral_hw_reset C777!!!!\n");
 #endif
-#ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
-		} else if (!strncmp(cmd, "l1_dcache_reset", 15)) {
-			__raw_writel(0x77665588, restart_reason);
-			printk(KERN_NOTICE "l1_dcache_reset !!!!\n");
-#endif
 		} else if (!strncmp(cmd, "download", 8)) {
 			__raw_writel(0x12345671, restart_reason);
 		} else if (!strncmp(cmd, "sud", 3)) {
