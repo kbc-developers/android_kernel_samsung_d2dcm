@@ -11,3 +11,9 @@ config MOTOR_DRV_MAX77693
 	tristate "Maxim MAX77693 motor"
 	default n
 	depends on MFD_MAX77693
+
+config TGS3_VIB_CTRL
+	bool "Enable TweakGS3 vib control"
+	default y
+	help
+	 This option enables TweakGS3 vib control.

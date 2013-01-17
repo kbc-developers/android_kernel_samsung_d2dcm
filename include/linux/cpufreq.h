@@ -185,6 +185,7 @@ struct cpufreq_governor {
 			will fallback to performance governor */
 	struct list_head	governor_list;
 	struct module		*owner;
+	int (*boost_cpu_freq)	(struct cpufreq_policy *policy);
 };
 
 /*
@@ -347,8 +348,20 @@ static inline unsigned int cpufreq_quick_get(unsigned int cpu)
 
 #define LOW_MAX_FREQ_LIMIT 1188000
 
+#ifdef CONFIG_MSM_USE_UNDERCLOCK
+#define MIN_FREQ_LIMIT 192000
+#define MIN_FREQ_LIMIT_STARTUP 384000
+#else
 #define MIN_FREQ_LIMIT 384000
+#define MIN_FREQ_LIMIT_STARTUP 384000
+#endif
+#ifdef CONFIG_MSM_USE_OVERCLOCK
+#define MAX_FREQ_LIMIT 1836000
+#define MAX_FREQ_LIMIT_STARTUP 1512000
+#else
 #define MAX_FREQ_LIMIT 1512000
+#define MAX_FREQ_LIMIT_STARTUP 1512000
+#endif
 
 enum {
 	SET_MIN = 0,
@@ -436,9 +449,18 @@ extern struct cpufreq_governor cpufreq_gov_ondemand;
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_CONSERVATIVE)
 extern struct cpufreq_governor cpufreq_gov_conservative;
 #define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_conservative)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_LAGFREE)
+extern struct cpufreq_governor cpufreq_gov_lagfree;
+#define CPUFREQ_DEFAULT_GOVERNOR        (&cpufreq_gov_lagfree)
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE)
 extern struct cpufreq_governor cpufreq_gov_interactive;
 #define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_interactive)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_SAKURACTIVE)
+extern struct cpufreq_governor cpufreq_gov_sakuractive;
+#define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_sakuractive)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_LAZY)
+extern struct cpufreq_governor cpufreq_gov_lazy;
+#define CPUFREQ_DEFAULT_GOVERNOR  (&cpufreq_gov_lazy)
 #endif
 
 

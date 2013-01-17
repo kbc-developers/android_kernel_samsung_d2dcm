@@ -105,6 +105,11 @@ void unlock_policy_rwsem_write(int cpu)
 	up_write(&per_cpu(cpu_policy_rwsem, policy_cpu));
 }
 
+#ifdef CONFIG_MSM_USE_OVERCLOCK
+#define FREQ_STEPS  16
+#else
+#define FREQ_STEPS  12
+#endif
 
 /* internal prototypes */
 static int __cpufreq_governor(struct cpufreq_policy *policy,
@@ -435,6 +440,9 @@ static ssize_t store_##file_name					\
 }
 
 #ifdef CONFIG_SEC_DVFS
+static unsigned int safe_scaling_max_freq = MAX_FREQ_LIMIT_STARTUP;
+static unsigned int safe_scaling_min_freq = MAX_FREQ_LIMIT_STARTUP;
+
 static ssize_t store_scaling_min_freq
 (struct cpufreq_policy *policy, const char *buf, size_t count)
 {
@@ -444,6 +452,10 @@ static ssize_t store_scaling_min_freq
 	ret = sscanf(buf, "%u", &value);
 	if (ret != 1)
 		return -EINVAL;
+
+	safe_scaling_min_freq = value;
+	if (safe_scaling_min_freq < MIN_FREQ_LIMIT)
+		safe_scaling_min_freq = MIN_FREQ_LIMIT;
 
 	if (policy->cpu == BOOT_CPU) {
 		if (value <= MIN_FREQ_LIMIT)
@@ -464,6 +476,10 @@ static ssize_t store_scaling_max_freq
 	ret = sscanf(buf, "%u", &value);
 	if (ret != 1)
 		return -EINVAL;
+
+	safe_scaling_max_freq = value;
+	if (safe_scaling_max_freq > MAX_FREQ_LIMIT)
+		safe_scaling_max_freq = MAX_FREQ_LIMIT;
 
 	if (policy->cpu == BOOT_CPU) {
 		if (value >= MAX_FREQ_LIMIT)
@@ -649,6 +665,34 @@ static ssize_t show_scaling_setspeed(struct cpufreq_policy *policy, char *buf)
 	return policy->governor->show_setspeed(policy, buf);
 }
 
+static ssize_t show_boost_cpufreq(struct cpufreq_policy *policy, char *buf)
+{
+	if (!policy->governor || !policy->governor->boost_cpu_freq)
+		return sprintf(buf, "<unsupported>\n");
+
+	return sprintf(buf, "%d\n", 0);
+}
+
+static ssize_t store_boost_cpufreq(struct cpufreq_policy *policy,
+					const char *buf, size_t count)
+{
+	unsigned int boost = 0;
+	unsigned int ret;
+
+	if (!policy->governor)
+		return -EINVAL;
+
+	ret = sscanf(buf, "%u", &boost);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (policy->governor->boost_cpu_freq)
+		policy->governor->boost_cpu_freq(policy);
+
+	return count;
+
+}
+
 /**
  * show_scaling_driver - show the current cpufreq HW/BIOS limitation
  */
@@ -663,6 +707,45 @@ static ssize_t show_bios_limit(struct cpufreq_policy *policy, char *buf)
 	}
 	return sprintf(buf, "%u\n", policy->cpuinfo.max_freq);
 }
+
+#ifdef CONFIG_CPU_VOLTAGE_TABLE
+
+extern ssize_t acpuclk_get_vdd_levels_str(char *buf, int isApp);
+extern ssize_t acpuclk_get_default_vdd_levels_str(char *buf, int isApp);
+extern void acpuclk_set_vdd(unsigned acpu_khz, int vdd);
+extern void acpuclk_UV_mV_table(int cnt, int vdd_uv[]);
+
+ssize_t show_UV_mV_table(struct cpufreq_policy *policy, char *buf)
+{
+	return acpuclk_get_vdd_levels_str(buf, FREQ_STEPS);
+}
+
+ssize_t store_UV_mV_table(struct cpufreq_policy *policy,
+                                      const char *buf, size_t count)
+{
+	unsigned int ret = -EINVAL;
+	int u[FREQ_STEPS];
+#ifdef CONFIG_MSM_USE_OVERCLOCK
+	ret = sscanf(buf, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+		 &u[0], &u[1], &u[2], &u[3], &u[4], &u[5], &u[6], &u[7], &u[8], &u[9], &u[10], &u[11],
+		 &u[12], &u[13],&u[14], &u[15]);
+#else
+	ret = sscanf(buf, "%d %d %d %d %d %d %d %d %d %d %d %d",
+		 &u[0], &u[1], &u[2], &u[3], &u[4], &u[5], &u[6], &u[7], &u[8], &u[9], &u[10], &u[11]);
+#endif
+	if(ret != FREQ_STEPS) {
+		return -EINVAL;
+	}
+
+	acpuclk_UV_mV_table(FREQ_STEPS, u);
+	return count;
+}
+
+ssize_t show_UV_mV_default_table(struct cpufreq_policy *policy, char *buf)
+{
+	return acpuclk_get_default_vdd_levels_str(buf, FREQ_STEPS);
+}
+#endif	/* CONFIG_CPU_VOLTAGE_TABLE */
 
 cpufreq_freq_attr_ro_perm(cpuinfo_cur_freq, 0400);
 cpufreq_freq_attr_ro(cpuinfo_min_freq);
@@ -679,6 +762,11 @@ cpufreq_freq_attr_rw(scaling_min_freq);
 cpufreq_freq_attr_rw(scaling_max_freq);
 cpufreq_freq_attr_rw(scaling_governor);
 cpufreq_freq_attr_rw(scaling_setspeed);
+#ifdef CONFIG_CPU_VOLTAGE_TABLE
+cpufreq_freq_attr_rw(UV_mV_table);
+cpufreq_freq_attr_ro(UV_mV_default_table);
+#endif
+cpufreq_freq_attr_rw(boost_cpufreq);
 
 static struct attribute *default_attrs[] = {
 	&cpuinfo_min_freq.attr,
@@ -693,6 +781,11 @@ static struct attribute *default_attrs[] = {
 	&scaling_driver.attr,
 	&scaling_available_governors.attr,
 	&scaling_setspeed.attr,
+#ifdef CONFIG_CPU_VOLTAGE_TABLE
+	&UV_mV_table.attr,
+	&UV_mV_default_table.attr,
+#endif
+	&boost_cpufreq.attr,
 	NULL
 };
 
@@ -795,9 +888,15 @@ static int cpufreq_add_dev_policy(unsigned int cpu,
 	if (per_cpu(cpufreq_policy_save, cpu).min) {
 		policy->min = per_cpu(cpufreq_policy_save, cpu).min;
 		policy->user_policy.min = policy->min;
+	} else {
+		policy->min = MIN_FREQ_LIMIT_STARTUP;
+		policy->user_policy.min = policy->min;
 	}
 	if (per_cpu(cpufreq_policy_save, cpu).max) {
 		policy->max = per_cpu(cpufreq_policy_save, cpu).max;
+		policy->user_policy.max = policy->max;
+	} else {
+		policy->max = MAX_FREQ_LIMIT_STARTUP;
 		policy->user_policy.max = policy->max;
 	}
 	pr_debug("Restoring CPU%d min %d and max %d\n",
@@ -1819,10 +1918,10 @@ static DEFINE_SEMAPHORE(cpufreq_defered_lock);
 static DEFINE_MUTEX(set_cpu_freq_lock);
 
 static unsigned long freq_limit_start_flag;
-static unsigned int app_min_freq_limit = MIN_FREQ_LIMIT;
-static unsigned int app_max_freq_limit = MAX_FREQ_LIMIT;
-static unsigned int user_min_freq_limit = MIN_FREQ_LIMIT;
-static unsigned int user_max_freq_limit = MAX_FREQ_LIMIT;
+static unsigned int app_min_freq_limit = MIN_FREQ_LIMIT_STARTUP;
+static unsigned int app_max_freq_limit = MAX_FREQ_LIMIT_STARTUP;
+static unsigned int user_min_freq_limit = MIN_FREQ_LIMIT_STARTUP;
+static unsigned int user_max_freq_limit = MAX_FREQ_LIMIT_STARTUP;
 
 static int cpufreq_set_limits_off
 	(int cpu, unsigned int min, unsigned int max)
@@ -1925,19 +2024,19 @@ int cpufreq_set_limit(unsigned int flag, unsigned int value)
 	if (flag == APPS_MAX_START)
 		app_max_freq_limit = value;
 	else if (flag == APPS_MAX_STOP)
-		app_max_freq_limit = MAX_FREQ_LIMIT;
+		app_max_freq_limit = value;
 	else if (flag == APPS_MIN_START)
 		app_min_freq_limit = value;
 	else if (flag == APPS_MIN_STOP)
-		app_min_freq_limit = MIN_FREQ_LIMIT;
+		app_min_freq_limit = value;
 	else if (flag == USER_MAX_START)
 		user_max_freq_limit = value;
 	else if (flag == USER_MAX_STOP)
-		user_max_freq_limit = MAX_FREQ_LIMIT;
+		user_max_freq_limit = safe_scaling_max_freq;
 	else if (flag == USER_MIN_START)
 		user_min_freq_limit = value;
 	else if (flag == USER_MIN_STOP)
-		user_min_freq_limit = MIN_FREQ_LIMIT;
+		user_min_freq_limit = safe_scaling_min_freq;
 
 	/*  set/clear bits */
 	if (flag%10 == 0)
@@ -1952,7 +2051,7 @@ int cpufreq_set_limit(unsigned int flag, unsigned int value)
 	if (freq_limit_start_flag & UNI_PRO_BIT)
 		max_value = LOW_MAX_FREQ_LIMIT;
 	else
-		max_value = MAX_FREQ_LIMIT;
+		max_value = user_max_freq_limit;
 
 	/* cpufreq_max_limit */
 	if (freq_limit_start_flag & APPS_MAX_BIT) {
@@ -1980,7 +2079,7 @@ int cpufreq_set_limit(unsigned int flag, unsigned int value)
 	else if (freq_limit_start_flag & TOUCH_BOOSTER_BIT)
 		min_value = TOUCH_BOOSTER_FREQ_LIMIT;
 	else
-		min_value = MIN_FREQ_LIMIT;
+		min_value = user_min_freq_limit;
 
 	/* cpufreq_min_limit */
 	if (freq_limit_start_flag & APPS_MIN_BIT) {
@@ -2061,6 +2160,11 @@ int cpufreq_update_policy(unsigned int cpu)
 		ret = -EINVAL;
 		goto fail;
 	}
+
+	if (data->user_policy.max > safe_scaling_max_freq)
+		data->user_policy.max = safe_scaling_max_freq;
+	if (data->user_policy.min > safe_scaling_min_freq)
+		data->user_policy.min = safe_scaling_min_freq;
 
 	pr_debug("updating policy for CPU %u\n", cpu);
 	memcpy(&policy, data, sizeof(struct cpufreq_policy));
