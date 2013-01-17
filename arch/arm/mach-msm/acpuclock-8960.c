@@ -1882,7 +1882,7 @@ static struct acpu_level * __init select_freq_plan(void)
 		if (l->use_for_scaling && l->speed.khz==MAX_FREQ_LIMIT_STARTUP)
 			max_acpu_level = l;
 	BUG_ON(!max_acpu_level);
-	pr_alert("Max ACPU freq: %u KHz\n", max_acpu_level->speed.khz);
+	pr_info("Max ACPU freq: %u KHz\n", max_acpu_level->speed.khz);
 
 	return max_acpu_level;
 }

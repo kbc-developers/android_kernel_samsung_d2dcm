@@ -23,4 +23,3 @@ config KEYBOARD_CYPRESS_TOUCH_236
 config TWEAK_REPLACE_BACK_MENU
 	bool "Keycode replace back / menu"
 	default y
-
