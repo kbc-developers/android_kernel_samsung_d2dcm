@@ -255,7 +255,7 @@ int32_t msm_sensor_mode_init(struct msm_sensor_ctrl_t *s_ctrl,
 	uint16_t uOTPEndAddr;
 	int i = 0;
 
-	CDBG("%s: %d\n", __func__, __LINE__);
+	printk("%s: %d\n", __func__, __LINE__);
 
 	rc = msm_camera_i2c_write(s_ctrl->sensor_i2c_client,	OTP_PAGE,
 			0x0F, MSM_CAMERA_I2C_BYTE_DATA);
@@ -340,7 +340,7 @@ int32_t msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 		sizeof(struct sensor_cfg_data)))
 		return -EFAULT;
 	mutex_lock(s_ctrl->msm_sensor_mutex);
-	CDBG("msm_sensor_config: cfgtype = %d\n",
+	printk("msm_sensor_config: cfgtype = %d\n",
 	cdata.cfgtype);
 		switch (cdata.cfgtype) {
 		case CFG_SET_FPS:
@@ -461,12 +461,12 @@ int32_t msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 int32_t msm_sensor_power_up(const struct msm_camera_sensor_info *data)
 {
 	int32_t rc = 0;
-	CDBG("%s: %d\n", __func__, __LINE__);
+	printk("%s: %d\n", __func__, __LINE__);
 	msm_camio_clk_rate_set(MSM_SENSOR_MCLK_24HZ);
 	rc = gpio_request(data->sensor_platform_info->sensor_reset,
 		"SENSOR_NAME");
 	if (!rc) {
-		CDBG("%s: reset sensor\n", __func__);
+		printk("%s: reset sensor\n", __func__);
 		gpio_direction_output(data->sensor_platform_info->sensor_reset,
 			 0);
 		usleep_range(1000, 2000);
@@ -474,14 +474,14 @@ int32_t msm_sensor_power_up(const struct msm_camera_sensor_info *data)
 			sensor_reset, 1);
 		usleep_range(4000, 5000);
 	} else {
-		CDBG("%s: gpio request fail", __func__);
+		printk("%s: gpio request fail", __func__);
 	}
 	return rc;
 }
 
 int32_t msm_sensor_power_down(const struct msm_camera_sensor_info *data)
 {
-	CDBG("%s\n", __func__);
+	printk("%s\n", __func__);
 	gpio_set_value_cansleep(data->sensor_platform_info->sensor_reset, 0);
 	usleep_range(1000, 2000);
 	gpio_free(data->sensor_platform_info->sensor_reset);
@@ -498,13 +498,13 @@ int32_t msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 			s_ctrl->sensor_id_info->sensor_id_reg_addr, &chipid,
 			MSM_CAMERA_I2C_WORD_DATA);
 	if (rc < 0) {
-		CDBG("%s: read id failed\n", __func__);
+		printk("%s: read id failed\n", __func__);
 		return rc;
 	}
 
-	CDBG("msm_sensor id: %d\n", chipid);
+	printk("msm_sensor id: %d\n", chipid);
 	if (chipid != s_ctrl->sensor_id_info->sensor_id) {
-		CDBG("msm_sensor_match_id chip id doesnot match\n");
+		printk("msm_sensor_match_id chip id doesnot match\n");
 		return -ENODEV;
 	}
 	return rc;
@@ -515,9 +515,9 @@ int32_t msm_sensor_i2c_probe(struct i2c_client *client,
 {
 	int rc = 0;
 	struct msm_sensor_ctrl_t *this_ctrl;
-	CDBG("%s_i2c_probe called\n", client->name);
+	printk("%s_i2c_probe called\n", client->name);
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		CDBG("i2c_check_functionality failed\n");
+		printk("i2c_check_functionality failed\n");
 		rc = -EFAULT;
 		goto probe_failure;
 	}
@@ -533,7 +533,7 @@ int32_t msm_sensor_i2c_probe(struct i2c_client *client,
 	}
 
 probe_failure:
-	CDBG("%s_i2c_probe failed\n", client->name);
+	printk("%s_i2c_probe failed\n", client->name);
 	return rc;
 }
 
@@ -542,7 +542,7 @@ int32_t msm_sensor_release(struct msm_sensor_ctrl_t *s_ctrl)
 	mutex_lock(s_ctrl->msm_sensor_mutex);
 	s_ctrl->func_tbl->sensor_power_down(s_ctrl->sensordata);
 	mutex_unlock(s_ctrl->msm_sensor_mutex);
-	CDBG("%s completed\n", __func__);
+	printk("%s completed\n", __func__);
 	return 0;
 }
 
@@ -563,7 +563,7 @@ int32_t msm_sensor_probe(struct msm_sensor_ctrl_t *s_ctrl,
 	rc = i2c_add_driver(s_ctrl->sensor_i2c_driver);
 	if (rc < 0 || s_ctrl->sensor_i2c_client->client == NULL) {
 		rc = -ENOTSUPP;
-		CDBG("I2C add driver failed");
+		printk("I2C add driver failed");
 		goto probe_fail;
 	}
 
@@ -653,8 +653,8 @@ int32_t msm_sensor_v4l2_s_ctrl(struct v4l2_subdev *sd,
 	struct msm_sensor_v4l2_ctrl_info_t *v4l2_ctrl =
 		s_ctrl->msm_sensor_v4l2_ctrl_info;
 
-	CDBG("%s\n", __func__);
-	CDBG("%d\n", ctrl->id);
+	printk("%s\n", __func__);
+	printk("%d\n", ctrl->id);
 	if (v4l2_ctrl == NULL)
 		return rc;
 
@@ -680,8 +680,8 @@ int32_t msm_sensor_v4l2_query_ctrl(
 	struct msm_sensor_ctrl_t *s_ctrl =
 		(struct msm_sensor_ctrl_t *) sd->dev_priv;
 
-	CDBG("%s\n", __func__);
-	CDBG("%s id: %d\n", __func__, qctrl->id);
+	printk("%s\n", __func__);
+	printk("%s id: %d\n", __func__, qctrl->id);
 
 	if (s_ctrl->msm_sensor_v4l2_ctrl_info == NULL)
 		return rc;
@@ -705,7 +705,7 @@ int msm_sensor_s_ctrl_by_enum(struct msm_sensor_ctrl_t *s_ctrl,
 		struct msm_sensor_v4l2_ctrl_info_t *ctrl_info, int value)
 {
 	int rc = 0;
-	CDBG("%s enter\n", __func__);
+	printk("%s enter\n", __func__);
 	rc = msm_sensor_write_enum_conf_array(
 		s_ctrl->sensor_i2c_client,
 		ctrl_info->enum_cfg_settings, value);
@@ -727,7 +727,7 @@ DEFINE_SIMPLE_ATTRIBUTE(sensor_debugfs_stream, NULL,
 
 static int msm_sensor_debugfs_test_s(void *data, u64 val)
 {
-	CDBG("val: %llu\n", val);
+	printk("val: %llu\n", val);
 	return 0;
 }
 
