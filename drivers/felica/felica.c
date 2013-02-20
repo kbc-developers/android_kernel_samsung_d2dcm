@@ -581,7 +581,7 @@ static void felica_set_felica_info(void)
 
 static uint8_t felica_get_tamper_fuse_cmd(void)
 {
-
+#if 0
 	uint32_t fuse_id = FELICA_HLOS_IMG_TAMPER_FUSE;
 	void *cmd_buf;
 	size_t cmd_len;
@@ -600,6 +600,8 @@ static uint8_t felica_get_tamper_fuse_cmd(void)
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
 	return resp_buf;
+#endif
+	return 0;
 }
 
 /*
