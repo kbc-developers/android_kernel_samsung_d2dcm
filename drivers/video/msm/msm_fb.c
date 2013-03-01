@@ -65,6 +65,8 @@ extern int load_565rle_image(char *filename, bool bf_supported);
 #define MSM_FB_NUM	3
 #endif
 
+static boolean msm_fb_logo_on = false;
+
 static unsigned char *fbram;
 static unsigned char *fbram_phys;
 static int fbram_size;
@@ -1649,6 +1651,8 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 #else
 		draw_rgb888_screen();
 #endif
+		msm_fb_blank(FB_BLANK_UNBLANK, fbi);
+		msm_fb_logo_on = true;
 #endif
 	}
 	ret = 0;
@@ -1816,6 +1820,11 @@ static int msm_fb_open(struct fb_info *info, int user)
 		else
 			pr_debug("%s:%d no mdp_set_dma_pan_info %d\n",
 				__func__, __LINE__, info->node);
+
+		if (msm_fb_logo_on) {
+			msm_fb_blank(FB_BLANK_POWERDOWN, info);
+			msm_fb_logo_on = false;
+		}
 
 		if (msm_fb_blank_sub(FB_BLANK_UNBLANK, info, TRUE)) {
 			printk(KERN_ERR "msm_fb_open: can't turn on display!\n");
