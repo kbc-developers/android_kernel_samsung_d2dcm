@@ -42,7 +42,7 @@ check_and_get_linaro()
 # export BUILD_CROSS_COMPILE=`check_and_get_codesourcery arm-none-eabi arm-2011.03 42`
 
 # use linaro compiler
-export BUILD_CROSS_COMPILE=`check_and_get_linaro arm-linux-gnueabihf 4.7 2012.12 20121214`
+export BUILD_CROSS_COMPILE=`check_and_get_linaro arm-linux-gnueabihf 4.7 2013.02 01-20130221`
 
 # use Default compiler
 # export BUILD_CROSS_COMPILE=$TOOLCHAIN_DIR/arm-eabi-4.4.3/bin/arm-eabi-
