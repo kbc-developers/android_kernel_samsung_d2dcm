@@ -225,6 +225,7 @@ struct netlink_callback {
 	int			(*done)(struct netlink_callback *cb);
 	u16			family;
 	u16			min_dump_alloc;
+	unsigned int		prev_seq, seq;
 	long			args[6];
 };
 
