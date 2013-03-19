@@ -139,8 +139,7 @@ int mdp4_overlay_writeback_on(struct platform_device *pdev)
 		pipe->mixer_stage  = MDP4_MIXER_STAGE_BASE;
 		pipe->mixer_num  = MDP4_MIXER2;
 		pipe->src_format = MDP_ARGB_8888;
-			mdp4_overlay_panel_mode(pipe->mixer_num,
-				MDP4_PANEL_WRITEBACK);
+		mdp4_overlay_panel_mode(pipe->mixer_num, MDP4_PANEL_WRITEBACK);
 		ret = mdp4_overlay_format2pipe(pipe);
 		if (ret < 0)
 			pr_info("%s: format2type failed\n", __func__);
@@ -174,9 +173,8 @@ int mdp4_overlay_writeback_on(struct platform_device *pdev)
 	return ret;
 }
 
-static void mdp4_writeback_pipe_clean(struct vsync_update *vp);
-
 static void mdp4_wfd_wait4ov(int cndx);
+static void mdp4_writeback_pipe_clean(struct vsync_update *vp);
 
 int mdp4_overlay_writeback_off(struct platform_device *pdev)
 {
@@ -228,6 +226,7 @@ int mdp4_overlay_writeback_off(struct platform_device *pdev)
 	/* MDP_LAYERMIXER_WB_MUX_SEL to restore to default cfg*/
 	outpdw(MDP_BASE + 0x100F4, 0x0);
 	mdp_clk_ctrl(0);
+
 	pr_debug("%s-:\n", __func__);
 	return ret;
 }
@@ -578,7 +577,7 @@ static struct msmfb_writeback_data_list *get_if_registered(
 		else if (mfd->iclient) {
 			struct ion_handle *srcp_ihdl;
 			ulong len;
-			srcp_ihdl = ion_import_fd(mfd->iclient,
+			srcp_ihdl = ion_import_dma_buf(mfd->iclient,
 						  data->memory_id);
 			if (IS_ERR_OR_NULL(srcp_ihdl)) {
 				pr_err("%s: ion import fd failed\n", __func__);
@@ -860,4 +859,24 @@ static void mdp4_wfd_queue_wakeup(struct msm_fb_data_type *mfd,
 	mfd->writeback_active_cnt--;
 	mutex_unlock(&mfd->writeback_mutex);
 	wake_up(&mfd->wait_q);
+}
+
+int mdp4_writeback_set_mirroring_hint(struct fb_info *info, int hint)
+{
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+
+	if (mfd->panel.type != WRITEBACK_PANEL)
+		return -ENOTSUPP;
+
+	switch (hint) {
+	case MDP_WRITEBACK_MIRROR_ON:
+	case MDP_WRITEBACK_MIRROR_PAUSE:
+	case MDP_WRITEBACK_MIRROR_RESUME:
+	case MDP_WRITEBACK_MIRROR_OFF:
+		pr_info("wfd state switched to %d\n", hint);
+		switch_set_state(&mfd->writeback_sdev, hint);
+		return 0;
+	default:
+		return -EINVAL;
+	}
 }

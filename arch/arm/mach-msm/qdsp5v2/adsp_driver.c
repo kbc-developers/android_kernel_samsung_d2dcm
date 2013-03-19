@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 Google, Inc.
- * Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009, The Linux Foundation. All rights reserved.
  * Author: Iliyan Malchev <ibm@android.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -22,6 +22,7 @@
 #include <linux/uaccess.h>
 #include <linux/msm_adsp.h>
 #include <linux/android_pmem.h>
+#include <linux/export.h>
 #include "adsp.h"
 #include <mach/debug_mm.h>
 #include <linux/slab.h>

@@ -25,6 +25,7 @@
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
 #include <linux/slab.h>
+#include <linux/export.h>
 #include <linux/debugfs.h>
 
 #include "u_serial.h"
@@ -80,7 +81,7 @@
  */
 #define TX_QUEUE_SIZE		8
 #define TX_BUF_SIZE		4096
-#define WRITE_BUF_SIZE		8192		/* TX only */
+#define WRITE_BUF_SIZE		(8192+1)		/* TX only */
 
 #define RX_QUEUE_SIZE		8
 #define RX_BUF_SIZE		4096
@@ -386,10 +387,13 @@ __acquires(&port->port_lock)
 		req = list_entry(pool->next, struct usb_request, list);
 		len = gs_send_packet(port, req->buf, TX_BUF_SIZE);
 		if (len == 0) {
-			/* Queue zero length packet */
+			/* Queue zero length packet explicitly to make it
+			 * work with UDCs which don't support req->zero flag
+			 */
 			if (prev_len && (prev_len % in->maxpacket == 0)) {
 				req->length = 0;
 				list_del(&req->list);
+				port->write_started++;
 				spin_unlock(&port->port_lock);
 				status = usb_ep_queue(in, req, GFP_ATOMIC);
 				spin_lock(&port->port_lock);
@@ -401,6 +405,7 @@ __acquires(&port->port_lock)
 					printk(KERN_ERR "%s: %s err %d\n",
 					__func__, "queue", status);
 					list_add(&req->list, pool);
+					port->write_started--;
 				}
 				prev_len = 0;
 			}
@@ -411,6 +416,7 @@ __acquires(&port->port_lock)
 
 		req->length = len;
 		list_del(&req->list);
+		port->write_started++;
 
 		pr_vdebug(PREFIX "%d: tx len=%d, 0x%02x 0x%02x 0x%02x ...\n",
 				port->port_num, len, *((u8 *)req->buf),
@@ -440,6 +446,7 @@ __acquires(&port->port_lock)
 			pr_debug("%s: %s %s err %d\n",
 					__func__, "queue", in->name, status);
 			list_add(&req->list, pool);
+			port->write_started--;
 			break;
 		}
 		prev_len = req->length;
@@ -472,8 +479,10 @@ __acquires(&port->port_lock)
 
 		/* no more rx if closed */
 		tty = port->port_tty;
-		if (!tty)
+		if (!tty) {
+			started = 0;
 			break;
+		}
 
 		if (port->read_started >= RX_QUEUE_SIZE)
 			break;
@@ -593,19 +602,11 @@ recycle:
 		port->read_started--;
 	}
 
-	/* Push from tty to ldisc; this is immediate with low_latency, and
-	 * may trigger callbacks to this driver ... so drop the spinlock.
+	/* Push from tty to ldisc; without low_latency set this is handled by
+	 * a workqueue, so we won't get callbacks and can hold port_lock
 	 */
-	if (tty && do_push) {
-		spin_unlock_irq(&port->port_lock);
+	if (tty && do_push)
 		tty_flip_buffer_push(tty);
-		wake_up_interruptible(&tty->read_wait);
-		spin_lock_irq(&port->port_lock);
-
-		/* tty may have been closed */
-		tty = port->port_tty;
-	}
-
 
 	/* We want our data queue to become empty ASAP, keeping data
 	 * in the tty and ldisc (not here).  If we couldn't push any
@@ -755,7 +756,8 @@ static int gs_start_io(struct gs_port *port)
 		return -EIO;
 	/* unblock any pending writes into our circular buffer */
 	if (started) {
-		tty_wakeup(port->port_tty);
+		if(port->port_tty)
+			tty_wakeup(port->port_tty);
 	} else {
 		gs_free_requests(ep, head, &port->read_allocated);
 		gs_free_requests(port->port_usb->in, &port->write_pool,
@@ -780,9 +782,6 @@ static int gs_open(struct tty_struct *tty, struct file *file)
 	int		port_num = tty->index;
 	struct gs_port	*port;
 	int		status;
-
-	if (port_num < 0 || port_num >= n_ports)
-		return -ENXIO;
 
 	do {
 		mutex_lock(&ports[port_num].lock);
@@ -1260,6 +1259,11 @@ static ssize_t debug_read_status(struct file *file, char __user *ubuf,
 		i += scnprintf(buf + i, BUF_SIZE - i,
 			"DTR_status: %d\n", result);
 	}
+	i += scnprintf(buf + i, BUF_SIZE - i, "port_write_buf: %d\n",
+			gs_buf_data_avail(&ui_dev->port_write_buf));
+
+	i += scnprintf(buf + i, BUF_SIZE - i, "write_started: %d\n",
+			ui_dev->write_started);
 
 	spin_unlock_irqrestore(&ui_dev->port_lock, flags);
 
@@ -1349,7 +1353,6 @@ int gserial_setup(struct usb_gadget *g, unsigned count)
 	if (!gs_tty_driver)
 		return -ENOMEM;
 
-	gs_tty_driver->owner = THIS_MODULE;
 	gs_tty_driver->driver_name = "g_serial";
 	gs_tty_driver->name = PREFIX;
 	/* uses dynamically assigned dev_t values */
@@ -1523,12 +1526,12 @@ int gserial_connect(struct gserial *gser, u8 port_num)
 	port = ports[port_num].port;
 
 	/* activate the endpoints */
-	status = usb_ep_enable(gser->in, gser->in_desc);
+	status = usb_ep_enable(gser->in);
 	if (status < 0)
 		return status;
 	gser->in->driver_data = port;
 
-	status = usb_ep_enable(gser->out, gser->out_desc);
+	status = usb_ep_enable(gser->out);
 	if (status < 0)
 		goto fail_out;
 	gser->out->driver_data = port;

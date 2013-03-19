@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -262,7 +262,7 @@ static struct platform_driver apr_modem_driver = {
 
 static int __init apr_tal_init(void)
 {
-	int i, j, k, ret;
+	int i, j, k;
 
 	for (i = 0; i < APR_DL_MAX; i++)
 		for (j = 0; j < APR_DEST_MAX; j++)
@@ -273,13 +273,8 @@ static int __init apr_tal_init(void)
 				spin_lock_init(&apr_svc_ch[i][j][k].w_lock);
 				mutex_init(&apr_svc_ch[i][j][k].m_lock);
 			}
-	ret = platform_driver_register(&apr_q6_driver);
-	if (ret < 0)
-		return ret;
-	ret = platform_driver_register(&apr_modem_driver);
-	if (ret < 0)
-		platform_driver_unregister(&apr_q6_driver);
-
-	return ret;
+	platform_driver_register(&apr_q6_driver);
+	platform_driver_register(&apr_modem_driver);
+	return 0;
 }
 device_initcall(apr_tal_init);

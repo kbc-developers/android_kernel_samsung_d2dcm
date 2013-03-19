@@ -153,10 +153,7 @@ struct fsa9485_usbsw {
 	struct input_dev	*input;
 	int			previous_key;
 
-	int			dock_ready;
-
 	struct delayed_work	init_work;
-	struct delayed_work	audio_work;
 	struct mutex		mutex;
 	int				adc;
 	int				deskdock;
@@ -635,11 +632,10 @@ static int fsa9485_detect_dev(struct fsa9485_usbsw *usbsw)
 	if (usbsw->dock_attached)
 		pdata->dock_cb(FSA9485_DETACHED_DOCK);
 
-	if (local_usbsw->dock_ready == 1)
-		if (adc == 0x10)
-			val2 = DEV_SMARTDOCK;
-		else if (adc == 0x12)
-			val2 = DEV_AUDIO_DOCK;
+	if (adc == 0x10)
+		val2 = DEV_SMARTDOCK;
+	else if (adc == 0x12)
+		val2 = DEV_AUDIO_DOCK;
 
 	dev_info(&client->dev, "dev1: 0x%x, dev2: 0x%x adc : 0x%x\n", val1, val2, adc);
 
@@ -953,8 +949,8 @@ static int fsa9485_handle_dock_vol_key(struct fsa9485_usbsw *info, int adc)
 {
 	struct input_dev *input = info->input;
 	int pre_key = info->previous_key;
-	unsigned int code;
-	int state;
+	unsigned int code=0;
+	int state=0;
 
 	if (adc == ADC_OPEN) {
 		switch (pre_key) {
@@ -1164,20 +1160,6 @@ static void fsa9485_init_detect(struct work_struct *work)
 				"failed to enable  irq init %s\n", __func__);
 }
 
-static void fsa9485_delayed_audio(struct work_struct *work)
-{
-    struct fsa9485_usbsw *usbsw = container_of(work,
-                    struct fsa9485_usbsw, audio_work.work);
-
-    dev_info(&usbsw->client->dev, "%s\n", __func__);
-
-    local_usbsw->dock_ready = 1;
-
-    mutex_lock(&usbsw->mutex);
-    fsa9485_detect_dev(usbsw);
-    mutex_unlock(&usbsw->mutex);
-}
-
 static int __devinit fsa9485_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
@@ -1289,15 +1271,11 @@ static int __devinit fsa9485_probe(struct i2c_client *client,
 	if (usbsw->pdata->set_init_flag)
 		usbsw->pdata->set_init_flag();
 
-	local_usbsw->dock_ready = 0;
 	/* initial cable detection */
 	INIT_DELAYED_WORK(&usbsw->init_work, fsa9485_init_detect);
 	schedule_delayed_work(&usbsw->init_work, msecs_to_jiffies(2700));
 
-	INIT_DELAYED_WORK(&usbsw->audio_work, fsa9485_delayed_audio);
-	schedule_delayed_work(&usbsw->audio_work, msecs_to_jiffies(20000));
 	return 0;
-
 
 err_create_file_reset_switch:
 	device_remove_file(switch_dev, &dev_attr_reset_switch);
@@ -1321,7 +1299,6 @@ static int __devexit fsa9485_remove(struct i2c_client *client)
 	struct fsa9485_usbsw *usbsw = i2c_get_clientdata(client);
 
 	cancel_delayed_work(&usbsw->init_work);
-	cancel_delayed_work(&usbsw->audio_work);
 	if (client->irq) {
 		disable_irq_wake(client->irq);
 		free_irq(client->irq, usbsw);

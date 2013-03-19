@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -10,7 +10,11 @@
  * GNU General Public License for more details.
  *
  */
+
+#define pr_fmt(fmt) "AXI: %s(): " fmt, __func__
+
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
 #include <linux/slab.h>
@@ -624,19 +628,19 @@ static int __init msm_bus_debugfs_init(void)
 	}
 
 	clients = debugfs_create_dir("client-data", dir);
-	if ((!clients) || IS_ERR(clients)) {
+	if ((!dir) || IS_ERR(dir)) {
 		MSM_BUS_ERR("Couldn't create clients\n");
 		goto err;
 	}
 
 	shell_client = debugfs_create_dir("shell-client", dir);
-	if ((!shell_client) || IS_ERR(shell_client)) {
+	if ((!dir) || IS_ERR(dir)) {
 		MSM_BUS_ERR("Couldn't create clients\n");
 		goto err;
 	}
 
 	commit = debugfs_create_dir("commit-data", dir);
-	if ((!commit) || IS_ERR(commit)) {
+	if ((!dir) || IS_ERR(dir)) {
 		MSM_BUS_ERR("Couldn't create commit\n");
 		goto err;
 	}
@@ -675,7 +679,6 @@ static int __init msm_bus_debugfs_init(void)
 			commit, (void *)fablist->name, &fabric_data_fops);
 		if (fablist->file == NULL) {
 			MSM_BUS_DBG("Cannot create files for commit data\n");
-			mutex_unlock(&msm_bus_dbg_fablist_lock);
 			goto err;
 		}
 	}

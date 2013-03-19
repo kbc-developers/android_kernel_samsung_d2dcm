@@ -65,6 +65,8 @@ static char g_szdevice_name[(VIBE_MAX_DEVICE_NAME_LENGTH
 							* NUM_ACTUATORS];
 static size_t g_cchdevice_name;
 
+extern unsigned int system_rev;
+
 static struct wake_lock vib_wake_lock;
 
 /* Flag indicating whether the driver is in use */

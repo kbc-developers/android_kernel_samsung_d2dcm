@@ -40,7 +40,7 @@ int msm_cam_clk_enable(struct device *dev, struct msm_cam_clk_info *clk_info,
 					goto cam_clk_set_err;
 				}
 			}
-			rc = clk_enable(clk_ptr[i]);
+			rc = clk_prepare_enable(clk_ptr[i]);
 			if (rc < 0) {
 				pr_err("%s enable failed\n",
 					   clk_info[i].clk_name);
@@ -50,7 +50,7 @@ int msm_cam_clk_enable(struct device *dev, struct msm_cam_clk_info *clk_info,
 	} else {
 		for (i = num_clk - 1; i >= 0; i--) {
 			if (clk_ptr[i] != NULL)
-				clk_disable(clk_ptr[i]);
+				clk_disable_unprepare(clk_ptr[i]);
 				clk_put(clk_ptr[i]);
 		}
 	}
@@ -62,7 +62,7 @@ cam_clk_set_err:
 cam_clk_get_err:
 	for (i--; i >= 0; i--) {
 		if (clk_ptr[i] != NULL) {
-			clk_disable(clk_ptr[i]);
+			clk_disable_unprepare(clk_ptr[i]);
 			clk_put(clk_ptr[i]);
 		}
 	}

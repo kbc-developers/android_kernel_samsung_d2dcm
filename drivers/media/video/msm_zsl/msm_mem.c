@@ -12,6 +12,7 @@
  */
 
 #include <linux/workqueue.h>
+#include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/types.h>
 #include <linux/list.h>
@@ -28,7 +29,7 @@
 #include <linux/android_pmem.h>
 
 #include "msm.h"
-
+#define UNCACHED        0
 #ifdef CONFIG_MSM_CAMERA_DEBUG
 #define D(fmt, args...) pr_debug("msm_isp: " fmt, ##args)
 #else
@@ -132,7 +133,7 @@ static int msm_pmem_table_add(struct hlist_head *ptype,
 	if (!region)
 		goto out;
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-	region->handle = ion_import_fd(client, info->fd);
+	region->handle = ion_import_dma_buf(client, info->fd);
 	if (IS_ERR_OR_NULL(region->handle))
 		goto out1;
 	if (ion_map_iommu(client, region->handle, CAMERA_DOMAIN, GEN_POOL,

@@ -46,7 +46,7 @@
 #include <linux/syscalls.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
-#include <linux/module.h>
+#include <linux/export.h>
 
 /*
  * Management arrays for POSIX timers.	 Timers are kept in slab memory
@@ -638,6 +638,13 @@ out:
 static struct k_itimer *__lock_timer(timer_t timer_id, unsigned long *flags)
 {
 	struct k_itimer *timr;
+
+	/*
+	 * timer_t could be any type >= int and we want to make sure any
+	 * @timer_id outside positive int range fails lookup.
+	 */
+	if ((unsigned long long)timer_id > INT_MAX)
+		return NULL;
 
 	rcu_read_lock();
 	timr = idr_find(&posix_timers_id, (int)timer_id);

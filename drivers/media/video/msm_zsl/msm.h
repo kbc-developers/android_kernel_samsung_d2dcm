@@ -19,7 +19,7 @@
 /* Header files */
 #include <linux/i2c.h>
 #include <linux/videodev2.h>
-#include <linux/pm_qos_params.h>
+#include <linux/pm_qos.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-device.h>
@@ -228,7 +228,7 @@ struct msm_cam_media_controller {
 	struct v4l2_subdev *ispif_sdev; /* ispif sub device */
 	struct v4l2_subdev *act_sdev; /* actuator sub device */
 
-	struct pm_qos_request_list pm_qos_req_list;
+	struct pm_qos_request *pm_qos_req_list;
 	struct msm_mctl_pp_info pp_info;
 	struct ion_client *client;
 	struct kref refcount;

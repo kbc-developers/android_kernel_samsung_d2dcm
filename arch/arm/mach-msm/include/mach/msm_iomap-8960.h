@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2011, The Linux Foundation. All rights reserved.
  * Author: Brian Swetland <swetland@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -99,11 +99,15 @@
 #define MSM8960_HDMI_SIZE		SZ_4K
 
 #ifdef CONFIG_DEBUG_MSM8960_UART
-#define MSM_DEBUG_UART_BASE		IOMEM(0xFE740000)
+#define MSM_DEBUG_UART_BASE		IOMEM(0xFA740000)
 #define MSM_DEBUG_UART_PHYS		0x16440000
 #endif
 
 #define MSM8960_QFPROM_PHYS		0x00700000
 #define MSM8960_QFPROM_SIZE		SZ_4K
+
+#ifndef __ASSEMBLY__
+extern void msm_map_msm8960_io(void);
+#endif
 
 #endif

@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -90,7 +90,6 @@
 #define PLL_PWRDN_B BIT(3)
 #define PD_PLL BIT(1)
 
-static unsigned current_rate;
 static unsigned hdmi_pll_on;
 
 int hdmi_pll_enable(void)
@@ -176,6 +175,7 @@ int hdmi_pll_enable(void)
 			timeout_count = 1000;
 			pll_lock_retry--;
 		}
+		udelay(1);
 	}
 
 	if (!ahb_enabled)
@@ -217,11 +217,6 @@ void hdmi_pll_disable(void)
 	if (!ahb_enabled)
 		writel_relaxed(ahb_en_reg & ~BIT(4), AHB_EN_REG);
 	hdmi_pll_on = 0;
-}
-
-unsigned hdmi_pll_get_rate(void)
-{
-	return current_rate;
 }
 
 int hdmi_pll_set_rate(unsigned rate)
@@ -340,6 +335,22 @@ int hdmi_pll_set_rate(unsigned rate)
 		writel_relaxed(0x3B, HDMI_PHY_PLL_VCOCAL_CFG2);
 	break;
 
+	case 108000000:
+		writel_relaxed(0x08, HDMI_PHY_PLL_REFCLK_CFG);
+		writel_relaxed(0x21, HDMI_PHY_PLL_LOOP_FLT_CFG0);
+		writel_relaxed(0xF9, HDMI_PHY_PLL_LOOP_FLT_CFG1);
+		writel_relaxed(0x1C, HDMI_PHY_PLL_VCOCAL_CFG0);
+		writel_relaxed(0x02, HDMI_PHY_PLL_VCOCAL_CFG1);
+		writel_relaxed(0x3B, HDMI_PHY_PLL_VCOCAL_CFG2);
+		writel_relaxed(0x86, HDMI_PHY_PLL_VCOCAL_CFG4);
+		writel_relaxed(0x00, HDMI_PHY_PLL_VCOCAL_CFG5);
+		writel_relaxed(0x49, HDMI_PHY_PLL_SDM_CFG0);
+		writel_relaxed(0x49, HDMI_PHY_PLL_SDM_CFG1);
+		writel_relaxed(0x00, HDMI_PHY_PLL_SDM_CFG2);
+		writel_relaxed(0x00, HDMI_PHY_PLL_SDM_CFG3);
+		writel_relaxed(0x00, HDMI_PHY_PLL_SDM_CFG4);
+	break;
+
 	case 148500000:
 		/* 1080p60/1080p50 case */
 		writel_relaxed(0x2, HDMI_PHY_PLL_REFCLK_CFG);
@@ -378,7 +389,6 @@ int hdmi_pll_set_rate(unsigned rate)
 	if (set_power_dwn)
 		hdmi_pll_enable();
 
-	current_rate = rate;
 	if (!ahb_enabled)
 		writel_relaxed(ahb_en_reg & ~BIT(4), AHB_EN_REG);
 

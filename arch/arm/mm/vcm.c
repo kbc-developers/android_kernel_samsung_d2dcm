@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -755,9 +755,9 @@ static int vcm_process_chunk(struct iommu_domain *domain, phys_addr_t pa,
 		}
 
 		if (map)
-			ret = iommu_map(domain, va, pa, map_order, attr);
+			ret = iommu_map(domain, va, pa, map_len, attr);
 		else
-			ret = iommu_unmap(domain, va, map_order);
+			ret = iommu_unmap(domain, va, map_len);
 
 		if (ret) {
 			vcm_err("iommu_map/unmap(%p, %p, %p, 0x%x, 0x%x) ret %i"

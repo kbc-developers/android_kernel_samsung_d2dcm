@@ -12,6 +12,7 @@
  */
 
 #include <linux/workqueue.h>
+#include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/types.h>
 #include <linux/list.h>
@@ -151,6 +152,7 @@ static int msm_isp_notify_vfe(struct v4l2_subdev *sd,
 	struct msm_cam_media_controller *pmctl = NULL;
 	struct msm_free_buf buf;
 
+	v4l2_evt.id = 0;
 	if (!sync) {
 		pr_err("%s: no context in dsp callback.\n", __func__);
 		rc = -EINVAL;
@@ -456,7 +458,7 @@ static int msm_config_vfe(struct v4l2_subdev *sd,
 
 	return -EINVAL;
 }
-
+#if 0
 static int msm_vpe_frame_cfg(struct msm_sync *sync,
 				void *cfgcmdin)
 {
@@ -499,7 +501,7 @@ static int msm_vpe_frame_cfg(struct msm_sync *sync,
 		rc = sync->vpefn.vpe_config(cfgcmd, data);
 	return rc;
 }
-
+#endif
 static int msm_stats_axi_cfg(struct v4l2_subdev *sd,
 		struct msm_sync *sync, struct msm_vfe_cfg_cmd *cfgcmd)
 {

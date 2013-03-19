@@ -1,7 +1,7 @@
 /*
  * Qualcomm Serial USB driver
  *
- *	Copyright (c) 2008 QUALCOMM Incorporated.
+ *	Copyright (c) 2008, 2012 The Linux Foundation. All rights reserved.
  *	Copyright (c) 2009 Greg Kroah-Hartman <gregkh@suse.de>
  *	Copyright (c) 2009 Novell Inc.
  *
@@ -13,6 +13,7 @@
 
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
+#include <linux/module.h>
 #include <linux/usb.h>
 #include <linux/usb/serial.h>
 #include <linux/slab.h>
@@ -21,7 +22,7 @@
 #define DRIVER_AUTHOR "Qualcomm Inc"
 #define DRIVER_DESC "Qualcomm USB Serial driver"
 
-static int debug;
+static bool debug;
 
 #define DEVICE_G1K(v, p) \
 	USB_DEVICE(v, p), .driver_info = 1
@@ -114,6 +115,8 @@ static const struct usb_device_id id_table[] = {
 	{USB_DEVICE(0x1199, 0x9019)},	/* Sierra Wireless Gobi 3000 Modem device */
 	{USB_DEVICE(0x12D1, 0x14F0)},	/* Sony Gobi 3000 QDL */
 	{USB_DEVICE(0x12D1, 0x14F1)},	/* Sony Gobi 3000 Composite */
+	{USB_DEVICE(0x05c6, 0x9048)},	/* MDM9x15 device */
+	{USB_DEVICE(0x05c6, 0x904C)},	/* MDM9x15 device */
 	{ }				/* Terminating entry */
 };
 MODULE_DEVICE_TABLE(usb, id_table);
@@ -153,8 +156,6 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 		return -ENOMEM;
 
 	spin_lock_init(&data->susp_lock);
-
-	usb_enable_autosuspend(serial->dev);
 
 	switch (nintf) {
 	case 1:
@@ -283,7 +284,6 @@ static struct usb_serial_driver qcdevice = {
 	},
 	.description         = "Qualcomm USB modem",
 	.id_table            = id_table,
-	.usb_driver          = &qcdriver,
 	.num_ports           = 1,
 	.probe               = qcprobe,
 	.open		     = usb_wwan_open,
@@ -291,6 +291,8 @@ static struct usb_serial_driver qcdevice = {
 	.write		     = usb_wwan_write,
 	.write_room	     = usb_wwan_write_room,
 	.chars_in_buffer     = usb_wwan_chars_in_buffer,
+	.throttle            = usb_wwan_throttle,
+	.unthrottle          = usb_wwan_unthrottle,
 	.attach		     = usb_wwan_startup,
 	.disconnect	     = usb_wwan_disconnect,
 	.release	     = qc_release,
@@ -300,31 +302,11 @@ static struct usb_serial_driver qcdevice = {
 #endif
 };
 
-static int __init qcinit(void)
-{
-	int retval;
+static struct usb_serial_driver * const serial_drivers[] = {
+	&qcdevice, NULL
+};
 
-	retval = usb_serial_register(&qcdevice);
-	if (retval)
-		return retval;
-
-	retval = usb_register(&qcdriver);
-	if (retval) {
-		usb_serial_deregister(&qcdevice);
-		return retval;
-	}
-
-	return 0;
-}
-
-static void __exit qcexit(void)
-{
-	usb_deregister(&qcdriver);
-	usb_serial_deregister(&qcdevice);
-}
-
-module_init(qcinit);
-module_exit(qcexit);
+module_usb_serial_driver(qcdriver, serial_drivers);
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);

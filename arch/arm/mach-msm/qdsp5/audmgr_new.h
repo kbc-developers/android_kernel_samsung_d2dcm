@@ -1,6 +1,6 @@
 /* arch/arm/mach-msm/qdsp5/audmgr.h
  *
- * Copyright 2008 (c) Code Aurora Forum. All rights reserved.
+ * Copyright 2008 (c) The Linux Foundation. All rights reserved.
  * Copyright (C) 2008 Google, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
@@ -75,6 +75,7 @@ enum rpc_aud_def_codec_type {
 	RPC_AUD_DEF_CODEC_AMR_NB,
 	RPC_AUD_DEF_CODEC_13K,
 	RPC_AUD_DEF_CODEC_EVRC,
+	RPC_AUD_DEF_CODEC_AC3,
 	RPC_AUD_DEF_CODEC_MAX_002,
 };
 

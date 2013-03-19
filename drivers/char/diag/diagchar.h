@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,17 +17,20 @@
 #include <linux/module.h>
 #include <linux/mempool.h>
 #include <linux/mutex.h>
+#include <linux/spinlock.h>
 #include <linux/workqueue.h>
+#include <linux/sched.h>
 #include <mach/msm_smd.h>
 #include <asm/atomic.h>
 #include <asm/mach-types.h>
+
 /* Size of the USB buffers used for read and write*/
 #define USB_MAX_OUT_BUF 4096
 #define APPS_BUF_SIZE	2000
 #define IN_BUF_SIZE		16384
 #define MAX_IN_BUF_SIZE	32768
 #define MAX_SYNC_OBJ_NAME_SIZE	32
-#define UINT32_MAX     UINT_MAX
+#define UINT32_MAX	UINT_MAX
 /* Size of the buffer used for deframing a packet
   reveived from the PC tool*/
 #define HDLC_MAX 4096
@@ -35,17 +38,20 @@
 #define POOL_TYPE_COPY		1
 #define POOL_TYPE_HDLC		2
 #define POOL_TYPE_WRITE_STRUCT	4
-#define POOL_TYPE_ALL		7
-#define MODEM_DATA 		1
-#define QDSP_DATA  		2
-#define APPS_DATA  		3
+#define POOL_TYPE_HSIC		5
+#define POOL_TYPE_HSIC_2	6
+#define POOL_TYPE_HSIC_WRITE	11
+#define POOL_TYPE_HSIC_2_WRITE	12
+#define POOL_TYPE_ALL		10
+#define MODEM_DATA		0
+#define LPASS_DATA		1
+#define WCNSS_DATA		2
+#define APPS_DATA		3
 #define SDIO_DATA		4
-#define WCNSS_DATA		5
-#define HSIC_DATA		6
-#define MODEM_PROC		0
+#define HSIC_DATA		5
+#define HSIC_2_DATA		6
+#define SMUX_DATA		10
 #define APPS_PROC		1
-#define QDSP_PROC		2
-#define WCNSS_PROC		3
 #define MSG_MASK_SIZE 10000
 #define LOG_MASK_SIZE 8000
 #define EVENT_MASK_SIZE 1000
@@ -55,6 +61,29 @@
 #define DIAG_CTRL_MSG_LOG_MASK	9
 #define DIAG_CTRL_MSG_EVENT_MASK	10
 #define DIAG_CTRL_MSG_F3_MASK	11
+#define CONTROL_CHAR	0x7E
+
+#define DIAG_CON_APSS (0x0001)	/* Bit mask for APSS */
+#define DIAG_CON_MPSS (0x0002)	/* Bit mask for MPSS */
+#define DIAG_CON_LPASS (0x0004)	/* Bit mask for LPASS */
+#define DIAG_CON_WCNSS (0x0008)	/* Bit mask for WCNSS */
+
+/*
+ * The status bit masks when received in a signal handler are to be
+ * used in conjunction with the peripheral list bit mask to determine the
+ * status for a peripheral. For instance, 0x00010002 would denote an open
+ * status on the MPSS
+ */
+#define DIAG_STATUS_OPEN (0x00010000)	/* DCI channel open status mask   */
+#define DIAG_STATUS_CLOSED (0x00020000)	/* DCI channel closed status mask */
+
+#define NUM_SMD_DATA_CHANNELS 3
+#define NUM_SMD_CONTROL_CHANNELS 3
+#define NUM_SMD_DCI_CHANNELS 1
+
+#define SMD_DATA_TYPE 0
+#define SMD_CNTL_TYPE 1
+#define SMD_DCI_TYPE 2
 
 /* Maximum number of pkt reg supported at initialization*/
 extern unsigned int diag_max_reg;
@@ -66,6 +95,15 @@ do {							\
 	(diag_debug_buf_idx < 1023) ? \
 	(diag_debug_buf_idx++) : (diag_debug_buf_idx = 0); \
 } while (0)
+
+/* List of remote processor supported */
+enum remote_procs {
+	MDM = 1,
+	MDM2 = 2,
+	MDM3 = 3,
+	MDM4 = 4,
+	QSC = 5,
+};
 
 struct diag_master_table {
 	uint16_t cmd_code;
@@ -117,6 +155,35 @@ struct diag_request {
 };
 #endif
 
+struct diag_smd_info {
+	int peripheral;	/* The peripheral this smd channel communicates with */
+	int type;	/* The type of smd channel (data, control, dci) */
+	uint16_t peripheral_mask;
+
+	smd_channel_t *ch;
+	smd_channel_t *ch_save;
+
+	int in_busy_1;
+	int in_busy_2;
+
+	unsigned char *buf_in_1;
+	unsigned char *buf_in_2;
+
+	struct diag_request *write_ptr_1;
+	struct diag_request *write_ptr_2;
+
+	struct work_struct diag_read_smd_work;
+	struct work_struct diag_notify_update_smd_work;
+	int notify_context;
+
+	/*
+	 * Function ptr for function to call to process the data that
+	 * was just read from the smd channel
+	 */
+	int (*process_smd_read_data)(struct diag_smd_info *smd_info,
+						void *buf, int num_bytes);
+};
+
 struct diagchar_dev {
 
 	/* State for the char driver */
@@ -130,11 +197,23 @@ struct diagchar_dev {
 	int ref_count;
 	struct mutex diagchar_mutex;
 	wait_queue_head_t wait_q;
+	wait_queue_head_t smd_wait_q;
 	struct diag_client_map *client_map;
 	int *data_ready;
 	int num_clients;
+	int polling_reg_flag;
 	struct diag_write_device *buf_tbl;
-
+	int use_device_tree;
+	/* DCI related variables */
+	struct dci_pkt_req_tracking_tbl *req_tracking_tbl;
+	struct diag_dci_client_tbl *dci_client_tbl;
+	int dci_tag;
+	int dci_client_id;
+	struct mutex dci_mutex;
+	int num_dci_client;
+	unsigned char *apps_dci_buf;
+	int dci_state;
+	struct workqueue_struct *diag_dci_wq;
 	/* Memory pool parameters */
 	unsigned int itemsize;
 	unsigned int poolsize;
@@ -157,15 +236,11 @@ struct diagchar_dev {
 	struct diag_ctrl_event_mask *event_mask;
 	struct diag_ctrl_log_mask *log_mask;
 	struct diag_ctrl_msg_mask *msg_mask;
+	struct diag_ctrl_feature_mask *feature_mask;
 	/* State for diag forwarding */
-	unsigned char *buf_in_1;
-	unsigned char *buf_in_2;
-	unsigned char *buf_in_cntl;
-	unsigned char *buf_in_qdsp_1;
-	unsigned char *buf_in_qdsp_2;
-	unsigned char *buf_in_qdsp_cntl;
-	unsigned char *buf_in_wcnss;
-	unsigned char *buf_in_wcnss_cntl;
+	struct diag_smd_info smd_data[NUM_SMD_DATA_CHANNELS];
+	struct diag_smd_info smd_cntl[NUM_SMD_CONTROL_CHANNELS];
+	struct diag_smd_info smd_dci[NUM_SMD_DCI_CHANNELS];
 	unsigned char *usb_buf_out;
 	unsigned char *apps_rsp_buf;
 	unsigned char *user_space_data;
@@ -173,17 +248,7 @@ struct diagchar_dev {
 	unsigned char *buf_msg_mask_update;
 	unsigned char *buf_log_mask_update;
 	unsigned char *buf_event_mask_update;
-	smd_channel_t *ch;
-	smd_channel_t *ch_cntl;
-	smd_channel_t *chqdsp;
-	smd_channel_t *chqdsp_cntl;
-	smd_channel_t *ch_wcnss;
-	smd_channel_t *ch_wcnss_cntl;
-	int in_busy_1;
-	int in_busy_2;
-	int in_busy_qdsp_1;
-	int in_busy_qdsp_2;
-	int in_busy_wcnss;
+	unsigned char *buf_feature_mask_update;
 	int read_len_legacy;
 	unsigned char *hdlc_buf;
 	unsigned hdlc_count;
@@ -196,33 +261,22 @@ struct diagchar_dev {
 #endif
 	struct workqueue_struct *diag_wq;
 	struct work_struct diag_drain_work;
-	struct work_struct diag_read_smd_work;
-	struct work_struct diag_read_smd_cntl_work;
-	struct work_struct diag_read_smd_qdsp_work;
-	struct work_struct diag_read_smd_qdsp_cntl_work;
-	struct work_struct diag_read_smd_wcnss_work;
-	struct work_struct diag_read_smd_wcnss_cntl_work;
 	struct workqueue_struct *diag_cntl_wq;
-	struct work_struct diag_modem_mask_update_work;
-	struct work_struct diag_qdsp_mask_update_work;
-	struct work_struct diag_wcnss_mask_update_work;
 	uint8_t *msg_masks;
 	uint8_t *log_masks;
 	int log_masks_length;
 	uint8_t *event_masks;
+	uint8_t log_on_demand_support;
 	struct diag_master_table *table;
 	uint8_t *pkt_buf;
 	int pkt_length;
-	struct diag_request *write_ptr_1;
-	struct diag_request *write_ptr_2;
 	struct diag_request *usb_read_ptr;
 	struct diag_request *write_ptr_svc;
-	struct diag_request *write_ptr_qdsp_1;
-	struct diag_request *write_ptr_qdsp_2;
-	struct diag_request *write_ptr_wcnss;
 	int logging_mode;
 	int mask_check;
 	int logging_process_id;
+	struct task_struct *socket_process;
+	struct task_struct *callback_process;
 #ifdef CONFIG_DIAG_SDIO_PIPE
 	unsigned char *buf_in_sdio;
 	unsigned char *usb_buf_mdm_out;
@@ -237,27 +291,25 @@ struct diagchar_dev {
 	struct diag_request *usb_read_mdm_ptr;
 	struct diag_request *write_ptr_mdm;
 #endif
-#ifdef CONFIG_DIAG_HSIC_PIPE
-	unsigned char *buf_in_hsic;
-	unsigned char *usb_buf_mdm_out;
-	int hsic_initialized;
-	int hsic_ch;
-	int hsic_device_enabled;
-	int hsic_device_opened;
-	int read_len_mdm;
-	int in_busy_hsic_read_on_mdm;
-	int in_busy_hsic_write_on_mdm;
-	int in_busy_hsic_write;
-	int in_busy_hsic_read;
-	int usb_mdm_connected;
-	struct usb_diag_ch *mdm_ch;
-	struct workqueue_struct *diag_hsic_wq;
-	struct work_struct diag_read_mdm_work;
-	struct work_struct diag_read_hsic_work;
-	struct diag_request *usb_read_mdm_ptr;
+#ifdef CONFIG_DIAGFWD_BRIDGE_CODE
+	spinlock_t hsic_ready_spinlock;
+	/* common for all bridges */
+	struct work_struct diag_disconnect_work;
+	/* SGLTE variables */
+	int lcid;
+	unsigned char *buf_in_smux;
+	int in_busy_smux;
+	int diag_smux_enabled;
+	int smux_connected;
 	struct diag_request *write_ptr_mdm;
 #endif
 };
 
+extern struct diag_bridge_dev *diag_bridge;
+extern struct diag_hsic_dev *diag_hsic;
 extern struct diagchar_dev *driver;
+
+extern int wrap_enabled;
+extern uint16_t wrap_count;
+
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -107,7 +107,8 @@ enum rpm_vreg_id_9615 {
 	RPM_VREG_ID_PM8018_S4,
 	RPM_VREG_ID_PM8018_S5,
 	RPM_VREG_ID_PM8018_LVS1,
-	RPM_VREG_ID_PM8018_MAX_REAL = RPM_VREG_ID_PM8018_LVS1,
+	RPM_VREG_ID_PM8018_VDD_DIG_CORNER,
+	RPM_VREG_ID_PM8018_MAX_REAL = RPM_VREG_ID_PM8018_VDD_DIG_CORNER,
 
 	/* The following are IDs for regulator devices to enable pin control. */
 	RPM_VREG_ID_PM8018_L2_PC,

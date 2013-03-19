@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,14 +13,28 @@
 #define __QDSP6VOICE_H__
 
 #include <mach/qdsp6v2/apr.h>
-#include <linux/ion.h>
+#include <linux/msm_ion.h>
 
 #define MAX_VOC_PKT_SIZE 642
-#define SESSION_NAME_LEN 20
+#define SESSION_NAME_LEN 21
 
 #define VOC_REC_UPLINK		0x00
 #define VOC_REC_DOWNLINK	0x01
 #define VOC_REC_BOTH		0x02
+
+/* Needed for VOIP & VOLTE support */
+/* Due to Q6 memory map issue */
+enum {
+	VOIP_CAL,
+	VOLTE_CAL,
+	NUM_VOICE_CAL_BUFFERS
+};
+
+enum {
+	CVP_CAL,
+	CVS_CAL,
+	NUM_VOICE_CAL_TYPES
+};
 
 struct voice_header {
 	uint32_t id;
@@ -53,22 +67,13 @@ struct voice_rec_route_state {
 	u16 dl_flag;
 };
 
-struct voice_dha_data {
-	int dha_mode;
-	int dha_select;
-	short dha_params[12];
-};
-
 enum {
 	VOC_INIT = 0,
 	VOC_RUN,
 	VOC_CHANGE,
 	VOC_RELEASE,
+	VOC_STANDBY,
 };
-
-#ifdef CONFIG_SEC_DHA_SOL_MAL
-#define VSS_ICOMMON_CMD_DHA_SET 0x0001128A
-#endif /*CONFIG_SEC_DHA_SOL_MAL*/
 
 /* Common */
 #define VSS_ICOMMON_CMD_SET_UI_PROPERTY 0x00011103
@@ -117,6 +122,15 @@ struct vss_unmap_memory_cmd {
 #define VSS_IMVM_CMD_CREATE_PASSIVE_CONTROL_SESSION	0x000110FF
 /**< No payload. Wait for APRV2_IBASIC_RSP_RESULT response. */
 
+#define VSS_IMVM_CMD_SET_POLICY_DUAL_CONTROL	0x00011327
+/*
+ * VSS_IMVM_CMD_SET_POLICY_DUAL_CONTROL
+ * Description: This command is required to let MVM know
+ * who is in control of session.
+ * Payload: Defined by vss_imvm_cmd_set_policy_dual_control_t.
+ * Result: Wait for APRV2_IBASIC_RSP_RESULT response.
+ */
+
 #define VSS_IMVM_CMD_CREATE_FULL_CONTROL_SESSION	0x000110FE
 /* Create a new full control MVM session. */
 
@@ -140,7 +154,14 @@ struct vss_unmap_memory_cmd {
 */
 
 #define VSS_IMVM_CMD_START_VOICE			0x00011190
-/**< No payload. Wait for APRV2_IBASIC_RSP_RESULT response. */
+/*
+ * Start Voice call command.
+ * Wait for APRV2_IBASIC_RSP_RESULT response.
+ * No pay load.
+ */
+
+#define VSS_IMVM_CMD_STANDBY_VOICE	0x00011191
+/* No payload. Wait for APRV2_IBASIC_RSP_RESULT response. */
 
 #define VSS_IMVM_CMD_STOP_VOICE				0x00011192
 /**< No payload. Wait for APRV2_IBASIC_RSP_RESULT response. */
@@ -163,6 +184,14 @@ struct vss_unmap_memory_cmd {
 
 #define VSS_IWIDEVOICE_CMD_SET_WIDEVOICE                0x00011243
 /* Enable/disable WideVoice */
+
+enum msm_audio_voc_rate {
+		VOC_0_RATE, /* Blank frame */
+		VOC_8_RATE, /* 1/8 rate    */
+		VOC_4_RATE, /* 1/4 rate    */
+		VOC_2_RATE, /* 1/2 rate    */
+		VOC_1_RATE  /* Full rate   */
+};
 
 struct vss_istream_cmd_set_tty_mode_t {
 	uint32_t mode;
@@ -238,6 +267,12 @@ struct vss_imvm_cmd_create_control_session_t {
 	*/
 } __packed;
 
+
+struct vss_imvm_cmd_set_policy_dual_control_t {
+	bool enable_flag;
+	/* Set to TRUE to enable modem state machine control */
+} __packed;
+
 struct vss_iwidevoice_cmd_set_widevoice_t {
 	uint32_t enable;
 	/* WideVoice enable/disable; possible values:
@@ -259,6 +294,11 @@ struct mvm_detach_vocproc_cmd {
 struct mvm_create_ctl_session_cmd {
 	struct apr_hdr hdr;
 	struct vss_imvm_cmd_create_control_session_t mvm_session;
+} __packed;
+
+struct mvm_modem_dual_control_session_cmd {
+	struct apr_hdr hdr;
+	struct vss_imvm_cmd_set_policy_dual_control_t voice_ctl;
 } __packed;
 
 struct mvm_set_tty_mode_cmd {
@@ -368,12 +408,6 @@ struct vss_istream_cmd_start_record_t {
 	 * VSS_TAP_POINT_STREAM_END : Tx tap point is at the end of the stream.
 	 */
 } __packed;
-
-#define VOICE_MODULE_DHA        0x10001020
-#define VOICE_PARAM_DHA_DYNAMIC  0x10001022
-
-#define VOICEPROC_MODULE_TX          0x00010EF6
-#define VOICE_PARAM_LOOPBACK_ENABLE  0x00010E18
 
 struct vss_istream_cmd_create_passive_control_session_t {
 	char name[SESSION_NAME_LEN];
@@ -533,47 +567,6 @@ struct vss_icommon_cmd_set_ui_property_enable_t {
 	/* Reserved, set to 0. */
 };
 
-struct vss_icommon_cmd_set_loopback_enable_t {
-	uint32_t payload_address;
-	uint32_t payload_size;
-	uint32_t module_id;
-	/* Unique ID of the module. */
-	uint32_t param_id;
-	/* Unique ID of the parameter. */
-	uint16_t param_size;
-	/* Size of the parameter in bytes: MOD_ENABLE_PARAM_LEN */
-	uint16_t reserved;
-	/* Reserved; set to 0. */
-	uint16_t loopback_enable;
-	uint16_t reserved_field;
-	/* Reserved, set to 0. */
-};
-
-#ifdef CONFIG_SEC_DHA_SOL_MAL
-struct oem_dha_parm_send_t {
-	uint32_t payload_address;
-	uint32_t payload_size;
-	uint32_t module_id;
-	/* Unique ID of the module. */
-	uint32_t param_id;
-	/* Unique ID of the parameter. */
-	uint16_t param_size;
-	/* Size of the parameter in bytes: MOD_ENABLE_PARAM_LEN */
-	uint16_t reserved;
-	/* Reserved; set to 0. */
-	uint16_t eq_mode;
-	uint16_t dha_mode;
-	uint16_t select;
-	uint16_t dummy2;
-	int16_t param[12];
-} __packed;
-
-struct oem_dha_parm_send_cmd {
-	struct apr_hdr hdr;
-	struct oem_dha_parm_send_t dha_send;
-} __packed;
-#endif /* CONFIG_SEC_DHA_SOL_MAL*/
-
 struct cvs_create_passive_ctl_session_cmd {
 	struct apr_hdr hdr;
 	struct vss_istream_cmd_create_passive_control_session_t cvs_session;
@@ -641,11 +634,6 @@ struct cvs_start_record_cmd {
 	struct vss_istream_cmd_start_record_t rec_mode;
 } __packed;
 
-struct cvs_set_loopback_enable_cmd {
-	struct apr_hdr hdr;
-	struct vss_icommon_cmd_set_loopback_enable_t vss_set_loopback;
-} __packed;
-
 /* TO CVP commands */
 
 #define VSS_IVOCPROC_CMD_CREATE_FULL_CONTROL_SESSION	0x000100C3
@@ -699,6 +687,10 @@ struct cvs_set_loopback_enable_cmd {
 /* G.711 mu-law (contains two 10ms vocoder frames). */
 #define VSS_MEDIA_ID_G729		0x00010FD0
 /* G.729AB (contains two 10ms vocoder frames. */
+#define VSS_MEDIA_ID_4GV_NB_MODEM	0x00010FC3
+/*CDMA EVRC-B vocoder modem format */
+#define VSS_MEDIA_ID_4GV_WB_MODEM	0x00010FC4
+/*CDMA EVRC-WB vocoder modem format */
 
 #define VSS_IVOCPROC_CMD_SET_MUTE			0x000110EF
 
@@ -932,17 +924,20 @@ struct voice_data {
 	struct incall_music_info music_info;
 
 	struct voice_rec_route_state rec_route_state;
-
-	struct voice_dha_data sec_dha_data;
 };
 
 struct cal_mem {
-	struct ion_handle *handle;
-	uint32_t phy;
-	void *buf;
+	/* Physical Address */
+	uint32_t paddr;
+	/* Kernel Virtual Address */
+	uint32_t kvaddr;
 };
 
-#define MAX_VOC_SESSIONS 2
+struct cal_data {
+	struct cal_mem	cal_data[NUM_VOICE_CAL_TYPES];
+};
+
+#define MAX_VOC_SESSIONS 4
 #define SESSION_ID_BASE 0xFFF0
 
 struct common_data {
@@ -958,9 +953,9 @@ struct common_data {
 	/* APR to CVP in the Q6 */
 	void *apr_q6_cvp;
 
-	struct ion_client *client;
-	struct cal_mem cvp_cal;
-	struct cal_mem cvs_cal;
+	struct ion_client *ion_client;
+	struct ion_handle *ion_handle;
+	struct cal_data voice_cal[NUM_VOICE_CAL_BUFFERS];
 
 	struct mutex common_lock;
 
@@ -989,11 +984,6 @@ enum {
 };
 
 /* called  by alsa driver */
-#ifdef CONFIG_SEC_DHA_SOL_MAL
-int voice_sec_set_dha_data(uint16_t session_id, int mode,
-					int select, short *parameters);
-#endif /* CONFIG_SEC_DHA_SOL_MAL*/
-
 int voc_set_pp_enable(uint16_t session_id, uint32_t module_id, uint32_t enable);
 int voc_get_pp_enable(uint16_t session_id, uint32_t module_id);
 int voc_set_widevoice_enable(uint16_t session_id, uint32_t wv_enable);
@@ -1001,6 +991,8 @@ uint32_t voc_get_widevoice_enable(uint16_t session_id);
 uint8_t voc_get_tty_mode(uint16_t session_id);
 int voc_set_tty_mode(uint16_t session_id, uint8_t tty_mode);
 int voc_start_voice_call(uint16_t session_id);
+int voc_standby_voice_call(uint16_t session_id);
+int voc_resume_voice_call(uint16_t session_id);
 int voc_end_voice_call(uint16_t session_id);
 int voc_set_rxtx_port(uint16_t session_id,
 		      uint32_t dev_port_id,
@@ -1013,11 +1005,11 @@ int voc_disable_cvp(uint16_t session_id);
 int voc_enable_cvp(uint16_t session_id);
 int voc_set_route_flag(uint16_t session_id, uint8_t path_dir, uint8_t set);
 uint8_t voc_get_route_flag(uint16_t session_id, uint8_t path_dir);
-int voc_get_loopback_enable(void);
-void voc_set_loopback_enable(int loopback_enable);
 
 #define VOICE_SESSION_NAME "Voice session"
 #define VOIP_SESSION_NAME "VoIP session"
+#define VOLTE_SESSION_NAME "VoLTE session"
+#define SGLTE_SESSION_NAME "SGLTE session"
 uint16_t voc_get_session_id(char *name);
 
 int voc_start_playback(uint32_t set);

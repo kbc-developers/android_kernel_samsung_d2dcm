@@ -17,6 +17,7 @@
 #include <linux/fadvise.h>
 #include <linux/writeback.h>
 #include <linux/syscalls.h>
+#include <linux/swap.h>
 
 #include <asm/unistd.h>
 
@@ -117,15 +118,29 @@ SYSCALL_DEFINE(fadvise64_64)(int fd, loff_t offset, loff_t len, int advice)
 		break;
 	case POSIX_FADV_DONTNEED:
 		if (!bdi_write_congested(mapping->backing_dev_info))
-			filemap_flush(mapping);
+			__filemap_fdatawrite_range(mapping, offset, endbyte,
+						   WB_SYNC_NONE);
 
 		/* First and last FULL page! */
 		start_index = (offset+(PAGE_CACHE_SIZE-1)) >> PAGE_CACHE_SHIFT;
 		end_index = (endbyte >> PAGE_CACHE_SHIFT);
 
-		if (end_index >= start_index)
-			invalidate_mapping_pages(mapping, start_index,
+		if (end_index >= start_index) {
+			unsigned long count = invalidate_mapping_pages(mapping,
+						start_index, end_index);
+
+			/*
+			 * If fewer pages were invalidated than expected then
+			 * it is possible that some of the pages were on
+			 * a per-cpu pagevec for a remote CPU. Drain all
+			 * pagevecs and try again.
+			 */
+			if (count < (end_index - start_index + 1)) {
+				lru_add_drain_all();
+				invalidate_mapping_pages(mapping, start_index,
 						end_index);
+			}
+		}
 		break;
 	default:
 		ret = -EINVAL;

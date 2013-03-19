@@ -18,6 +18,7 @@
  ************************************************************************************/
 #include <linux/poll.h>
 #include <linux/miscdevice.h>
+#include <linux/module.h>
 #include <linux/hid.h>
 #include <linux/sched.h>
 

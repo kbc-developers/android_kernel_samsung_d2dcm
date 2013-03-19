@@ -6,7 +6,7 @@
 #include <linux/mm.h>
 #include <linux/mmzone.h>
 #include <linux/vm_event_item.h>
-#include <asm/atomic.h>
+#include <linux/atomic.h>
 
 extern int sysctl_stat_interval;
 
@@ -258,6 +258,13 @@ static inline void refresh_zone_stat_thresholds(void) { }
 
 #endif		/* CONFIG_SMP */
 
+static inline void __mod_zone_freepage_state(struct zone *zone, int nr_pages,
+					     int migratetype)
+{
+	__mod_zone_page_state(zone, NR_FREE_PAGES, nr_pages);
+	if (is_migrate_cma(migratetype))
+		__mod_zone_page_state(zone, NR_FREE_CMA_PAGES, nr_pages);
+}
 extern const char * const vmstat_text[];
 
 #endif /* _LINUX_VMSTAT_H */

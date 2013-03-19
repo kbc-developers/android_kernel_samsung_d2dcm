@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011, 2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,8 +14,8 @@
 #define DIAGFWD_SDIO_H
 
 #include <mach/sdio_al.h>
-#define N_MDM_WRITE	1 /* Upgrade to 2 with ping pong buffer */
-#define N_MDM_READ	1
+#define N_MDM_SDIO_WRITE	1 /* Upgrade to 2 with ping pong buffer */
+#define N_MDM_SDIO_READ	1
 
 void diagfwd_sdio_init(void);
 void diagfwd_sdio_exit(void);

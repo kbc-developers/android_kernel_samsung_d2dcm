@@ -12,6 +12,8 @@
 
 #include <linux/lcd.h>
 #include <linux/wakelock.h>
+#include <linux/pm_qos.h>
+#include <mach/cpuidle.h>
 #include "mipi_samsung_oled.h"
 #include "mdp4.h"
 #ifdef CONFIG_SAMSUNG_CMC624
@@ -29,7 +31,7 @@
 #endif
 
 static struct mipi_samsung_driver_data msd;
-static struct wake_lock idle_wake_lock;
+static struct pm_qos_request pm_qos_req;
 static unsigned int recovery_boot_mode;
 
 #define WA_FOR_FACTORY_MODE
@@ -359,7 +361,8 @@ static int mipi_samsung_disp_send_cmd(struct msm_fb_data_type *mfd,
 	struct dsi_cmd_desc *cmd_desc;
 	int cmd_size = 0;
 
-	wake_lock(&idle_wake_lock);
+	pm_qos_update_request(&pm_qos_req,
+		msm_cpuidle_get_deep_idle_latency());
 #ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
 	mutex_lock(&mipi_lp_mutex);
 #endif
@@ -495,7 +498,7 @@ static int mipi_samsung_disp_send_cmd(struct msm_fb_data_type *mfd,
 #ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
 	mutex_unlock(&mipi_lp_mutex);
 #endif
-	wake_unlock(&idle_wake_lock);
+	pm_qos_update_request(&pm_qos_req, PM_QOS_DEFAULT_VALUE);
 
 	return 0;
 
@@ -506,7 +509,7 @@ unknown_command:
 #ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
 	mutex_unlock(&mipi_lp_mutex);
 #endif
-	wake_unlock(&idle_wake_lock);
+	pm_qos_update_request(&pm_qos_req, PM_QOS_DEFAULT_VALUE);
 
 	return 0;
 }
@@ -1346,7 +1349,8 @@ static void read_error_register(struct msm_fb_data_type *mfd)
 	struct dsi_cmd_desc *cmd;
 #endif
 
-	wake_lock(&idle_wake_lock);
+	pm_qos_update_request(&pm_qos_req,
+		msm_cpuidle_get_deep_idle_latency());
 
 #if CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
 	mutex_lock(&mipi_lp_mutex);
@@ -1379,7 +1383,7 @@ static void read_error_register(struct msm_fb_data_type *mfd)
 #if CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
 	mutex_unlock(&mipi_lp_mutex);
 #endif
-	wake_unlock(&idle_wake_lock);
+	pm_qos_update_request(&pm_qos_req, PM_QOS_DEFAULT_VALUE);
 }
 
 static void esd_test_work_func(struct work_struct *work)
@@ -1641,7 +1645,8 @@ static int __init mipi_samsung_disp_init(void)
 	mipi_dsi_buf_alloc(&msd.samsung_tx_buf, DSI_BUF_SIZE);
 	mipi_dsi_buf_alloc(&msd.samsung_rx_buf, DSI_BUF_SIZE);
 
-	wake_lock_init(&idle_wake_lock, WAKE_LOCK_IDLE, "MIPI idle lock");
+	pm_qos_add_request(&pm_qos_req, PM_QOS_CPU_DMA_LATENCY,
+		PM_QOS_DEFAULT_VALUE);
 
 	return platform_driver_register(&this_driver);
 }

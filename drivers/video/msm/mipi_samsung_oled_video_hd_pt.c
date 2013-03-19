@@ -787,6 +787,7 @@ static char ACL_COND_SET_33[] = {
 	0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00,
 };
+#if 0
 static char ACL_COND_SET_20[] = {
 	0xC1,
 	0x47, 0x53, 0x13, 0x53, 0x00, 0x00,
@@ -798,15 +799,17 @@ static char ACL_COND_SET_20[] = {
 	0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00,
 };
-
+#endif
 static struct dsi_cmd_desc DSI_CMD_ACL_50 = {
 DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(ACL_COND_SET_50), ACL_COND_SET_50 };
 static struct dsi_cmd_desc DSI_CMD_ACL_40 = {
 DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(ACL_COND_SET_40), ACL_COND_SET_40 };
 static struct dsi_cmd_desc DSI_CMD_ACL_33 = {
 DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(ACL_COND_SET_33), ACL_COND_SET_33 };
+#if 0
 static struct dsi_cmd_desc DSI_CMD_ACL_20 = {
 DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(ACL_COND_SET_20), ACL_COND_SET_20 };
+#endif
 static struct dsi_cmd_desc_LCD lcd_acl_table[] = {
 	{0, "20", NULL},
 	{0, "30", NULL},
@@ -1620,6 +1623,7 @@ static int __init mipi_cmd_samsung_oled_qhd_pt_init(void)
 	pinfo.bl_max = 255;
 	pinfo.bl_min = 1;
 	pinfo.fb_num = 2;
+	pinfo.lcd.blt_ctrl = 1;
 
 	if (samsung_has_cmc624())
 		pinfo.clk_rate = 483000000;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,5 +17,7 @@
 int set_grp2d_async(void);
 int set_grp3d_async(void);
 int set_grp_xbar_async(void);
-
+int axi_allocate(int mode);
+int axi_free(int mode);
+#define AXI_FLOW_VIEWFINDER_HI	243
 #endif  /* _DAL_AXI_H */

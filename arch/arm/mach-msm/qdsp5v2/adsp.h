@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 Google, Inc.
- * Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2009, The Linux Foundation. All rights reserved.
  * Author: Iliyan Malchev <ibm@android.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -229,6 +229,9 @@ struct adsp_info {
 
 	void *handle;
 	void *cb_handle;
+
+	/* Interrupt value */
+	int int_adsp;
 };
 
 #define ADSP_STATE_DISABLED   0

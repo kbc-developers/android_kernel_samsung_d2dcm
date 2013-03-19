@@ -76,9 +76,9 @@ int soc_dsp_be_dai_trigger(struct snd_soc_pcm_runtime *fe, int stream, int cmd);
 static inline int snd_soc_dsp_is_trigger_for_be(struct snd_soc_pcm_runtime *fe,
 		struct snd_soc_pcm_runtime *be, int stream)
 {
-	if (!fe->dsp[stream].runtime_update)
+	if (!fe->dpcm[stream].runtime_update)
 		return 1;
-	else if (be->dsp[stream].runtime_update)
+	else if (be->dpcm[stream].runtime_update)
 		return 1;
 	else
 		return 0;
@@ -88,7 +88,7 @@ static inline int snd_soc_dsp_is_trigger_for_be(struct snd_soc_pcm_runtime *fe,
 static inline int snd_soc_dsp_is_trigger_for_fe(struct snd_soc_pcm_runtime *fe,
 		int stream)
 {
-	return !fe->dsp[stream].runtime_update;
+	return !fe->dpcm[stream].runtime_update;
 }
 
 static inline int snd_soc_dsp_platform_trigger(struct snd_pcm_substream *substream,

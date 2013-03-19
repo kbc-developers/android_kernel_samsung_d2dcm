@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -48,6 +48,8 @@ static int mipi_dsi_remove(struct platform_device *pdev);
 
 static int mipi_dsi_off(struct platform_device *pdev);
 static int mipi_dsi_on(struct platform_device *pdev);
+static int mipi_dsi_fps_level_change(struct platform_device *pdev,
+					u32 fps_level);
 
 static struct platform_device *pdev_list[MSM_FB_MAX_DEV_LIST];
 static int pdev_list_cnt;
@@ -66,14 +68,19 @@ static struct platform_driver mipi_dsi_driver = {
 
 struct device dsi_dev;
 
+static int mipi_dsi_fps_level_change(struct platform_device *pdev,
+					u32 fps_level)
+{
+	mipi_dsi_wait4video_done();
+	mipi_dsi_configure_fb_divider(fps_level);
+	return 0;
+}
+
 static int mipi_dsi_off(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct msm_fb_data_type *mfd;
 	struct msm_panel_info *pinfo;
-	uint32 dsi_ctrl;
-
-	pr_debug("Start of %s....:\n", __func__);
 
 	pr_debug("%s+:\n", __func__);
 
@@ -117,9 +124,7 @@ static int mipi_dsi_off(struct platform_device *pdev)
 	mipi_dsi_clk_disable();
 
 	/* disbale dsi engine */
-	dsi_ctrl = MIPI_INP(MIPI_DSI_BASE + 0x0000);
-	dsi_ctrl &= ~0x01;
-	MIPI_OUTP(MIPI_DSI_BASE + 0x0000, dsi_ctrl);
+	MIPI_OUTP(MIPI_DSI_BASE + 0x0000, 0);
 
 	mipi_dsi_phy_ctrl(0);
 
@@ -129,21 +134,17 @@ static int mipi_dsi_off(struct platform_device *pdev)
 	mipi_dsi_unprepare_clocks();
 	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_power_save)
 		mipi_dsi_pdata->dsi_power_save(0);
-#if defined(CONFIG_FB_MSM_MIPI_PANEL_POWERON_LP11)
-	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_client_power_save)
-		mipi_dsi_pdata->dsi_client_power_save(0);
-#endif /* CONFIG_FB_MSM_MIPI_PANEL_POWERON_LP11 */
+
 	if (mdp_rev >= MDP_REV_41)
 		mutex_unlock(&mfd->dma->ov_mutex);
 	else
 		up(&mfd->dma->mutex);
 
-	pr_debug("End of %s ....:\n", __func__);
+	pr_debug("%s-:\n", __func__);
 
 	return ret;
 }
 
-extern struct mdp4_overlay_perf perf_current;
 static int mipi_dsi_on(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -168,13 +169,6 @@ static int mipi_dsi_on(struct platform_device *pdev)
 
 	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_power_save)
 		mipi_dsi_pdata->dsi_power_save(1);
-#if defined(CONFIG_FB_MSM_MIPI_PANEL_POWERON_LP11)
-	/*
-	 * Fix for floating state of VDD line in toshiba chip
-	 * */
-	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_client_power_save)
-		mipi_dsi_pdata->dsi_client_power_save(1);
-#endif /* CONFIG_FB_MSM_MIPI_PANEL_POWERON_LP11 */
 
 	cont_splash_clk_ctrl(0);
 	mipi_dsi_prepare_clocks();
@@ -186,7 +180,7 @@ static int mipi_dsi_on(struct platform_device *pdev)
 
 	mipi_dsi_phy_ctrl(1);
 
-	if (mdp_rev >= MDP_REV_42 && mipi_dsi_pdata)
+	if (mdp_rev == MDP_REV_42 && mipi_dsi_pdata)
 		target_type = mipi_dsi_pdata->target_type;
 
 	mipi_dsi_phy_init(0, &(mfd->panel_info), target_type);
@@ -262,32 +256,6 @@ static int mipi_dsi_on(struct platform_device *pdev)
 	}
 
 	mipi_dsi_host_init(mipi);
-#if defined(CONFIG_FB_MSM_MIPI_PANEL_POWERON_LP11)
-	/*
-	 * For TC358764 D2L IC, one of the requirement for power on
-	 * is to maintain an LP11 state in data and clock lanes during
-	 * power enabling and reset assertion. This change is to
-	 * achieve that.
-	 * */
-	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_client_power_save) {
-		u32 tmp_reg0c, tmp_rega8;
-		mipi_dsi_pdata->dsi_client_reset();
-		udelay(200);
-		/* backup register values */
-		tmp_reg0c = MIPI_INP(MIPI_DSI_BASE + 0x000c);
-		tmp_rega8 = MIPI_INP(MIPI_DSI_BASE + 0xA8);
-		/* Clear HS  mode assertion and related flags */
-		MIPI_OUTP(MIPI_DSI_BASE + 0x0c, 0x8000);
-		MIPI_OUTP(MIPI_DSI_BASE + 0xA8, 0x0);
-		wmb();
-		mdelay(5);
-		/* restore previous values */
-		MIPI_OUTP(MIPI_DSI_BASE + 0x0c, tmp_reg0c);
-		MIPI_OUTP(MIPI_DSI_BASE + 0xa8, tmp_rega8);
-		wmb();
-	}
-#endif /* CONFIG_FB_MSM_MIPI_PANEL_POWERON_LP11 */
-
 
 	if (mipi->force_clk_lane_hs) {
 		u32 tmp;
@@ -303,8 +271,7 @@ static int mipi_dsi_on(struct platform_device *pdev)
 	else
 		down(&mfd->dma->mutex);
 
-	if (mfd->op_enable)
-		ret = panel_next_on(pdev);
+	ret = panel_next_on(pdev);
 
 	mipi_dsi_op_mode_config(mipi->mode);
 
@@ -363,10 +330,22 @@ static int mipi_dsi_on(struct platform_device *pdev)
 	else
 		up(&mfd->dma->mutex);
 
-	pr_debug("End of %s....:\n", __func__);
+	pr_debug("%s-:\n", __func__);
 
 	return ret;
 }
+
+static int mipi_dsi_early_off(struct platform_device *pdev)
+{
+	return panel_next_early_off(pdev);
+}
+
+
+static int mipi_dsi_late_init(struct platform_device *pdev)
+{
+	return panel_next_late_init(pdev);
+}
+
 
 static int mipi_dsi_resource_initialized;
 
@@ -421,7 +400,7 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 
 		disable_irq(dsi_irq);
 
-		if (mdp_rev >= MDP_REV_42 && mipi_dsi_pdata &&
+		if (mdp_rev == MDP_REV_42 && mipi_dsi_pdata &&
 			mipi_dsi_pdata->target_type == 1) {
 			/* Target type is 1 for device with (De)serializer
 			 * 0x4f00000 is the base for TV Encoder.
@@ -456,11 +435,8 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 			}
 		}
 
-		if (mipi_dsi_clk_init(pdev)){
-			free_irq(dsi_irq,0);
-			iounmap(periph_base);
+		if (mipi_dsi_clk_init(pdev))
 			return -EPERM;
-		}
 
 		if (mipi_dsi_pdata->splash_is_enabled &&
 			!mipi_dsi_pdata->splash_is_enabled()) {
@@ -514,6 +490,9 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 	pdata = mdp_dev->dev.platform_data;
 	pdata->on = mipi_dsi_on;
 	pdata->off = mipi_dsi_off;
+	pdata->fps_level_change = mipi_dsi_fps_level_change;
+	pdata->late_init = mipi_dsi_late_init;
+	pdata->early_off = mipi_dsi_early_off;
 	pdata->next = pdev;
 
 	/*
@@ -604,8 +583,10 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 	if (rc)
 		goto mipi_dsi_probe_err;
 
-	if ((dsi_pclk_rate < 3300000) || (dsi_pclk_rate > 103300000))
+	if ((dsi_pclk_rate < 3300000) || (dsi_pclk_rate > 223000000)) {
+		pr_err("%s: Pixel clock not supported\n", __func__);
 		dsi_pclk_rate = 35000000;
+	}
 	mipi->dsi_pclk_rate = dsi_pclk_rate;
 
 	/*
@@ -629,7 +610,7 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 	if (!mfd->cont_splash_done)
 		cont_splash_clk_ctrl(1);
 
-return 0;
+	return 0;
 
 mipi_dsi_probe_err:
 	platform_device_put(mdp_dev);

@@ -52,7 +52,7 @@
 #define SRCH_MASK                  (1 << SRCH200KHZ_OFFSET)
 
 /* Standard buffer size */
-#define STD_BUF_SIZE               (64)
+#define STD_BUF_SIZE               (256)
 /* Search direction */
 #define SRCH_DIR_UP                 (0)
 #define SRCH_DIR_DOWN               (1)
@@ -176,6 +176,7 @@ enum v4l2_cid_private_tavarua_t {
 	V4L2_CID_PRIVATE_SPUR_FREQ_RMSSI,
 	V4L2_CID_PRIVATE_SPUR_SELECTION,
 	V4L2_CID_PRIVATE_UPDATE_SPUR_TABLE,
+	V4L2_CID_PRIVATE_VALID_CHANNEL,
 
 };
 
@@ -336,6 +337,16 @@ enum search_t {
 	RDS_AF_JUMP,
 };
 
+/* Band limits */
+#define REGION_US_EU_BAND_LOW		87500
+#define REGION_US_EU_BAND_HIGH		108000
+#define REGION_JAPAN_STANDARD_BAND_LOW	76000
+#define REGION_JAPAN_STANDARD_BAND_HIGH	90000
+#define REGION_JAPAN_WIDE_BAND_LOW	90000
+#define REGION_JAPAN_WIDE_BAND_HIGH	108000
+#define MPX_DCC_BYPASS_REG		0x88C0
+#define MPX_DCC_DATA_REG		0x88C2
+
 enum audio_path {
 	FM_DIGITAL_PATH,
 	FM_ANALOG_PATH
@@ -395,6 +406,22 @@ enum radio_state_t {
 
 #define	FM_TX_PWR_LVL_0		0 /* Lowest power lvl that can be set for Tx */
 #define	FM_TX_PWR_LVL_MAX	7 /* Max power lvl for Tx */
+
+/* Tone Generator control value */
+#define TONE_GEN_CTRL_BYTE		 0x00
+#define TONE_CHANNEL_EN_AND_SCALING_BYTE 0x01
+#define TONE_LEFT_FREQ_BYTE		 0x02
+#define TONE_RIGHT_FREQ_BYTE		 0x03
+#define TONE_LEFT_PHASE			 0x04
+#define TONE_RIGHT_PHASE		 0x05
+
+#define TONE_LEFT_CH_ENABLED		 0x01
+#define TONE_RIGHT_CH_ENABLED		 0x02
+#define TONE_LEFT_RIGHT_CH_ENABLED	 (TONE_LEFT_CH_ENABLED\
+						 | TONE_RIGHT_CH_ENABLED)
+
+#define TONE_SCALING_SHIFT		 0x02
+
 /* Transfer */
 enum tavarua_xfr_ctrl_t {
 	RDS_PS_0 = 0x01,
@@ -453,6 +480,7 @@ enum tavarua_xfr_ctrl_t {
 	PHY_CONFIG,
 	PHY_TXBLOCK,
 	PHY_TCB,
+	XFR_EXT,
 	XFR_PEEK_MODE = 0x40,
 	XFR_POKE_MODE = 0xC0,
 	TAVARUA_XFR_CTRL_MAX
@@ -503,6 +531,7 @@ enum {
 	TWELVE_BYTE,
 	THIRTEEN_BYTE
 };
+
 #define XFR_READ		(0)
 #define XFR_WRITE		(1)
 #define XFR_MODE_OFFSET		(0)
@@ -516,6 +545,12 @@ enum {
 #define SPUR_TABLE_START_ADDR	(SPUR_TABLE_ADDR + 1)
 #define XFR_PEEK_COMPLETE	(XFR_PEEK_MODE | READ_COMPLETE)
 #define XFR_POKE_COMPLETE	(XFR_POKE_MODE)
+#define TUNE_MULT		(16)
+#define ADJ_CHANNEL_KHZ		(50)
+#define MPX_DCC_UPPER_LIMIT	(20000)
+#define MPX_DCC_LIMIT		(12566)
+#define INVALID_CHANNEL		(0)
+#define VALID_CHANNEL		(1)
 
 #define COMPUTE_SPUR(val)	((((val) - (76000)) / (50)))
 #define GET_FREQ(val, bit)	((bit == 1) ? ((val) >> 8) : ((val) & 0xFF))
@@ -530,5 +565,29 @@ struct fm_def_data_wr_req {
 	__u8    length;
 	__u8   data[XFR_REG_NUM];
 } __packed;
+
+enum Internal_tone_gen_vals {
+	ONE_KHZ_LR_EQUA_0DBFS = 1,
+	ONE_KHZ_LEFTONLY_EQUA_0DBFS,
+	ONE_KHZ_RIGHTONLY_EQUA_0DBFS,
+	ONE_KHZ_LR_EQUA_l8DBFS,
+	FIFTEEN_KHZ_LR_EQUA_l8DBFS
+};
+
+enum Tone_scaling_indexes {
+	TONE_SCALE_IND_0,
+	TONE_SCALE_IND_1,
+	TONE_SCALE_IND_2,
+	TONE_SCALE_IND_3,
+	TONE_SCALE_IND_4,
+	TONE_SCALE_IND_5,
+	TONE_SCALE_IND_6,
+	TONE_SCALE_IND_7,
+	TONE_SCALE_IND_8,
+	TONE_SCALE_IND_9,
+	TONE_SCALE_IND_10,
+	TONE_SCALE_IND_11,
+	TONE_SCALE_IND_12
+};
 
 #endif /* __LINUX_TAVARUA_H */

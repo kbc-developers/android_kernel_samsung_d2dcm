@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -74,6 +74,11 @@ static struct vreg_range nldo1200_ranges[] = {
 	VOLTAGE_RANGE( 750000, 1537500, 12500),
 };
 
+static struct vreg_range ln_ldo_ranges[] = {
+	VOLTAGE_RANGE( 690000, 1110000,  60000),
+	VOLTAGE_RANGE(1380000, 2220000, 120000),
+};
+
 static struct vreg_range smps_ranges[] = {
 	VOLTAGE_RANGE( 375000,  737500, 12500),
 	VOLTAGE_RANGE( 750000, 1487500, 12500),
@@ -93,6 +98,7 @@ static struct vreg_range ncp_ranges[] = {
 static struct vreg_set_points pldo_set_points = SET_POINTS(pldo_ranges);
 static struct vreg_set_points nldo_set_points = SET_POINTS(nldo_ranges);
 static struct vreg_set_points nldo1200_set_points = SET_POINTS(nldo1200_ranges);
+static struct vreg_set_points ln_ldo_set_points = SET_POINTS(ln_ldo_ranges);
 static struct vreg_set_points smps_set_points = SET_POINTS(smps_ranges);
 static struct vreg_set_points ftsmps_set_points = SET_POINTS(ftsmps_ranges);
 static struct vreg_set_points ncp_set_points = SET_POINTS(ncp_ranges);
@@ -101,12 +107,13 @@ static struct vreg_set_points *all_set_points[] = {
 	&pldo_set_points,
 	&nldo_set_points,
 	&nldo1200_set_points,
+	&ln_ldo_set_points,
 	&smps_set_points,
 	&ftsmps_set_points,
 	&ncp_set_points,
 };
 
-#define LDO(_id, _name, _name_pc, _ranges, _hpm_min_load) \
+#define LDO(_id, _name, _name_pc, _ranges, _hpm_min_load, _requires_cxo) \
 	[RPM_VREG_ID_PM8921_##_id] = { \
 		.req = { \
 			[0] = { .id = MSM_RPM_ID_PM8921_##_id##_0, }, \
@@ -119,6 +126,7 @@ static struct vreg_set_points *all_set_points[] = {
 		.id		 = RPM_VREG_ID_PM8921_##_id, \
 		.rdesc.name	 = _name, \
 		.rdesc_pc.name	 = _name_pc, \
+		.requires_cxo	 = _requires_cxo, \
 	}
 
 #define SMPS(_id, _name, _name_pc, _ranges, _hpm_min_load) \
@@ -177,32 +185,33 @@ static struct vreg_set_points *all_set_points[] = {
 	}
 
 static struct vreg vregs[] = {
-	LDO(L1,   "8921_l1",   "8921_l1_pc",  nldo,     LDO_150),
-	LDO(L2,   "8921_l2",   "8921_l2_pc",  nldo,     LDO_150),
-	LDO(L3,   "8921_l3",   "8921_l3_pc",  pldo,     LDO_150),
-	LDO(L4,   "8921_l4",   "8921_l4_pc",  pldo,     LDO_50),
-	LDO(L5,   "8921_l5",   "8921_l5_pc",  pldo,     LDO_300),
-	LDO(L6,   "8921_l6",   "8921_l6_pc",  pldo,     LDO_600),
-	LDO(L7,   "8921_l7",   "8921_l7_pc",  pldo,     LDO_150),
-	LDO(L8,   "8921_l8",   "8921_l8_pc",  pldo,     LDO_300),
-	LDO(L9,   "8921_l9",   "8921_l9_pc",  pldo,     LDO_300),
-	LDO(L10,  "8921_l10",  "8921_l10_pc", pldo,     LDO_600),
-	LDO(L11,  "8921_l11",  "8921_l11_pc", pldo,     LDO_150),
-	LDO(L12,  "8921_l12",  "8921_l12_pc", nldo,     LDO_150),
-	LDO(L14,  "8921_l14",  "8921_l14_pc", pldo,     LDO_50),
-	LDO(L15,  "8921_l15",  "8921_l15_pc", pldo,     LDO_150),
-	LDO(L16,  "8921_l16",  "8921_l16_pc", pldo,     LDO_300),
-	LDO(L17,  "8921_l17",  "8921_l17_pc", pldo,     LDO_150),
-	LDO(L18,  "8921_l18",  "8921_l18_pc", nldo,     LDO_150),
-	LDO(L21,  "8921_l21",  "8921_l21_pc", pldo,     LDO_150),
-	LDO(L22,  "8921_l22",  "8921_l22_pc", pldo,     LDO_150),
-	LDO(L23,  "8921_l23",  "8921_l23_pc", pldo,     LDO_150),
-	LDO(L24,  "8921_l24",  NULL,          nldo1200, LDO_1200),
-	LDO(L25,  "8921_l25",  NULL,          nldo1200, LDO_1200),
-	LDO(L26,  "8921_l26",  NULL,          nldo1200, LDO_1200),
-	LDO(L27,  "8921_l27",  NULL,          nldo1200, LDO_1200),
-	LDO(L28,  "8921_l28",  NULL,          nldo1200, LDO_1200),
-	LDO(L29,  "8921_l29",  "8921_l29_pc", pldo,     LDO_150),
+	LDO(L1,   "8921_l1",   "8921_l1_pc",  nldo,     LDO_150,  1),
+	LDO(L2,   "8921_l2",   "8921_l2_pc",  nldo,     LDO_150,  1),
+	LDO(L3,   "8921_l3",   "8921_l3_pc",  pldo,     LDO_150,  0),
+	LDO(L4,   "8921_l4",   "8921_l4_pc",  pldo,     LDO_50,   0),
+	LDO(L5,   "8921_l5",   "8921_l5_pc",  pldo,     LDO_300,  0),
+	LDO(L6,   "8921_l6",   "8921_l6_pc",  pldo,     LDO_600,  0),
+	LDO(L7,   "8921_l7",   "8921_l7_pc",  pldo,     LDO_150,  0),
+	LDO(L8,   "8921_l8",   "8921_l8_pc",  pldo,     LDO_300,  0),
+	LDO(L9,   "8921_l9",   "8921_l9_pc",  pldo,     LDO_300,  0),
+	LDO(L10,  "8921_l10",  "8921_l10_pc", pldo,     LDO_600,  0),
+	LDO(L11,  "8921_l11",  "8921_l11_pc", pldo,     LDO_150,  0),
+	LDO(L12,  "8921_l12",  "8921_l12_pc", nldo,     LDO_150,  1),
+	LDO(L13,  "8921_l13",  NULL,          ln_ldo,   LDO_5,    0),
+	LDO(L14,  "8921_l14",  "8921_l14_pc", pldo,     LDO_50,   0),
+	LDO(L15,  "8921_l15",  "8921_l15_pc", pldo,     LDO_150,  0),
+	LDO(L16,  "8921_l16",  "8921_l16_pc", pldo,     LDO_300,  0),
+	LDO(L17,  "8921_l17",  "8921_l17_pc", pldo,     LDO_150,  0),
+	LDO(L18,  "8921_l18",  "8921_l18_pc", nldo,     LDO_150,  1),
+	LDO(L21,  "8921_l21",  "8921_l21_pc", pldo,     LDO_150,  0),
+	LDO(L22,  "8921_l22",  "8921_l22_pc", pldo,     LDO_150,  0),
+	LDO(L23,  "8921_l23",  "8921_l23_pc", pldo,     LDO_150,  0),
+	LDO(L24,  "8921_l24",  NULL,          nldo1200, LDO_1200, 0),
+	LDO(L25,  "8921_l25",  NULL,          nldo1200, LDO_1200, 0),
+	LDO(L26,  "8921_l26",  NULL,          nldo1200, LDO_1200, 0),
+	LDO(L27,  "8921_l27",  NULL,          nldo1200, LDO_1200, 0),
+	LDO(L28,  "8921_l28",  NULL,          nldo1200, LDO_1200, 0),
+	LDO(L29,  "8921_l29",  "8921_l29_pc", pldo,     LDO_150,  0),
 
 	SMPS(S1,  "8921_s1",   "8921_s1_pc",  smps,     SMPS_1500),
 	SMPS(S2,  "8921_s2",   "8921_s2_pc",  smps,     SMPS_1500),
@@ -263,8 +272,12 @@ static int pc_id_to_real_id(int id)
 {
 	int real_id;
 
-	if (id >= RPM_VREG_ID_PM8921_L1_PC && id <= RPM_VREG_ID_PM8921_L23_PC)
+	if (id >= RPM_VREG_ID_PM8921_L1_PC && id <= RPM_VREG_ID_PM8921_L12_PC)
 		real_id = id - RPM_VREG_ID_PM8921_L1_PC;
+	else if (id >= RPM_VREG_ID_PM8921_L14_PC
+			&& id <= RPM_VREG_ID_PM8921_L23_PC)
+		real_id = id - RPM_VREG_ID_PM8921_L14_PC
+				+ RPM_VREG_ID_PM8921_L14;
 	else if (id >= RPM_VREG_ID_PM8921_L29_PC
 			&& id <= RPM_VREG_ID_PM8921_S4_PC)
 		real_id = id - RPM_VREG_ID_PM8921_L29_PC
@@ -310,5 +323,34 @@ static struct vreg_config config = {
 
 struct vreg_config *get_config_8960(void)
 {
+	return &config;
+}
+
+struct vreg_config *get_config_8960_pm8917(void)
+{
+	int i;
+
+	/*
+	 * PM8917 regulators L24, L25, L26, L27, and L28 require CXO to be ON
+	 * while they are enabled.  These same regulators on PM8921 do not
+	 * require CXO to be ON.  Therefore, set the require_cxo flag for these
+	 * regulators only when using PM8917.
+	 *
+	 * Do not apply the workaround to L24 (VDD_MX) because it is always on
+	 * and using the TCXO workaround with it would result in additional
+	 * latency during every Krait upscaling event.
+	 */
+	for (i = 0; i < ARRAY_SIZE(vregs); i++) {
+		switch (vregs[i].id) {
+		case RPM_VREG_ID_PM8921_L25:
+		case RPM_VREG_ID_PM8921_L26:
+		case RPM_VREG_ID_PM8921_L27:
+		case RPM_VREG_ID_PM8921_L28:
+			vregs[i].requires_cxo = true;
+		default:
+			break;
+		}
+	}
+
 	return &config;
 }

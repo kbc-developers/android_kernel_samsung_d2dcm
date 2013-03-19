@@ -2,7 +2,7 @@
  *
  * pcm audio input device
  *
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This code is based in part on arch/arm/mach-msm/qdsp5v2/audio_pcm_in.c,
  * Copyright (C) 2008 Google, Inc.
@@ -26,7 +26,7 @@
 #include <linux/kthread.h>
 #include <linux/wait.h>
 #include <linux/dma-mapping.h>
-#include <linux/ion.h>
+#include <linux/msm_ion.h>
 
 #include <linux/delay.h>
 
@@ -221,6 +221,7 @@ static int audpcm_in_disable(struct audio_in *audio)
 
 		audpcm_in_dsp_enable(audio, 0);
 
+		audio->stopped = 1;
 		wake_up(&audio->wait);
 
 		msm_adsp_disable(audio->audrec);
@@ -587,7 +588,7 @@ static void audpcm_in_flush(struct audio_in *audio)
 	audio->in_head = 0;
 	audio->in_tail = 0;
 	audio->in_count = 0;
-	for (i = FRAME_NUM-1; i <= 0; i--) {
+	for (i = FRAME_NUM-1; i >= 0; i--) {
 		audio->in[i].size = 0;
 		audio->in[i].read = 0;
 	}
@@ -616,7 +617,6 @@ static long audpcm_in_ioctl(struct file *file,
 	}
 	case AUDIO_STOP:
 		rc = audpcm_in_disable(audio);
-		audio->stopped = 1;
 		break;
 	case AUDIO_FLUSH:
 		if (audio->stopped) {
@@ -847,7 +847,7 @@ static int audpcm_in_open(struct inode *inode, struct file *file)
 
 	MM_DBG("allocating mem sz = %d\n", DMASZ);
 	handle = ion_alloc(client, DMASZ, SZ_4K,
-		ION_HEAP(ION_AUDIO_HEAP_ID));
+		ION_HEAP(ION_AUDIO_HEAP_ID), 0);
 	if (IS_ERR_OR_NULL(handle)) {
 		MM_ERR("Unable to create allocate O/P buffers\n");
 		rc = -ENOMEM;
@@ -871,19 +871,19 @@ static int audpcm_in_open(struct inode *inode, struct file *file)
 	rc = ion_handle_get_flags(client, handle, &ionflag);
 	if (rc) {
 		MM_ERR("could not get flags for the handle\n");
-			rc = -ENOMEM;
+		rc = -ENOMEM;
 		goto output_buff_get_flags_error;
 	}
 
-	audio->data = ion_map_kernel(client, handle, ionflag);
+	audio->data = ion_map_kernel(client, handle);
 	if (IS_ERR(audio->data)) {
 		MM_ERR("could not map read buffers,freeing instance 0x%08x\n",
 				(int)audio);
 		rc = -ENOMEM;
 		goto output_buff_map_error;
-		}
-		MM_DBG("read buf: phy addr 0x%08x kernel addr 0x%08x\n",
-				audio->phys, (int)audio->data);
+	}
+	MM_DBG("read buf: phy addr 0x%08x kernel addr 0x%08x\n",
+		audio->phys, (int)audio->data);
 
 	file->private_data = audio;
 	audio->opened = 1;

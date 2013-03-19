@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,6 +9,9 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+
+#define pr_fmt(fmt) "AXI: %s(): " fmt, __func__
+
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -220,7 +223,7 @@ static int getpath(int src, int dest)
 		list_for_each_entry(fabnodeinfo, gateways, list) {
 		/* see if the destination is at a connected fabric */
 			if (_dst == (fabnodeinfo->info->node_info->priv_id /
-				FABRIC_ID_KEY) && !(fabdev->visited)) {
+				FABRIC_ID_KEY)) {
 				/* Found the fab on which the device exists */
 				info = fabnodeinfo->info;
 				trynextgw = false;
@@ -456,6 +459,7 @@ uint32_t msm_bus_scale_register_client(struct msm_bus_scale_pdata *pdata)
 	int src, dest, nfab;
 	struct msm_bus_fabric_device *deffab;
 
+	pr_err("%s: name: %s ", __func__, pdata->name);
 	deffab = msm_bus_get_fabric_device(MSM_BUS_FAB_DEFAULT);
 	if (!deffab) {
 		MSM_BUS_ERR("Error finding default fabric\n");

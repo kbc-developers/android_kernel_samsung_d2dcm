@@ -310,7 +310,9 @@ static ssize_t reselect_jack_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct sec_jack_info *hi = dev_get_drvdata(dev);
+#if 0
 	struct sec_jack_platform_data *pdata = hi->pdata;
+#endif
 	int value = 0;
 
 

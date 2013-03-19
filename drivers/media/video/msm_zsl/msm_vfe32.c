@@ -11,6 +11,7 @@
  */
 
 #include <linux/uaccess.h>
+#include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <linux/io.h>
@@ -3119,8 +3120,8 @@ static void vfe32_process_zsl_frame(void)
 		    no_free_buffer_count++;
 		else
 		    no_free_buffer_count = 0;
-		CDBG("count %d\n", no_free_buffer_count);
-		CDBG("time_diff %d, tv_msec %d, pre_frame_msec %d\n",
+		CDBG("count %x\n", no_free_buffer_count);
+		CDBG("time_diff %x, tv_msec %ld, pre_frame_msec %ld\n",
 		       time_diff, TV_MSEC(tv.tv_nsec), pre_frame_msec);
 		/* max 66msec * 60 = 3960msec */
 		/* min 33msec * 60 = 1980msec */
@@ -4120,7 +4121,7 @@ int msm_vfe_subdev_init(struct v4l2_subdev *sd, void *data,
 
 	if (vfe32_ctrl->fs_vfe == NULL) {
 		vfe32_ctrl->fs_vfe =
-		    regulator_get(&vfe32_ctrl->pdev->dev, "fs_vfe");
+		    regulator_get(&vfe32_ctrl->pdev->dev, "vdd");
 		if (IS_ERR(vfe32_ctrl->fs_vfe)) {
 			pr_err("%s: Regulator FS_VFE get failed %ld\n",
 			       __func__, PTR_ERR(vfe32_ctrl->fs_vfe));

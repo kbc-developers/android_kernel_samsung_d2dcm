@@ -60,7 +60,7 @@
 #define CYPRESS_LED_CONTROL_OFF	0X70
 #define CYPRESS_SLEEP		0X80
 static int vol_mv_level = 33;
-
+extern unsigned int system_rev;
 
 
 #define TOUCHKEY_BACKLIGHT	"button-backlight"
@@ -839,7 +839,10 @@ static int __devinit cypress_touchkey_probe(struct i2c_client *client,
 	struct input_dev *input_dev;
 	int ret = 0;
 	int i;
+#if defined(CONFIG_MACH_M2_ATT) || defined(CONFIG_MACH_M2_DCM) \
+	|| defined(CONFIG_MACH_M2_SKT) || defined(CONFIG_MACH_K2_KDI)
 	int retry = NUM_OF_RETRY_UPDATE;
+#endif
 	int ic_fw_ver;
 
 	struct device *sec_touchkey;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2009, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -195,8 +195,6 @@ static int __init nmea_init(void)
 		return -ENOMEM;
 
 	ret = misc_register(&nmea_device.misc);
-	if (ret)
-		destroy_workqueue(nmea_wq);
 	return ret;
 }
 

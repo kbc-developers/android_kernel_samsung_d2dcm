@@ -33,6 +33,7 @@
 #include <linux/gpio.h>
 #include <mach/msm8960-gpio.h>
 #include <linux/mfd/pm8xxx/pm8xxx-adc.h>
+#include <asm/system_info.h>
 
 #define FG_T_SOC		0
 #define FG_T_VCELL		1
@@ -60,7 +61,6 @@
 #define TOTAL_EVENT_TIME  (10 * 60)	/* 10 minites */
 
 static int is_charging_disabled;
-static unsigned int sec_bat_recovery_mode;
 
 enum cable_type_t {
 	CABLE_TYPE_NONE = 0,
@@ -288,7 +288,7 @@ static int sec_bat_check_vf(struct sec_bat_info *info)
 
 	return 0;
 }
-
+#if 0
 static int sec_bat_check_detbat(struct sec_bat_info *info)
 {
 	struct power_supply *psy = power_supply_get_by_name(info->charger_name);
@@ -340,7 +340,7 @@ static int sec_bat_check_detbat(struct sec_bat_info *info)
 
 	return value.intval;
 }
-
+#endif
 static int sec_bat_set_fuelgauge_reset(struct sec_bat_info *info)
 {
 #if defined(CONFIG_BATTERY_MAX17040) || \
@@ -1493,7 +1493,7 @@ cable_skip:
 
 static void sec_bat_charging_time_management(struct sec_bat_info *info)
 {
-	unsigned long charging_time;
+	unsigned long charging_time=0;
 	ktime_t	current_time;
 	struct timespec ts;
 
@@ -1579,41 +1579,22 @@ static void sec_bat_monitor_work(struct work_struct *work)
 		goto monitoring_skip;
 	}
 
-    if (sec_bat_recovery_mode == 1
-            || system_state == SYSTEM_RESTART) {
-            pm8921_enable_batt_therm(0);
-        	info->present = 1;
-        	pr_info("%s : recovery/restart, skip batt check(1)\n",
-                        __func__);
-        } else {
-                pm8921_enable_batt_therm(1);
-                /* check battery 5 times */
-            	for (i = 0; i < 5; i++) {
-                        msleep(500);
-                        if (sec_bat_recovery_mode == 1
-                                || system_state == SYSTEM_RESTART) {
-                                pm8921_enable_batt_therm(0);
-                    			info->present = 1;
-                    			pr_info("%s : recovery/restart, skip batt check(2)\n",
-                                            __func__);
-                                break;
-                        }
+	pm8921_enable_batt_therm(1);
+	/* check battery 5 times */
+	for (i = 0; i < 5; i++) {
+		msleep(500);
+		info->present = !gpio_get_value_cansleep(info->batt_int);
 
-                	info->present = !gpio_get_value_cansleep(
-                            info->batt_int);
-
-                    /* If the battery is missing, then check more */
-                    if (info->present) {
-                            i++;
-                    		break;
-                    }
-
+		/* If the battery is missing, then check more */
+		if (info->present) {
+			i++;
+			break;
 		}
-        pm8921_enable_batt_therm(0);
-        pr_info("%s: battery check is %s (%d time%c)\n",
-                __func__, info->present ? "present" : "absent",
-                i, (i == 1) ? ' ' : 's');
 	}
+	pm8921_enable_batt_therm(0);
+	pr_info("%s: battery check is %s (%d time%c)\n",
+		__func__, info->present ? "present" : "absent",
+		i, (i == 1) ? ' ' : 's');
 
 	if ((info->present == BATT_STATUS_MISSING)
 			&& (info->cable_type != CABLE_TYPE_NONE)) {
@@ -2550,25 +2531,6 @@ static void sec_bat_late_resume(struct early_suspend *handle)
 	return;
 }
 
-static int __init sec_bat_current_boot_mode(char *mode)
-{
-    /*
-    *	1 is recovery booting
-    *	0 is normal booting
-    */
-
-    if (strncmp(mode, "1", 1) == 0)
-            sec_bat_recovery_mode = 1;
-    else
-            sec_bat_recovery_mode = 0;
-
-    pr_info("%s : %s", __func__, sec_bat_recovery_mode == 1 ?
-				"recovery" : "normal");
-
-    return 1;
-}
-__setup("androidboot.batt_check_recovery=", sec_bat_current_boot_mode);
-
 static __devinit int sec_bat_probe(struct platform_device *pdev)
 {
 	struct sec_bat_platform_data *pdata = dev_get_platdata(&pdev->dev);
@@ -2847,9 +2809,10 @@ static __devinit int sec_bat_probe(struct platform_device *pdev)
 	queue_work(info->monitor_wqueue, &info->monitor_work);
 
 	return 0;
-
+#if 0
 err_request_irq:
 	destroy_workqueue(info->monitor_wqueue);
+#endif
 err_supply_unreg_ac:
 	power_supply_unregister(&info->psy_ac);
 err_supply_unreg_usb:

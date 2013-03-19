@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,6 +16,7 @@
 #include <linux/workqueue.h>
 #include <linux/io.h>
 #include <linux/jiffies.h>
+#include <linux/sched.h>
 #include <linux/stringify.h>
 #include <linux/delay.h>
 #include <linux/module.h>
@@ -25,13 +26,19 @@
 #include <linux/slab.h>
 #include <linux/poll.h>
 #include <linux/uaccess.h>
-#include <linux/printk.h>
+#include <linux/mutex.h>
 
 #include <asm-generic/poll.h>
 
 #include "ramdump.h"
 
 #define RAMDUMP_WAIT_MSECS	120000
+
+/*
+ * Head entry for linked list
+ */
+static LIST_HEAD(ramdump_list);
+static DEFINE_MUTEX(ramdump_mtx);
 
 struct ramdump_device {
 	char name[256];
@@ -46,6 +53,7 @@ struct ramdump_device {
 	wait_queue_head_t dump_wait_q;
 	int nsegments;
 	struct ramdump_segment *segments;
+	struct list_head list;
 };
 
 static int ramdump_open(struct inode *inode, struct file *filep)
@@ -117,7 +125,7 @@ static int ramdump_read(struct file *filep, char __user *buf, size_t count,
 
 	/* EOF check */
 	if (data_left == 0) {
-		pr_info("Ramdump(%s): Ramdump complete. %lld bytes read.",
+		pr_debug("Ramdump(%s): Ramdump complete. %lld bytes read.",
 			rd_dev->name, *pos);
 		rd_dev->ramdump_status = 0;
 		ret = 0;
@@ -126,21 +134,8 @@ static int ramdump_read(struct file *filep, char __user *buf, size_t count,
 
 	copy_size = min(count, (size_t)MAX_IOREMAP_SIZE);
 	copy_size = min((unsigned long)copy_size, data_left);
-#ifdef CONFIG_SEC_SSR_DUMP
-	/* When ramdump device is Kernel, avoid the ioremap once again.
-	 * Assign the addres which was already returned by ioremap function
-	 * in printk.c file
-	 */
-	if (!strcmp((const char *)rd_dev->name, "ramdump_kernel_log")) {
-		pr_info("Ramdump(%s): In ramdump_read and device_mem = 0x%x\n",
-		rd_dev->name, ramdump_kernel_log_addr);
-		device_mem = ramdump_kernel_log_addr;
-	} else {
-#endif
 	device_mem = ioremap_nocache(addr, copy_size);
-#ifdef CONFIG_SEC_SSR_DUMP
-	}
-#endif
+
 	if (device_mem == NULL) {
 		pr_err("Ramdump(%s): Unable to ioremap: addr %lx, size %x\n",
 			rd_dev->name, addr, copy_size);
@@ -198,18 +193,33 @@ void *create_ramdump_device(const char *dev_name)
 {
 	int ret;
 	struct ramdump_device *rd_dev;
+	char name[256];
 
 	if (!dev_name) {
 		pr_err("%s: Invalid device name.\n", __func__);
 		return NULL;
 	}
 
+	snprintf(name, ARRAY_SIZE(name), "ramdump_%s", dev_name);
+	mutex_lock(&ramdump_mtx);
+	list_for_each_entry(rd_dev, &ramdump_list, list) {
+		if (!strcmp(rd_dev->device.name, name)) {
+			mutex_unlock(&ramdump_mtx);
+			pr_warning("%s: already exist: %s",
+					__func__, name);
+			return (void *)rd_dev;
+		}
+	}
+	mutex_unlock(&ramdump_mtx);
+
 	rd_dev = kzalloc(sizeof(struct ramdump_device), GFP_KERNEL);
 
 	if (!rd_dev) {
-		pr_err("%s: Couldn't allocate for ramdump device!", __func__);
+		pr_err("%s: Couldn't alloc space for ramdump device!",
+			__func__);
 		return NULL;
 	}
+	INIT_LIST_HEAD(&rd_dev->list);
 
 	snprintf(rd_dev->name, ARRAY_SIZE(rd_dev->name), "ramdump_%s",
 		 dev_name);
@@ -231,7 +241,22 @@ void *create_ramdump_device(const char *dev_name)
 		return NULL;
 	}
 
+	mutex_lock(&ramdump_mtx);
+	list_add(&rd_dev->list, &ramdump_list);
+	mutex_unlock(&ramdump_mtx);
+
 	return (void *)rd_dev;
+}
+
+void destroy_ramdump_device(void *dev)
+{
+	struct ramdump_device *rd_dev = dev;
+
+	if (IS_ERR_OR_NULL(rd_dev))
+		return;
+
+	misc_deregister(&rd_dev->device);
+	kfree(rd_dev);
 }
 
 int do_ramdump(void *handle, struct ramdump_segment *segments,

@@ -11,6 +11,7 @@
 struct irq_affinity_notify;
 struct proc_dir_entry;
 struct timer_rand_state;
+struct module;
 /**
  * struct irq_desc - interrupt descriptor
  * @irq_data:		per irq and chip data passed down to chip functions
@@ -150,6 +151,14 @@ static inline int irq_balancing_disabled(unsigned int irq)
 
 	desc = irq_to_desc(irq);
 	return desc->status_use_accessors & IRQ_NO_BALANCING_MASK;
+}
+
+static inline int irq_is_per_cpu(unsigned int irq)
+{
+	struct irq_desc *desc;
+
+	desc = irq_to_desc(irq);
+	return desc->status_use_accessors & IRQ_PER_CPU;
 }
 
 static inline void

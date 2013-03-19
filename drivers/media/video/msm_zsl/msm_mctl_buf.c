@@ -34,10 +34,10 @@
 #define D(fmt, args...) do {} while (0)
 #endif
 
-static int msm_vb2_ops_queue_setup(struct vb2_queue *vq,
+static int msm_vb2_ops_queue_setup(struct vb2_queue *vq, const struct v4l2_format *fmt,
 					unsigned int *num_buffers,
 					unsigned int *num_planes,
-					unsigned long sizes[],
+					unsigned int sizes[],
 					void *alloc_ctxs[])
 {
 	/* get the video device */
@@ -55,7 +55,7 @@ static int msm_vb2_ops_queue_setup(struct vb2_queue *vq,
 	for (i = 0; i < pcam_inst->vid_fmt.fmt.pix_mp.num_planes; i++) {
 		sizes[i] = PAGE_ALIGN(pcam_inst->plane_info.plane[i].size);
 		D("%s Inst %p : Plane %d Offset = %d Size = %ld"
-			"Aligned Size = %ld", __func__, pcam_inst, i,
+			"Aligned Size = %u", __func__, pcam_inst, i,
 			pcam_inst->plane_info.plane[i].offset,
 			pcam_inst->plane_info.plane[i].size, sizes[i]);
 	}
@@ -122,7 +122,8 @@ static int msm_vb2_ops_buf_init(struct vb2_buffer *vb)
 			rc = videobuf2_pmem_contig_user_get(mem, &offset,
 				buf_type,
 				pcam_inst->buf_offset[buf_idx][i].addr_offset,
-				pcam_inst->path, pcam->mctl.client);
+				pcam_inst->path, pcam->mctl.client,
+				CAMERA_DOMAIN);
 		else
 			rc = videobuf2_pmem_contig_mmap_get(mem, &offset,
 				buf_type, pcam_inst->path);
@@ -249,12 +250,12 @@ static void msm_vb2_ops_buf_cleanup(struct vb2_buffer *vb)
 	}
 	for (i = 0; i < vb->num_planes; i++) {
 		mem = vb2_plane_cookie(vb, i);
-		videobuf2_pmem_contig_user_put(mem, pcam->mctl.client);
+		videobuf2_pmem_contig_user_put(mem, pcam->mctl.client, CAMERA_DOMAIN);
 	}
 	buf->state = MSM_BUFFER_STATE_UNUSED;
 }
 
-static int msm_vb2_ops_start_streaming(struct vb2_queue *q)
+static int msm_vb2_ops_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	return 0;
 }
@@ -479,7 +480,7 @@ int msm_mctl_check_free_buf(
 	unsigned long flags = 0;
 	/* CACHABLE_MEMORY */
 	struct msm_frame_buffer *buf = NULL;
-	int rc = -EINVAL, idx, i;
+	int rc = -EINVAL, idx;
 
 	if (!pmctl) {
 		pr_err("%s: pmctl is null\n", __func__);
@@ -578,10 +579,11 @@ int msm_mctl_reserve_free_buf(
 
 		/* CACHABLE_MEMORY */
 		/*invalidate cache if required*/
-		if (mem && (ION_IS_CACHED(mem->ion_flags) == CACHED))
+#if defined(CACHABLE_MEMORY)
+		if (mem && (ION_IS_CACHED(mem->ion_flags)))
 			invalidate_caches((unsigned long)mem->kernel_vaddr,
 			mem->size, (unsigned long)mem->phyaddr);
-
+#endif
 		rc = 0;
 		break;
 	}

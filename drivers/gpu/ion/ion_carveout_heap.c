@@ -2,7 +2,7 @@
  * drivers/gpu/ion/ion_carveout_heap.c
  *
  * Copyright (C) 2011 Google, Inc.
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -23,7 +23,6 @@
 #include <linux/mm.h>
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
-#include <linux/vmalloc.h>
 #include <linux/iommu.h>
 #include <linux/seq_file.h>
 #include "ion_priv.h"
@@ -31,6 +30,7 @@
 #include <mach/iommu_domains.h>
 #include <asm/mach/map.h>
 #include <asm/cacheflush.h>
+#include <linux/msm_ion.h>
 
 struct ion_carveout_heap {
 	struct ion_heap heap;
@@ -108,28 +108,38 @@ static void ion_carveout_heap_free(struct ion_buffer *buffer)
 	buffer->priv_phys = ION_CARVEOUT_ALLOCATE_FAIL;
 }
 
-struct scatterlist *ion_carveout_heap_map_dma(struct ion_heap *heap,
+struct sg_table *ion_carveout_heap_map_dma(struct ion_heap *heap,
 					      struct ion_buffer *buffer)
 {
-	struct scatterlist *sglist;
+	struct sg_table *table;
+	int ret;
 
-	sglist = vmalloc(sizeof(struct scatterlist));
-	if (!sglist)
+	table = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
+	if (!table)
 		return ERR_PTR(-ENOMEM);
 
-	sg_init_table(sglist, 1);
-	sglist->length = buffer->size;
-	sglist->offset = 0;
-	sglist->dma_address = buffer->priv_phys;
+	ret = sg_alloc_table(table, 1, GFP_KERNEL);
+	if (ret)
+		goto err0;
 
-	return sglist;
+	table->sgl->length = buffer->size;
+	table->sgl->offset = 0;
+	table->sgl->dma_address = buffer->priv_phys;
+
+	return table;
+
+err0:
+	kfree(table);
+	return ERR_PTR(ret);
 }
 
 void ion_carveout_heap_unmap_dma(struct ion_heap *heap,
 				 struct ion_buffer *buffer)
 {
-	if (buffer->sglist)
-		vfree(buffer->sglist);
+	if (buffer->sg_table)
+		sg_free_table(buffer->sg_table);
+	kfree(buffer->sg_table);
+	buffer->sg_table = 0;
 }
 
 static int ion_carveout_request_region(struct ion_carveout_heap *carveout_heap)
@@ -163,8 +173,7 @@ static int ion_carveout_release_region(struct ion_carveout_heap *carveout_heap)
 }
 
 void *ion_carveout_heap_map_kernel(struct ion_heap *heap,
-				   struct ion_buffer *buffer,
-				   unsigned long flags)
+				   struct ion_buffer *buffer)
 {
 	struct ion_carveout_heap *carveout_heap =
 		container_of(heap, struct ion_carveout_heap, heap);
@@ -173,7 +182,7 @@ void *ion_carveout_heap_map_kernel(struct ion_heap *heap,
 	if (ion_carveout_request_region(carveout_heap))
 		return NULL;
 
-	if (ION_IS_CACHED(flags))
+	if (ION_IS_CACHED(buffer->flags))
 		ret_value = ioremap_cached(buffer->priv_phys, buffer->size);
 	else
 		ret_value = ioremap(buffer->priv_phys, buffer->size);
@@ -189,7 +198,7 @@ void ion_carveout_heap_unmap_kernel(struct ion_heap *heap,
 	struct ion_carveout_heap *carveout_heap =
 		container_of(heap, struct ion_carveout_heap, heap);
 
-	__arch_iounmap(buffer->vaddr);
+	__arm_iounmap(buffer->vaddr);
 	buffer->vaddr = NULL;
 
 	ion_carveout_release_region(carveout_heap);
@@ -197,7 +206,7 @@ void ion_carveout_heap_unmap_kernel(struct ion_heap *heap,
 }
 
 int ion_carveout_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
-			       struct vm_area_struct *vma, unsigned long flags)
+			       struct vm_area_struct *vma)
 {
 	struct ion_carveout_heap *carveout_heap =
 		container_of(heap, struct ion_carveout_heap, heap);
@@ -206,7 +215,7 @@ int ion_carveout_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 	if (ion_carveout_request_region(carveout_heap))
 		return -EINVAL;
 
-	if (!ION_IS_CACHED(flags))
+	if (!ION_IS_CACHED(buffer->flags))
 		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 
 	ret_value =  remap_pfn_range(vma, vma->vm_start,
@@ -348,7 +357,7 @@ int ion_carveout_heap_map_iommu(struct ion_buffer *buffer,
 		goto out1;
 	}
 
-	sglist = vmalloc(sizeof(*sglist));
+	sglist = kmalloc(sizeof(*sglist), GFP_KERNEL);
 	if (!sglist)
 		goto out1;
 
@@ -367,18 +376,19 @@ int ion_carveout_heap_map_iommu(struct ion_buffer *buffer,
 
 	if (extra) {
 		unsigned long extra_iova_addr = data->iova_addr + buffer->size;
-		ret = msm_iommu_map_extra(domain, extra_iova_addr, extra,
-					  SZ_4K, prot);
+		unsigned long phys_addr = sg_phys(sglist);
+		ret = msm_iommu_map_extra(domain, extra_iova_addr, phys_addr,
+					extra, SZ_4K, prot);
 		if (ret)
 			goto out2;
 	}
-	vfree(sglist);
+	kfree(sglist);
 	return ret;
 
 out2:
 	iommu_unmap_range(domain, data->iova_addr, buffer->size);
 out1:
-	vfree(sglist);
+	kfree(sglist);
 	msm_free_iova_address(data->iova_addr, domain_num, partition_num,
 				data->mapped_size);
 

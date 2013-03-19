@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,9 +22,6 @@
 
 #include "smd_private.h"
 
-#include <linux/io.h>
-#include <mach/msm_iomap.h>
-
 #define BUILD_ID_LENGTH 32
 
 enum {
@@ -46,7 +43,6 @@ const char *hw_platform[] = {
 	[HW_PLATFORM_SURF] = "Surf",
 	[HW_PLATFORM_FFA] = "FFA",
 	[HW_PLATFORM_FLUID] = "Fluid",
-	[HW_PLATFORM_LIQUID] = "Liquid",
 	[HW_PLATFORM_SVLTE_FFA] = "SVLTE_FFA",
 	[HW_PLATFORM_SVLTE_SURF] = "SLVTE_SURF",
 	[HW_PLATFORM_MTP] = "MTP",
@@ -118,6 +114,14 @@ struct socinfo_v6 {
 	uint32_t hw_platform_subtype;
 };
 
+struct socinfo_v7 {
+	struct socinfo_v6 v6;
+
+	/* only valid when format==7 */
+	uint32_t pmic_model;
+	uint32_t pmic_die_revision;
+};
+
 static union {
 	struct socinfo_v1 v1;
 	struct socinfo_v2 v2;
@@ -125,6 +129,7 @@ static union {
 	struct socinfo_v4 v4;
 	struct socinfo_v5 v5;
 	struct socinfo_v6 v6;
+	struct socinfo_v7 v7;
 } *socinfo;
 
 static enum msm_cpu cpu_of_id[] = {
@@ -213,6 +218,7 @@ static enum msm_cpu cpu_of_id[] = {
 	[101] = MSM_CPU_7X27AA,
 	[102] = MSM_CPU_7X27AA,
 	[103] = MSM_CPU_7X27AA,
+	[136] = MSM_CPU_7X27AA,
 
 	/* 9x15 ID */
 	[104] = MSM_CPU_9615,
@@ -228,6 +234,7 @@ static enum msm_cpu cpu_of_id[] = {
 	[117] = MSM_CPU_8930,
 	[118] = MSM_CPU_8930,
 	[119] = MSM_CPU_8930,
+	[179] = MSM_CPU_8930,
 
 	/* 8627 IDs */
 	[120] = MSM_CPU_8627,
@@ -242,8 +249,57 @@ static enum msm_cpu cpu_of_id[] = {
 	/* 8060A ID */
 	[124] = MSM_CPU_8960,
 
-	/* Copper IDs */
-	[126] = MSM_CPU_COPPER,
+	/* 8974 IDs */
+	[126] = MSM_CPU_8974,
+
+	/* 8625 IDs */
+	[127] = MSM_CPU_8625,
+	[128] = MSM_CPU_8625,
+	[129] = MSM_CPU_8625,
+
+	/* 8064 MPQ ID */
+	[130] = MSM_CPU_8064,
+
+	/* 7x25AB IDs */
+	[131] = MSM_CPU_7X25AB,
+	[132] = MSM_CPU_7X25AB,
+	[133] = MSM_CPU_7X25AB,
+	[135] = MSM_CPU_7X25AB,
+
+	/* 9625 IDs */
+	[134] = MSM_CPU_9625,
+
+	/* 8960AB IDs */
+	[138] = MSM_CPU_8960AB,
+	[139] = MSM_CPU_8960AB,
+	[140] = MSM_CPU_8960AB,
+	[141] = MSM_CPU_8960AB,
+
+	/* 8930AA IDs */
+	[142] = MSM_CPU_8930AA,
+	[143] = MSM_CPU_8930AA,
+	[144] = MSM_CPU_8930AA,
+	[160] = MSM_CPU_8930AA,
+	[180] = MSM_CPU_8930AA,
+
+	/* 8226 IDs */
+	[145] = MSM_CPU_8226,
+
+	/* 8092 IDs */
+	[146] = MSM_CPU_8092,
+
+	/* 8064AB IDs */
+	[153] = MSM_CPU_8064AB,
+
+	/* 8930AB IDs */
+	[154] = MSM_CPU_8930AB,
+	[155] = MSM_CPU_8930AB,
+	[156] = MSM_CPU_8930AB,
+	[157] = MSM_CPU_8930AB,
+	[181] = MSM_CPU_8930AB,
+
+	/* 8064AA IDs */
+	[172] = MSM_CPU_8064AA,
 
 	/* Uninitialized IDs are not known to run Linux.
 	   MSM_CPU_UNKNOWN is set to 0 to ensure these IDs are
@@ -255,7 +311,6 @@ static enum msm_cpu cur_cpu;
 static struct socinfo_v1 dummy_socinfo = {
 	.format = 1,
 	.version = 1,
-	.build_id = "Dummy socinfo placeholder"
 };
 
 uint32_t socinfo_get_id(void)
@@ -316,6 +371,21 @@ uint32_t socinfo_get_platform_subtype(void)
 {
 	return socinfo ?
 		(socinfo->v1.format >= 6 ? socinfo->v6.hw_platform_subtype : 0)
+		: 0;
+}
+
+enum pmic_model socinfo_get_pmic_model(void)
+{
+	return socinfo ?
+		(socinfo->v1.format >= 7 ? socinfo->v7.pmic_model
+			: PMIC_MODEL_UNKNOWN)
+		: PMIC_MODEL_UNKNOWN;
+}
+
+uint32_t socinfo_get_pmic_die_revision(void)
+{
+	return socinfo ?
+		(socinfo->v1.format >= 7 ? socinfo->v7.pmic_die_revision : 0)
 		: 0;
 }
 
@@ -492,51 +562,39 @@ socinfo_show_platform_subtype(struct sys_device *dev,
 }
 
 static ssize_t
-socinfo_show_kraitpart(struct sys_device *dev,
-		struct sysdev_attribute *attr,
-		char *buf)
+socinfo_show_pmic_model(struct sys_device *dev,
+			struct sysdev_attribute *attr,
+			char *buf)
 {
-	uint32_t pte_efuse, pvs;
-	char r;
-
-	pte_efuse = readl((MSM_QFPROM_BASE + 0x00C0));
-	pvs = (pte_efuse >> 10) & 0x7;
-	if (pvs == 0x7)
-		pvs = (pte_efuse >> 13) & 0x7;
-
-	switch (pvs) {
-	case 0x0:
-		r = 's';
-		break;
-	case 0x7:
-		r = 'S';
-		break;
-	case 0x1:
-		r = 'N';
-		break;
-	case 0x3:
-		r = 'F';
-		break;
-	default:
-		r = 's';
-		break;
+	if (!socinfo) {
+		pr_err("%s: No socinfo found!\n", __func__);
+		return 0;
+	}
+	if (socinfo->v1.format < 7) {
+		pr_err("%s: pmic_model not available!\n", __func__);
+		return 0;
 	}
 
-	switch (read_cpuid_id()) {
-	case 0x511F04D0:
-	case 0x511F04D1:
-	case 0x510F06F0:
-		pvs = 31;
-		break;
-	case 0x512F04D0:
-		pvs = 32;
-		break;
-	default:
-		pvs = 10;
+	return snprintf(buf, PAGE_SIZE, "%u\n",
+		socinfo_get_pmic_model());
+}
+
+static ssize_t
+socinfo_show_pmic_die_revision(struct sys_device *dev,
+			       struct sysdev_attribute *attr,
+			       char *buf)
+{
+	if (!socinfo) {
+		pr_err("%s: No socinfo found!\n", __func__);
+		return 0;
+	}
+	if (socinfo->v1.format < 7) {
+		pr_err("%s: pmic_die_revision not available!\n", __func__);
+		return 0;
 	}
 
-	return snprintf(buf, PAGE_SIZE, "%2u%c\n",
-		pvs, r);
+	return snprintf(buf, PAGE_SIZE, "%u\n",
+		socinfo_get_pmic_die_revision());
 }
 
 static struct sysdev_attribute socinfo_v1_files[] = {
@@ -569,9 +627,11 @@ static struct sysdev_attribute socinfo_v6_files[] = {
 			socinfo_show_platform_subtype, NULL),
 };
 
-static struct sysdev_attribute socinfo_kraitpart_files[] = {
-	_SYSDEV_ATTR(krait_part, 0444,
-			socinfo_show_kraitpart, NULL),
+static struct sysdev_attribute socinfo_v7_files[] = {
+	_SYSDEV_ATTR(pmic_model, 0444,
+			socinfo_show_pmic_model, NULL),
+	_SYSDEV_ATTR(pmic_die_revision, 0444,
+			socinfo_show_pmic_die_revision, NULL),
 };
 
 static struct sysdev_class soc_sysdev_class = {
@@ -599,15 +659,6 @@ static int __init socinfo_create_files(struct sys_device *dev,
 	return 0;
 }
 
-static void __init socinfo_remove_files(struct sys_device *dev,
-					struct sysdev_attribute files[],
-					int size)
-{
-	int i;
-	for (i = 0; i < size; i++)
-		sysdev_remove_file(dev, &files[i]);
-}
-
 static int __init socinfo_init_sysdev(void)
 {
 	int err;
@@ -621,133 +672,86 @@ static int __init socinfo_init_sysdev(void)
 	if (err) {
 		pr_err("%s: sysdev_class_register fail (%d)\n",
 		       __func__, err);
-		goto ret;
+		return err;
 	}
 	err = sysdev_register(&soc_sys_device);
 	if (err) {
 		pr_err("%s: sysdev_register fail (%d)\n",
 		       __func__, err);
-		goto sys_class;
+		return err;
 	}
-
-	err = socinfo_create_files(&soc_sys_device, socinfo_kraitpart_files,
-				ARRAY_SIZE(socinfo_kraitpart_files));
-	if (err) {
-		pr_err("%s: socinfo_create_files fail (%d)\n",
-		       __func__, err);
-		goto sys_reg;
-	}
-
-	err = socinfo_create_files(&soc_sys_device, socinfo_v1_files,
+	socinfo_create_files(&soc_sys_device, socinfo_v1_files,
 				ARRAY_SIZE(socinfo_v1_files));
-	if (err) {
-		pr_err("%s: socinfo_create_files fail (%d)\n",
-		       __func__, err);
-		goto soc_info1;
-	}
-
 	if (socinfo->v1.format < 2)
-		goto soc_info1;
-
-	err = socinfo_create_files(&soc_sys_device, socinfo_v2_files,
+		return err;
+	socinfo_create_files(&soc_sys_device, socinfo_v2_files,
 				ARRAY_SIZE(socinfo_v2_files));
-	if (err) {
-		pr_err("%s: socinfo_create_files fail (%d)\n",
-		       __func__, err);
-		goto soc_info2;
-	}
 
 	if (socinfo->v1.format < 3)
-		goto soc_info2;
+		return err;
 
-	err = socinfo_create_files(&soc_sys_device, socinfo_v3_files,
+	socinfo_create_files(&soc_sys_device, socinfo_v3_files,
 				ARRAY_SIZE(socinfo_v3_files));
-	if (err) {
-		pr_err("%s: socinfo_create_files fail (%d)\n",
-		       __func__, err);
-		goto soc_info3;
-	}
 
 	if (socinfo->v1.format < 4)
-		goto soc_info3;
+		return err;
 
-	err = socinfo_create_files(&soc_sys_device, socinfo_v4_files,
+	socinfo_create_files(&soc_sys_device, socinfo_v4_files,
 				ARRAY_SIZE(socinfo_v4_files));
-	if (err) {
-		pr_err("%s: socinfo_create_files fail (%d)\n",
-		       __func__, err);
-		goto soc_info4;
-	}
 
 	if (socinfo->v1.format < 5)
-		goto soc_info4;
+		return err;
 
-	err = socinfo_create_files(&soc_sys_device, socinfo_v5_files,
+	socinfo_create_files(&soc_sys_device, socinfo_v5_files,
 				ARRAY_SIZE(socinfo_v5_files));
-	if (err) {
-		pr_err("%s: socinfo_create_files fail (%d)\n",
-		       __func__, err);
-		goto soc_info5;
-	}
 
 	if (socinfo->v1.format < 6)
-		goto soc_info5;
+		return err;
 
-	err = socinfo_create_files(&soc_sys_device, socinfo_v6_files,
+	socinfo_create_files(&soc_sys_device, socinfo_v6_files,
 				ARRAY_SIZE(socinfo_v6_files));
-	if (err) {
-		pr_err("%s: socinfo_create_files fail (%d)\n",
-		       __func__, err);
-		goto soc_info6;
-	}
 
-	goto ret;
+	if (socinfo->v1.format < 7)
+		return err;
 
-soc_info6:
-	socinfo_remove_files(&soc_sys_device, socinfo_v5_files,
-				ARRAY_SIZE(socinfo_v1_files));
-soc_info5:
-	socinfo_remove_files(&soc_sys_device, socinfo_v4_files,
-				ARRAY_SIZE(socinfo_v1_files));
-soc_info4:
-	socinfo_remove_files(&soc_sys_device, socinfo_v3_files,
-				ARRAY_SIZE(socinfo_v1_files));
-soc_info3:
-	socinfo_remove_files(&soc_sys_device, socinfo_v2_files,
-				ARRAY_SIZE(socinfo_v1_files));
-soc_info2:
-	socinfo_remove_files(&soc_sys_device, socinfo_v1_files,
-				ARRAY_SIZE(socinfo_v1_files));
-soc_info1:
-	socinfo_remove_files(&soc_sys_device, socinfo_kraitpart_files,
-				ARRAY_SIZE(socinfo_kraitpart_files));
-sys_reg:
-	sysdev_unregister(&soc_sys_device);
-sys_class:
-	sysdev_class_unregister(&soc_sysdev_class);
-ret:
-	return err;
+	return socinfo_create_files(&soc_sys_device, socinfo_v7_files,
+				ARRAY_SIZE(socinfo_v7_files));
 }
 
 arch_initcall(socinfo_init_sysdev);
 
-void *setup_dummy_socinfo(void)
+static void * __init setup_dummy_socinfo(void)
 {
-	if (machine_is_msm8960_rumi3() || machine_is_msm8960_sim() ||
-	    machine_is_msm8960_cdp())
+	if (machine_is_msm8960_cdp())
 		dummy_socinfo.id = 87;
-	else if (machine_is_apq8064_rumi3() || machine_is_apq8064_sim())
-		dummy_socinfo.id = 109;
 	else if (machine_is_msm9615_mtp() || machine_is_msm9615_cdp())
 		dummy_socinfo.id = 104;
-	else if (early_machine_is_copper())
+	else if (early_machine_is_msm8974()) {
 		dummy_socinfo.id = 126;
+		strlcpy(dummy_socinfo.build_id, "msm8974 - ",
+			sizeof(dummy_socinfo.build_id));
+	} else if (early_machine_is_msm9625()) {
+		dummy_socinfo.id = 134;
+		strlcpy(dummy_socinfo.build_id, "msm9625 - ",
+			sizeof(dummy_socinfo.build_id));
+	} else if (early_machine_is_msm8226()) {
+		dummy_socinfo.id = 145;
+		strlcpy(dummy_socinfo.build_id, "msm8226 - ",
+			sizeof(dummy_socinfo.build_id));
+	} else if (machine_is_msm8625_rumi3())
+		dummy_socinfo.id = 127;
+	strlcat(dummy_socinfo.build_id, "Dummy socinfo",
+		sizeof(dummy_socinfo.build_id));
 	return (void *) &dummy_socinfo;
 }
 
 int __init socinfo_init(void)
 {
-	socinfo = smem_alloc(SMEM_HW_SW_BUILD_ID, sizeof(struct socinfo_v6));
+	socinfo = smem_alloc(SMEM_HW_SW_BUILD_ID, sizeof(struct socinfo_v7));
+
+	if (!socinfo)
+		socinfo = smem_alloc(SMEM_HW_SW_BUILD_ID,
+				sizeof(struct socinfo_v6));
 
 	if (!socinfo)
 		socinfo = smem_alloc(SMEM_HW_SW_BUILD_ID,
@@ -799,7 +803,7 @@ int __init socinfo_init(void)
 		break;
 	case 3:
 		pr_info("%s: v%u, id=%u, ver=%u.%u, "
-			 "raw_id=%u, raw_ver=%u, hw_pla-t=%u\n",
+			 "raw_id=%u, raw_ver=%u, hw_plat=%u\n",
 			__func__, socinfo->v1.format, socinfo->v1.id,
 			SOCINFO_VERSION_MAJOR(socinfo->v1.version),
 			SOCINFO_VERSION_MINOR(socinfo->v1.version),
@@ -808,7 +812,7 @@ int __init socinfo_init(void)
 		break;
 	case 4:
 		pr_info("%s: v%u, id=%u, ver=%u.%u, "
-			 "raw_id=%u, raw_ver=%u, hw_pla-t=%u, hw_pla-t_ver=%u\n",
+			 "raw_id=%u, raw_ver=%u, hw_plat=%u, hw_plat_ver=%u\n",
 			__func__, socinfo->v1.format, socinfo->v1.id,
 			SOCINFO_VERSION_MAJOR(socinfo->v1.version),
 			SOCINFO_VERSION_MINOR(socinfo->v1.version),
@@ -817,7 +821,7 @@ int __init socinfo_init(void)
 		break;
 	case 5:
 		pr_info("%s: v%u, id=%u, ver=%u.%u, "
-			 "raw_id=%u, raw_ver=%u, hw_pla-t=%u,  hw_pla-t_ver=%u\n"
+			 "raw_id=%u, raw_ver=%u, hw_plat=%u,  hw_plat_ver=%u\n"
 			" accessory_chip=%u\n", __func__, socinfo->v1.format,
 			socinfo->v1.id,
 			SOCINFO_VERSION_MAJOR(socinfo->v1.version),
@@ -828,8 +832,8 @@ int __init socinfo_init(void)
 		break;
 	case 6:
 		pr_info("%s: v%u, id=%u, ver=%u.%u, "
-			 "raw_id=%u, raw_ver=%u, hw_pla-t=%u,  hw_pla-t_ver=%u\n"
-			" accessory_chip=%u hw_pla-t_subtype=%u\n", __func__,
+			 "raw_id=%u, raw_ver=%u, hw_plat=%u,  hw_plat_ver=%u\n"
+			" accessory_chip=%u hw_plat_subtype=%u\n", __func__,
 			socinfo->v1.format,
 			socinfo->v1.id,
 			SOCINFO_VERSION_MAJOR(socinfo->v1.version),
@@ -838,6 +842,20 @@ int __init socinfo_init(void)
 			socinfo->v3.hw_platform, socinfo->v4.platform_version,
 			socinfo->v5.accessory_chip,
 			socinfo->v6.hw_platform_subtype);
+		break;
+	case 7:
+		pr_info("%s: v%u, id=%u, ver=%u.%u, raw_id=%u, raw_ver=%u, hw_plat=%u, hw_plat_ver=%u\n accessory_chip=%u, hw_plat_subtype=%u, pmic_model=%u, pmic_die_revision=%u\n",
+			__func__,
+			socinfo->v1.format,
+			socinfo->v1.id,
+			SOCINFO_VERSION_MAJOR(socinfo->v1.version),
+			SOCINFO_VERSION_MINOR(socinfo->v1.version),
+			socinfo->v2.raw_id, socinfo->v2.raw_version,
+			socinfo->v3.hw_platform, socinfo->v4.platform_version,
+			socinfo->v5.accessory_chip,
+			socinfo->v6.hw_platform_subtype,
+			socinfo->v7.pmic_model,
+			socinfo->v7.pmic_die_revision);
 		break;
 	default:
 		pr_err("%s: Unknown format found\n", __func__);
@@ -852,9 +870,7 @@ const int get_core_count(void)
 	if (!(read_cpuid_mpidr() & BIT(31)))
 		return 1;
 
-	if (read_cpuid_mpidr() & BIT(30) &&
-		!machine_is_msm8960_sim() &&
-		!machine_is_apq8064_sim())
+	if (read_cpuid_mpidr() & BIT(30))
 		return 1;
 
 	/* 1 + the PART[1:0] field of MIDR */
@@ -863,9 +879,6 @@ const int get_core_count(void)
 
 const int read_msm_cpu_type(void)
 {
-	if (machine_is_msm8960_sim() || machine_is_msm8960_rumi3())
-		return MSM_CPU_8960;
-
 	if (socinfo_get_msm_cpu() != MSM_CPU_UNKNOWN)
 		return socinfo_get_msm_cpu();
 
@@ -887,6 +900,10 @@ const int read_msm_cpu_type(void)
 
 	case 0x510F06F0:
 		return MSM_CPU_8064;
+
+	case 0x511F06F1:
+	case 0x512F06F0:
+		return MSM_CPU_8974;
 
 	default:
 		return MSM_CPU_UNKNOWN;
@@ -923,6 +940,20 @@ const int cpu_is_krait_v2(void)
 	case 0x510F06F0:
 	case 0x510F06F1:
 	case 0x510F06F2:
+		return 1;
+
+	default:
+		return 0;
+	};
+}
+
+const int cpu_is_krait_v3(void)
+{
+	switch (read_cpuid_id()) {
+	case 0x512F04D0:
+	case 0x511F06F0:
+	case 0x511F06F1:
+	case 0x510F05D0:
 		return 1;
 
 	default:

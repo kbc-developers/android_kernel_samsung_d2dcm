@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,8 +15,8 @@
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/err.h>
+#include <linux/gpio.h>
 #include <mach/qdsp5v2/aux_pcm.h>
-#include <mach/gpio.h>
 #include <linux/delay.h>
 #include <mach/debug_mm.h>
 

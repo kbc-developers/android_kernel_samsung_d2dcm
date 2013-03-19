@@ -13,7 +13,7 @@
  *
  */
 
-#include <asm/mach/time.h>
+#include <linux/module.h>
 #include <linux/android_alarm.h>
 #include <linux/device.h>
 #include <linux/miscdevice.h>
@@ -21,9 +21,10 @@
 #include <linux/platform_device.h>
 #include <linux/sched.h>
 #include <linux/spinlock.h>
-#include <linux/sysdev.h>
 #include <linux/uaccess.h>
 #include <linux/wakelock.h>
+
+#include <asm/mach/time.h>
 
 #define ANDROID_ALARM_PRINT_INFO (1U << 0)
 #define ANDROID_ALARM_PRINT_IO (1U << 1)
@@ -171,10 +172,9 @@ from_old_alarm_set:
 			tmp_time =
 				ktime_to_timespec(alarm_get_elapsed_realtime());
 			break;
+		case ANDROID_ALARM_TYPE_COUNT:
 		case ANDROID_ALARM_SYSTEMTIME:
 			ktime_get_ts(&tmp_time);
-			break;
-		default:
 			break;
 		}
 		if (copy_to_user((void __user *)arg, &tmp_time,

@@ -284,7 +284,7 @@ struct mms_ts_info {
 
 	char				*fw_name;
 	struct early_suspend		early_suspend;
-#if TOUCH_BOOSTER
+#ifdef TOUCH_BOOSTER
 	struct delayed_work work_dvfs_off;
 	struct delayed_work	work_dvfs_chg;
 	bool	dvfs_lock_status;
@@ -296,7 +296,7 @@ struct mms_ts_info {
 	bool				enabled;
 
 	enum fw_flash_mode		fw_flash_mode;
-	void (*register_cb)(void *);
+	void (*register_cb)(struct tsp_callbacks *);
 	struct tsp_callbacks callbacks;
 	bool			ta_status;
 	bool			noise_mode;
@@ -396,7 +396,7 @@ struct tsp_cmd tsp_cmds[] = {
 };
 #endif
 
-#if TOUCH_BOOSTER
+#ifdef TOUCH_BOOSTER
 static void change_dvfs_lock(struct work_struct *work)
 {
 	struct mms_ts_info *info = container_of(work,
@@ -482,7 +482,7 @@ static void release_all_fingers(struct mms_ts_info *info)
 					   false);
 	}
 	input_sync(info->input_dev);
-#if TOUCH_BOOSTER
+#ifdef TOUCH_BOOSTER
 	set_dvfs_lock(info, 2);
 	pr_info("[TSP] dvfs_lock free.\n ");
 #endif
@@ -714,7 +714,7 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			touch_is_pressed++;
 	}
 
-#if TOUCH_BOOSTER
+#ifdef TOUCH_BOOSTER
 	set_dvfs_lock(info, !!touch_is_pressed);
 #endif
 
@@ -3011,7 +3011,7 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 		goto err_reg_input_dev;
 	}
 
-#if TOUCH_BOOSTER
+#ifdef TOUCH_BOOSTER
 	mutex_init(&info->dvfs_lock);
 	INIT_DELAYED_WORK(&info->work_dvfs_off, set_dvfs_off);
 	INIT_DELAYED_WORK(&info->work_dvfs_chg, change_dvfs_lock);

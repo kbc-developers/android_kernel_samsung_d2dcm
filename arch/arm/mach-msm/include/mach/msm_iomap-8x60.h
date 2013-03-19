@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2012, The Linux Foundation. All rights reserved.
  * Author: Brian Swetland <swetland@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -126,9 +126,16 @@
 #define MSM_HDMI_PHYS		0x04A00000
 #define MSM_HDMI_SIZE		SZ_4K
 
+/* Needed to keep the unified iomap happy */
+#define MSM_MPM2_PSHOLD_BASE	MSM_TLMM_BASE
+
 #ifdef CONFIG_DEBUG_MSM8660_UART
 #define MSM_DEBUG_UART_BASE	0xFBC40000
 #define MSM_DEBUG_UART_PHYS	0x19C40000
+#endif
+
+#ifndef __ASSEMBLY__
+extern void msm_map_msm8x60_io(void);
 #endif
 
 #endif

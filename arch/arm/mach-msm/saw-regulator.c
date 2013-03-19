@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,6 +14,7 @@
 
 #include <linux/err.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
@@ -174,8 +175,8 @@ static int __devinit saw_probe(struct platform_device *pdev)
 	vreg->desc.owner = THIS_MODULE;
 	vreg->uV	 = MIN_CORE_VOLTAGE;
 
-	vreg->rdev = regulator_register(&vreg->desc, &pdev->dev, init_data,
-					vreg);
+	vreg->rdev = regulator_register(&vreg->desc, &pdev->dev,
+							init_data, vreg, NULL);
 	if (IS_ERR(vreg->rdev)) {
 		rc = PTR_ERR(vreg->rdev);
 		pr_err("regulator_register failed, rc=%d.\n", rc);

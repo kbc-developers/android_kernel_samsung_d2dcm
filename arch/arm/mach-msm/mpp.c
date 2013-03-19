@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2009, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,10 +17,10 @@
 #include <linux/device.h>
 #include <linux/init.h>
 #include <linux/debugfs.h>
+#include <linux/module.h>
 
 #include <mach/mpp.h>
-
-#include "proc_comm.h"
+#include <mach/proc_comm.h>
 
 int mpp_config_digital_out(unsigned mpp, unsigned config)
 {

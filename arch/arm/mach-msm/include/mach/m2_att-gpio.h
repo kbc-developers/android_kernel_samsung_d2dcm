@@ -28,7 +28,7 @@
 #define GPIO_MSM_FLASH_NOW		3
 #define GPIO_VFE_CAMIF_TIMER3_INT	4
 #define GPIO_CAM_MCLK0			5
-#define CAM_CORE_EN			6
+#define	CAM_CORE_EN			6
 #define CAM_MIPI_EN			7
 #define GPIO_CODEC_I2C_SDA              8
 #define GPIO_CODEC_I2C_SCL              9
@@ -60,7 +60,6 @@
 #define GPIO_CAM_SPI_SCLK		41
 #endif
 
-#define GPIO_ALS_INT			-1/* 42 */
 #define GPIO_SENSOR_SNS_SDA		44
 #define GPIO_SENSOR_SNS_SCL		45
 #define GPIO_CAM_A_EN			46
@@ -79,8 +78,8 @@
 #define GPIO_INOK_INT			52
 
 #if defined(CONFIG_BCM4334) || defined(CONFIG_BCM4334_MODULE)
-#define GPIO_WL_REG_ON                  43
-#define GPIO_WL_HOST_WAKE               54
+#define GPIO_WL_REG_ON			43
+#define GPIO_WL_HOST_WAKE		54
 #endif
 
 #define GPIO_SENSOR_ALS_SDA		63
@@ -103,8 +102,8 @@
 #define GPIO_KS8851_IRQ			90
 
 #define GPIO_NFC_FIRMWARE		92
-#define GPIO_MHL_SCL			96
 #define GPIO_MHL_SDA			95
+#define GPIO_MHL_SCL			96
 #ifdef CONFIG_S5K6A3YX
 #define GPIO_VT_CAM_SEN_DET		98
 #endif
@@ -118,7 +117,7 @@
 #define MSM_AUD_A2220_RESET		75
 
 /* PMIC8921 MPP */
-#define PMIC_MPP_FLASH_LED_UNLOCK	4
+#define PMIC_MPP_FLASH_LED_UNLOCK       4
 
 /* PMIC8921 GPIO */
 #define PMIC_GPIO_VIB_ON                4
@@ -148,6 +147,7 @@
 #define PMIC_GPIO_CHG_EN		PMIC_GPIO_OTG_EN
 #define PMIC_GPIO_CHG_STAT		17
 #endif
+
 #define PMIC_GPIO_BATT_INT		37
 
 /* gpio for changed list */

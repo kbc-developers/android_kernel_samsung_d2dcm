@@ -1,7 +1,7 @@
 /* linux/include/asm-arm/arch-msm/msm_smd.h
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  * Author: Brian Swetland <swetland@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -18,6 +18,9 @@
 #ifndef __ASM_ARCH_MSM_SMD_H
 #define __ASM_ARCH_MSM_SMD_H
 
+#include <linux/io.h>
+#include <mach/msm_smsm.h>
+
 typedef struct smd_channel smd_channel_t;
 
 #define SMD_MAX_CH_NAME_LEN 20 /* includes null char at end */
@@ -27,6 +30,25 @@ typedef struct smd_channel smd_channel_t;
 #define SMD_EVENT_CLOSE 3
 #define SMD_EVENT_STATUS 4
 #define SMD_EVENT_REOPEN_READY 5
+
+/*
+ * SMD Processor ID's.
+ *
+ * For all processors that have both SMSM and SMD clients,
+ * the SMSM Processor ID and the SMD Processor ID will
+ * be the same.  In cases where a processor only supports
+ * SMD, the entry will only exist in this enum.
+ */
+enum {
+	SMD_APPS = SMSM_APPS,
+	SMD_MODEM = SMSM_MODEM,
+	SMD_Q6 = SMSM_Q6,
+	SMD_WCNSS = SMSM_WCNSS,
+	SMD_DSPS = SMSM_DSPS,
+	SMD_MODEM_Q6_FW,
+	SMD_RPM,
+	NUM_SMD_SUBSYSTEMS,
+};
 
 enum {
 	SMD_APPS_MODEM = 0,
@@ -44,9 +66,91 @@ enum {
 	SMD_QDSP_Q6FW,
 	SMD_DSPS_Q6FW,
 	SMD_WCNSS_Q6FW,
+	SMD_APPS_RPM,
+	SMD_MODEM_RPM,
+	SMD_QDSP_RPM,
+	SMD_WCNSS_RPM,
 	SMD_NUM_TYPE,
 	SMD_LOOPBACK_TYPE = 100,
 
+};
+
+/*
+ * SMD IRQ Configuration
+ *
+ * Used to initialize IRQ configurations from platform data
+ *
+ * @irq_name: irq_name to query platform data
+ * @irq_id: initialized to -1 in platform data, stores actual irq id on
+ *		successful registration
+ * @out_base: if not null then settings used for outgoing interrupt
+ *		initialied from platform data
+ */
+
+struct smd_irq_config {
+	/* incoming interrupt config */
+	const char *irq_name;
+	unsigned long flags;
+	int irq_id;
+	const char *device_name;
+	const void *dev_id;
+
+	/* outgoing interrupt config */
+	uint32_t out_bit_pos;
+	void __iomem *out_base;
+	uint32_t out_offset;
+};
+
+/*
+ * SMD subsystem configurations
+ *
+ * SMD subsystems configurations for platform data. This contains the
+ * M2A and A2M interrupt configurations for both SMD and SMSM per
+ * subsystem.
+ *
+ * @subsys_name: name of subsystem passed to PIL
+ * @irq_config_id: unique id for each subsystem
+ * @edge: maps to actual remote subsystem edge
+ *
+ */
+struct smd_subsystem_config {
+	unsigned irq_config_id;
+	const char *subsys_name;
+	int edge;
+
+	struct smd_irq_config smd_int;
+	struct smd_irq_config smsm_int;
+
+};
+
+/*
+ * Subsystem Restart Configuration
+ *
+ * @disable_smsm_reset_handshake
+ */
+struct smd_subsystem_restart_config {
+	int disable_smsm_reset_handshake;
+};
+
+/*
+ * Shared Memory Regions
+ *
+ * the array of these regions is expected to be in ascending order by phys_addr
+ *
+ * @phys_addr: physical base address of the region
+ * @size: size of the region in bytes
+ */
+struct smd_smem_regions {
+	void *phys_addr;
+	unsigned size;
+};
+
+struct smd_platform {
+	uint32_t num_ss_configs;
+	struct smd_subsystem_config *smd_ss_configs;
+	struct smd_subsystem_restart_config *smd_ssr_config;
+	uint32_t num_smem_areas;
+	struct smd_smem_regions *smd_smem_areas;
 };
 
 #ifdef CONFIG_MSM_SMD
@@ -119,6 +223,19 @@ void smd_enable_read_intr(smd_channel_t *ch);
  */
 void smd_disable_read_intr(smd_channel_t *ch);
 
+/**
+ * Enable/disable receive interrupts for the remote processor used by a
+ * particular channel.
+ * @ch:      open channel handle to use for the edge
+ * @mask:    1 = mask interrupts; 0 = unmask interrupts
+ * @returns: 0 for success; < 0 for failure
+ *
+ * Note that this enables/disables all interrupts from the remote subsystem for
+ * all channels.  As such, it should be used with care and only for specific
+ * use cases such as power-collapse sequencing.
+ */
+int smd_mask_receive_interrupt(smd_channel_t *ch, bool mask);
+
 /* Starts a packet transaction.  The size of the packet may exceed the total
  * size of the smd ring buffer.
  *
@@ -161,6 +278,61 @@ int smd_write_segment(smd_channel_t *ch, void *data, int len, int user_buf);
  *      -E2BIG - some ammount of packet is not yet written
  */
 int smd_write_end(smd_channel_t *ch);
+
+/*
+ * Returns a pointer to the subsystem name or NULL if no
+ * subsystem name is available.
+ *
+ * @type - Edge definition
+ */
+const char *smd_edge_to_subsystem(uint32_t type);
+
+/*
+ * Returns a pointer to the subsystem name given the
+ * remote processor ID.
+ *
+ * @pid     Remote processor ID
+ * @returns Pointer to subsystem name or NULL if not found
+ */
+const char *smd_pid_to_subsystem(uint32_t pid);
+
+/*
+ * Checks to see if a new packet has arrived on the channel.  Only to be
+ * called with interrupts disabled.
+ *
+ * @ch: channel to check if a packet has arrived
+ *
+ * Returns:
+ *      0 - packet not available
+ *      1 - packet available
+ *      -EINVAL - NULL parameter or non-packet based channel provided
+ */
+int smd_is_pkt_avail(smd_channel_t *ch);
+
+/**
+ * smd_module_init_notifier_register() - Register a smd module
+ *					 init notifier block
+ * @nb: Notifier block to be registered
+ *
+ * In order to mark the dependency on SMD Driver module initialization
+ * register a notifier using this API. Once the smd module_init is
+ * done, notification will be passed to the registered module.
+ */
+int smd_module_init_notifier_register(struct notifier_block *nb);
+
+/**
+ * smd_module_init_notifier_register() - Unregister a smd module
+ *					 init notifier block
+ * @nb: Notifier block to be registered
+ */
+int smd_module_init_notifier_unregister(struct notifier_block *nb);
+
+/*
+ * SMD initialization function that registers for a SMD platform driver.
+ *
+ * returns success on successful driver registration.
+ */
+int __init msm_smd_init(void);
 
 #else
 
@@ -248,6 +420,11 @@ static inline void smd_disable_read_intr(smd_channel_t *ch)
 {
 }
 
+static inline int smd_mask_receive_interrupt(smd_channel_t *ch, bool mask)
+{
+	return -ENODEV;
+}
+
 static inline int smd_write_start(smd_channel_t *ch, int len)
 {
 	return -ENODEV;
@@ -262,6 +439,36 @@ smd_write_segment(smd_channel_t *ch, void *data, int len, int user_buf)
 static inline int smd_write_end(smd_channel_t *ch)
 {
 	return -ENODEV;
+}
+
+static inline const char *smd_edge_to_subsystem(uint32_t type)
+{
+	return NULL;
+}
+
+static inline const char *smd_pid_to_subsystem(uint32_t pid)
+{
+	return NULL;
+}
+
+static inline int smd_is_pkt_avail(smd_channel_t *ch)
+{
+	return -ENODEV;
+}
+
+static inline int smd_module_init_notifier_register(struct notifier_block *nb)
+{
+	return -ENODEV;
+}
+
+static inline int smd_module_init_notifier_unregister(struct notifier_block *nb)
+{
+	return -ENODEV;
+}
+
+static inline int __init msm_smd_init(void)
+{
+	return 0;
 }
 #endif
 

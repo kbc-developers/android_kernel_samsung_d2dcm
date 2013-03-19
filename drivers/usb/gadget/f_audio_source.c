@@ -24,7 +24,7 @@
 #define SAMPLE_RATE 44100
 #define FRAMES_PER_MSEC (SAMPLE_RATE / 1000)
 
-#define IN_EP_MAX_PACKET_SIZE 384
+#define IN_EP_MAX_PACKET_SIZE 256
 
 /* Number of requests to allocate */
 #define IN_EP_REQ_COUNT 4
@@ -523,9 +523,24 @@ audio_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 static int audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 {
 	struct audio_dev *audio = func_to_audio(f);
+	struct usb_composite_dev *cdev = f->config->cdev;
+	int ret;
 
 	pr_debug("audio_set_alt intf %d, alt %d\n", intf, alt);
-	usb_ep_enable(audio->in_ep, &fs_as_in_ep_desc);
+
+	ret = config_ep_by_speed(cdev->gadget, f, audio->in_ep);
+	if (ret) {
+		audio->in_ep->desc = NULL;
+		ERROR(cdev, "config_ep_by_speed failes for ep %s, result %d\n",
+				audio->in_ep->name, ret);
+			return ret;
+	}
+	ret = usb_ep_enable(audio->in_ep);
+	if (ret) {
+		ERROR(cdev, "failed to enable ep %s, result %d\n",
+			audio->in_ep->name, ret);
+		return ret;
+	}
 	return 0;
 }
 
@@ -591,9 +606,6 @@ audio_bind(struct usb_configuration *c, struct usb_function *f)
 	if (gadget_is_dualspeed(c->cdev->gadget))
 		hs_as_in_ep_desc.bEndpointAddress =
 			fs_as_in_ep_desc.bEndpointAddress;
-
-	f->descriptors = fs_audio_desc;
-	f->hs_descriptors = hs_audio_desc;
 
 	for (i = 0, status = 0; i < IN_EP_REQ_COUNT && status == 0; i++) {
 		req = audio_request_new(ep, IN_EP_MAX_PACKET_SIZE);
@@ -746,6 +758,8 @@ static struct audio_dev _audio_dev = {
 		.set_alt = audio_set_alt,
 		.setup = audio_setup,
 		.disable = audio_disable,
+		.descriptors = fs_audio_desc,
+		.hs_descriptors = hs_audio_desc,
 	},
 	.lock = __SPIN_LOCK_UNLOCKED(_audio_dev.lock),
 	.idle_reqs = LIST_HEAD_INIT(_audio_dev.idle_reqs),

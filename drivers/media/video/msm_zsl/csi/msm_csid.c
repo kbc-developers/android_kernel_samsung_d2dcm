@@ -11,6 +11,7 @@
  */
 
 #include <linux/delay.h>
+#include <linux/module.h>
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <mach/board.h>
@@ -111,6 +112,7 @@ static int msm_csid_config(struct csid_cfg_params *cfg_params)
 	return rc;
 }
 
+#if DBG_CSID
 static irqreturn_t msm_csid_irq(int irq_num, void *data)
 {
 	uint32_t irq;
@@ -128,7 +130,7 @@ static irqreturn_t msm_csid_irq(int irq_num, void *data)
 	}
 	return IRQ_HANDLED;
 }
-
+#endif
 static int msm_csid_subdev_g_chip_ident(struct v4l2_subdev *sd,
 			struct v4l2_dbg_chip_ident *chip)
 {
@@ -318,10 +320,12 @@ static int __devinit csid_probe(struct platform_device *pdev)
 
 
 	return 0;
+#if 0
 ioremap_fail:
-		release_mem_region(new_csid_dev->mem->start,
-			resource_size(new_csid_dev->mem));
+#endif	
 csid_no_resource:
+	release_mem_region(new_csid_dev->mem->start,
+			resource_size(new_csid_dev->mem));
 	mutex_destroy(&new_csid_dev->mutex);
 	kfree(new_csid_dev);
 	return 0;

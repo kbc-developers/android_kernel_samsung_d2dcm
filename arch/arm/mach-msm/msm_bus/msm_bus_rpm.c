@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -10,6 +10,8 @@
  * GNU General Public License for more details.
  *
  */
+
+#define pr_fmt(fmt) "AXI: %s(): " fmt, __func__
 
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -108,7 +110,7 @@ struct commit_data {
 #define BW_VAL_FROM_BYTES(bw) \
 	((((bw) >> 17) & 0x8000) ? 0x7FFF : ((bw) >> 17))
 
-uint32_t msm_bus_set_bw_bytes(unsigned long bw)
+static uint32_t msm_bus_set_bw_bytes(unsigned long bw)
 {
 	return ((((bw) & 0x1FFFF) && (((bw) >> 17) == 0)) ?
 		ROUNDED_BW_VAL_FROM_BYTES(bw) : BW_VAL_FROM_BYTES(bw));
@@ -125,7 +127,8 @@ uint16_t msm_bus_get_bw(unsigned long val)
 	return (val)&0x7FFF;
 }
 
-uint16_t msm_bus_create_bw_tier_pair_bytes(uint8_t type, unsigned long bw)
+static uint16_t msm_bus_create_bw_tier_pair_bytes(uint8_t type,
+	unsigned long bw)
 {
 	return ((((type) == MSM_BUS_BW_TIER1 ? 1 : 0) << 15) |
 	 (msm_bus_set_bw_bytes(bw)));
@@ -161,8 +164,8 @@ void msm_bus_rpm_fill_cdata_buffer(int *curr, char *buf, const int max_size,
  * format specified by RPM
  * @fabric: Fabric device for which commit data is allocated
  */
-int allocate_commit_data(struct msm_bus_fabric_registration *fab_pdata,
-	void **cdata)
+static int msm_bus_rpm_allocate_commit_data(struct msm_bus_fabric_registration
+	*fab_pdata, void **cdata, int ctx)
 {
 	struct commit_data **cd = (struct commit_data **)cdata;
 	*cd = kzalloc(sizeof(struct commit_data), GFP_KERNEL);
@@ -202,7 +205,7 @@ int allocate_commit_data(struct msm_bus_fabric_registration *fab_pdata,
 	return 0;
 }
 
-void free_commit_data(void *cdata)
+static void free_commit_data(void *cdata)
 {
 	struct commit_data *cd = (struct commit_data *)cdata;
 
@@ -216,8 +219,8 @@ void free_commit_data(void *cdata)
  * allocate_rpm_data() - Allocate the id-value pairs to be
  * sent to RPM
  */
-struct msm_rpm_iv_pair *allocate_rpm_data(struct msm_bus_fabric_registration
-	*fab_pdata)
+static void *msm_bus_rpm_allocate_rpm_data(struct platform_device *pdev,
+	struct msm_bus_fabric_registration *fab_pdata)
 {
 	struct msm_rpm_iv_pair *rpm_data;
 	uint16_t count = ((fab_pdata->nmasters * fab_pdata->ntieredslaves) +
@@ -225,14 +228,14 @@ struct msm_rpm_iv_pair *allocate_rpm_data(struct msm_bus_fabric_registration
 
 	rpm_data = kmalloc((sizeof(struct msm_rpm_iv_pair) * count),
 		GFP_KERNEL);
-	return rpm_data;
+	return (void *)rpm_data;
 }
 
 #define BWMASK 0x7FFF
 #define TIERMASK 0x8000
 #define GET_TIER(n) (((n) & TIERMASK) >> 15)
 
-void msm_bus_rpm_update_bw(struct msm_bus_inode_info *hop,
+static void msm_bus_rpm_update_bw(struct msm_bus_inode_info *hop,
 	struct msm_bus_inode_info *info,
 	struct msm_bus_fabric_registration *fab_pdata,
 	void *sel_cdata, int *master_tiers,
@@ -339,7 +342,7 @@ static int msm_bus_rpm_compare_cdata(
 		fab_pdata->nmasters) + 1);
 	ret = memcmp(cd1->arb, cd2->arb, n);
 	if (ret) {
-		MSM_BUS_DBG("Commit Data arb[%d] not equal\n", i);
+		MSM_BUS_DBG("Commit Data arb[%d] not equal\n", n);
 		return ret;
 	}
 
@@ -464,7 +467,7 @@ struct commit_data {
 #define MODE1_IMM(val)	((val) & 0x7F)
 #define __CLZ(x) ((8 * sizeof(uint32_t)) - 1 - __fls(x))
 
-uint8_t msm_bus_set_bw_bytes(unsigned long val)
+static uint8_t msm_bus_set_bw_bytes(unsigned long val)
 {
 	unsigned int shift;
 	unsigned int intVal;
@@ -519,7 +522,8 @@ uint64_t msm_bus_get_bw_bytes(unsigned long val)
 	return msm_bus_get_bw(val) << 20;
 }
 
-uint8_t msm_bus_create_bw_tier_pair_bytes(uint8_t type, unsigned long bw)
+static uint8_t msm_bus_create_bw_tier_pair_bytes(uint8_t type,
+	unsigned long bw)
 {
 	return msm_bus_set_bw_bytes(bw);
 };
@@ -529,14 +533,14 @@ uint8_t msm_bus_create_bw_tier_pair(uint8_t type, unsigned long bw)
 	return msm_bus_create_bw_tier_pair_bytes(type, bw);
 };
 
-int allocate_commit_data(struct msm_bus_fabric_registration *fab_pdata,
-	void **cdata)
+static int msm_bus_rpm_allocate_commit_data(struct msm_bus_fabric_registration
+	*fab_pdata, void **cdata, int ctx)
 {
 	struct commit_data **cd = (struct commit_data **)cdata;
 	int i;
 
 	*cd = kzalloc(sizeof(struct commit_data), GFP_KERNEL);
-	if (!*cdata) {
+	if (!*cd) {
 		MSM_BUS_DBG("Couldn't alloc mem for cdata\n");
 		goto cdata_err;
 	}
@@ -584,7 +588,7 @@ cdata_err:
 	return -ENOMEM;
 }
 
-void free_commit_data(void *cdata)
+static void free_commit_data(void *cdata)
 {
 	int i;
 	struct commit_data *cd = (struct commit_data *)cdata;
@@ -596,8 +600,8 @@ void free_commit_data(void *cdata)
 	kfree(cd);
 }
 
-struct msm_rpm_iv_pair *allocate_rpm_data(struct msm_bus_fabric_registration
-	*fab_pdata)
+static void *msm_bus_rpm_allocate_rpm_data(struct platform_device *pdev,
+	struct msm_bus_fabric_registration *fab_pdata)
 {
 	struct msm_rpm_iv_pair *rpm_data;
 	uint16_t count = (((fab_pdata->nmasters * fab_pdata->ntieredslaves *
@@ -605,7 +609,7 @@ struct msm_rpm_iv_pair *allocate_rpm_data(struct msm_bus_fabric_registration
 
 	rpm_data = kmalloc((sizeof(struct msm_rpm_iv_pair) * count),
 		GFP_KERNEL);
-	return rpm_data;
+	return (void *)rpm_data;
 }
 
 static int msm_bus_rpm_compare_cdata(
@@ -745,12 +749,12 @@ static int msm_bus_rpm_commit_arb(struct msm_bus_fabric_registration
 	-(msm_bus_get_bw_bytes(msm_bus_create_bw_tier_pair_bytes(0, -(x)))) : \
 	(msm_bus_get_bw_bytes(msm_bus_create_bw_tier_pair_bytes(0, x))))
 
-uint16_t msm_bus_pack_bwsum_bytes(unsigned long bw)
+static uint16_t msm_bus_pack_bwsum_bytes(unsigned long bw)
 {
 	return (bw + ((1 << 20) - 1)) >> 20;
 };
 
-void msm_bus_rpm_update_bw(struct msm_bus_inode_info *hop,
+static void msm_bus_rpm_update_bw(struct msm_bus_inode_info *hop,
 	struct msm_bus_inode_info *info,
 	struct msm_bus_fabric_registration *fab_pdata,
 	void *sel_cdata, int *master_tiers,
@@ -859,14 +863,14 @@ void msm_bus_rpm_fill_cdata_buffer(int *curr, char *buf, const int max_size,
 * msm_bus_rpm_commit() - Commit the arbitration data to RPM
 * @fabric: Fabric for which the data should be committed
 **/
-int msm_bus_rpm_commit(struct msm_bus_fabric_registration
-	*fab_pdata, struct msm_rpm_iv_pair *rpm_data,
-	void **cdata)
+static int msm_bus_rpm_commit(struct msm_bus_fabric_registration
+	*fab_pdata, void *hw_data, void **cdata)
 {
 
 	int ret;
 	bool valid;
 	struct commit_data *dual_cd, *act_cd;
+	struct msm_rpm_iv_pair *rpm_data = (struct msm_rpm_iv_pair *)hw_data;
 	dual_cd = (struct commit_data *)cdata[DUAL_CTX];
 	act_cd = (struct commit_data *)cdata[ACTIVE_CTX];
 
@@ -897,4 +901,74 @@ int msm_bus_rpm_commit(struct msm_bus_fabric_registration
 			fab_pdata->id, ACTIVE_CTX);
 
 	return ret;
+}
+
+static int msm_bus_rpm_port_halt(uint32_t haltid, uint8_t mport)
+{
+	int status = 0;
+	struct msm_bus_halt_vector hvector = {0, 0};
+	struct msm_rpm_iv_pair rpm_data[2];
+
+	MSM_BUS_MASTER_HALT(hvector.haltmask, hvector.haltval, mport);
+	rpm_data[0].id = haltid;
+	rpm_data[0].value = hvector.haltval;
+	rpm_data[1].id = haltid + 1;
+	rpm_data[1].value = hvector.haltmask;
+
+	MSM_BUS_DBG("ctx: %d, id: %d, value: %d\n",
+		MSM_RPM_CTX_SET_0, rpm_data[0].id, rpm_data[0].value);
+	MSM_BUS_DBG("ctx: %d, id: %d, value: %d\n",
+		MSM_RPM_CTX_SET_0, rpm_data[1].id, rpm_data[1].value);
+
+	status = msm_rpm_set(MSM_RPM_CTX_SET_0, rpm_data, 2);
+	if (status)
+		MSM_BUS_DBG("msm_rpm_set returned: %d\n", status);
+	return status;
+}
+
+static int msm_bus_rpm_port_unhalt(uint32_t haltid, uint8_t mport)
+{
+	int status = 0;
+	struct msm_bus_halt_vector hvector = {0, 0};
+	struct msm_rpm_iv_pair rpm_data[2];
+
+	MSM_BUS_MASTER_UNHALT(hvector.haltmask, hvector.haltval,
+		mport);
+	rpm_data[0].id = haltid;
+	rpm_data[0].value = hvector.haltval;
+	rpm_data[1].id = haltid + 1;
+	rpm_data[1].value = hvector.haltmask;
+
+	MSM_BUS_DBG("unalt: ctx: %d, id: %d, value: %d\n",
+		MSM_RPM_CTX_SET_SLEEP, rpm_data[0].id, rpm_data[0].value);
+	MSM_BUS_DBG("unhalt: ctx: %d, id: %d, value: %d\n",
+		MSM_RPM_CTX_SET_SLEEP, rpm_data[1].id, rpm_data[1].value);
+
+	status = msm_rpm_set(MSM_RPM_CTX_SET_0, rpm_data, 2);
+	if (status)
+		MSM_BUS_DBG("msm_rpm_set returned: %d\n", status);
+	return status;
+}
+
+int msm_bus_remote_hw_commit(struct msm_bus_fabric_registration
+	*fab_pdata, void *hw_data, void **cdata)
+{
+	return 0;
+}
+
+int msm_bus_rpm_hw_init(struct msm_bus_fabric_registration *pdata,
+	struct msm_bus_hw_algorithm *hw_algo)
+{
+	pdata->il_flag = msm_bus_rpm_is_mem_interleaved();
+	hw_algo->allocate_commit_data = msm_bus_rpm_allocate_commit_data;
+	hw_algo->allocate_hw_data = msm_bus_rpm_allocate_rpm_data;
+	hw_algo->node_init = NULL;
+	hw_algo->free_commit_data = free_commit_data;
+	hw_algo->update_bw = msm_bus_rpm_update_bw;
+	hw_algo->commit = msm_bus_rpm_commit;
+	hw_algo->port_halt = msm_bus_rpm_port_halt;
+	hw_algo->port_unhalt = msm_bus_rpm_port_unhalt;
+	if (!pdata->ahb)
+		pdata->rpm_enabled = 1;
+	return 0;
 }

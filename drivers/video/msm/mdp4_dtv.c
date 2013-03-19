@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -201,7 +201,7 @@ static int dtv_on(struct platform_device *pdev)
 	if (ret) {
 		pr_info("%s: clk_set_rate(%d) failed\n", __func__,
 			mfd->fbi->var.pixclock);
-		if (mfd->fbi->var.pixclock == 27027000)
+		if (mfd->fbi->var.pixclock == 27030000)
 			mfd->fbi->var.pixclock = 27000000;
 		ret = clk_set_rate(tv_src_clk, mfd->fbi->var.pixclock);
 	}

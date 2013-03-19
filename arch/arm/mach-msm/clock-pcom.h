@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -12,6 +12,8 @@
 
 #ifndef __ARCH_ARM_MACH_MSM_CLOCK_PCOM_H
 #define __ARCH_ARM_MACH_MSM_CLOCK_PCOM_H
+
+#include <mach/clk-provider.h>
 
 /* clock IDs used by the modem processor */
 

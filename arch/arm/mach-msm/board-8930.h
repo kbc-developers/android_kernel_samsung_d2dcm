@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,13 +13,17 @@
 #ifndef __ARCH_ARM_MACH_MSM_BOARD_MSM8930_H
 #define __ARCH_ARM_MACH_MSM_BOARD_MSM8930_H
 
-#include <linux/regulator/gpio-regulator.h>
+#define MSM8930_PHASE_2
+
+#include <linux/regulator/msm-gpio-regulator.h>
 #include <linux/mfd/pm8xxx/pm8038.h>
+#include <linux/mfd/pm8xxx/pm8921.h>
 #include <linux/i2c.h>
 #include <linux/i2c/sx150x.h>
 #include <mach/irqs.h>
 #include <mach/rpm-regulator.h>
 #include <mach/msm_memtypes.h>
+#include <mach/msm_rtb.h>
 
 /*
  * TODO: When physical 8930/PM8038 hardware becomes
@@ -34,11 +38,22 @@
 #endif
 
 /* Macros assume PMIC GPIOs and MPPs start at 1 */
+/*
+ * PM8917 has more GPIOs and MPPs than PM8038; therefore, use PM8038 sizes at
+ * all times so that PM8038 vs PM8917 can be chosen at runtime.  This results in
+ * the Linux GPIO address space being contiguous for PM8917 and discontiguous
+ * for PM8038.
+ */
 #define PM8038_GPIO_BASE		NR_GPIO_IRQS
 #define PM8038_GPIO_PM_TO_SYS(pm_gpio)	(pm_gpio - 1 + PM8038_GPIO_BASE)
-#define PM8038_MPP_BASE			(PM8038_GPIO_BASE + PM8038_NR_GPIOS)
+#define PM8038_MPP_BASE			(PM8038_GPIO_BASE + PM8917_NR_GPIOS)
 #define PM8038_MPP_PM_TO_SYS(pm_gpio)	(pm_gpio - 1 + PM8038_MPP_BASE)
 #define PM8038_IRQ_BASE			(NR_MSM_IRQS + NR_GPIO_IRQS)
+
+/* These PM8917 alias macros are used to provide context in board files. */
+#define PM8917_GPIO_PM_TO_SYS(pm_gpio)	PM8038_GPIO_PM_TO_SYS(pm_gpio)
+#define PM8917_MPP_PM_TO_SYS(pm_gpio)	PM8038_MPP_PM_TO_SYS(pm_gpio)
+#define PM8917_IRQ_BASE			PM8038_IRQ_BASE
 
 /*
  * TODO: When physical 8930/PM8038 hardware becomes
@@ -61,24 +76,36 @@ extern struct rpm_regulator_platform_data msm_rpm_regulator_pdata __devinitdata;
 #define GPIO_VREG_ID_EXT_3P3V		2
 #endif
 
-extern struct regulator_init_data msm8930_saw_regulator_core0_pdata;
-extern struct regulator_init_data msm8930_saw_regulator_core1_pdata;
+extern struct regulator_init_data msm8930_pm8038_saw_regulator_core0_pdata;
+extern struct regulator_init_data msm8930_pm8038_saw_regulator_core1_pdata;
+extern struct regulator_init_data msm8930_pm8917_saw_regulator_core0_pdata;
+extern struct regulator_init_data msm8930_pm8917_saw_regulator_core1_pdata;
 
 extern struct pm8xxx_regulator_platform_data
 	msm8930_pm8038_regulator_pdata[] __devinitdata;
-
 extern int msm8930_pm8038_regulator_pdata_len __devinitdata;
+
+extern struct pm8xxx_regulator_platform_data
+	msm8930_pm8917_regulator_pdata[] __devinitdata;
+extern int msm8930_pm8917_regulator_pdata_len __devinitdata;
 
 #define MSM8930_GPIO_VREG_ID_EXT_5V		0
 #define MSM8930_GPIO_VREG_ID_EXT_OTG_SW		1
 
 extern struct gpio_regulator_platform_data
-	msm8930_gpio_regulator_pdata[] __devinitdata;
+	msm8930_pm8038_gpio_regulator_pdata[] __devinitdata;
+extern struct gpio_regulator_platform_data
+	msm8930_pm8917_gpio_regulator_pdata[] __devinitdata;
+
+extern struct rpm_regulator_platform_data
+	msm8930_pm8038_rpm_regulator_pdata __devinitdata;
+extern struct rpm_regulator_platform_data
+	msm8930_pm8917_rpm_regulator_pdata __devinitdata;
 
 #if defined(CONFIG_GPIO_SX150X) || defined(CONFIG_GPIO_SX150X_MODULE)
 enum {
 	GPIO_EXPANDER_IRQ_BASE = (PM8038_IRQ_BASE + PM8038_NR_IRQS),
-	GPIO_EXPANDER_GPIO_BASE = (PM8038_MPP_BASE + PM8038_NR_MPPS),
+	GPIO_EXPANDER_GPIO_BASE = (PM8038_MPP_BASE + PM8917_NR_MPPS),
 	/* CAM Expander */
 	GPIO_CAM_EXPANDER_BASE = GPIO_EXPANDER_GPIO_BASE,
 	GPIO_CAM_GP_STROBE_READY = GPIO_CAM_EXPANDER_BASE,
@@ -104,6 +131,7 @@ extern struct msm_camera_board_info msm8930_camera_board_info;
 void msm8930_init_cam(void);
 void msm8930_init_fb(void);
 void msm8930_init_pmic(void);
+extern void msm8930_add_vidc_device(void);
 
 /*
  * TODO: When physical 8930/PM8038 hardware becomes
@@ -119,13 +147,20 @@ void msm8930_init_mmc(void);
 int msm8930_init_gpiomux(void);
 void msm8930_allocate_fb_region(void);
 void msm8930_pm8038_gpio_mpp_init(void);
+void msm8930_pm8917_gpio_mpp_init(void);
 void msm8930_mdp_writeback(struct memtype_reserve *reserve_table);
+void __init msm8930_init_gpu(void);
 
 #define PLATFORM_IS_CHARM25() \
 	(machine_is_msm8930_cdp() && \
 		(socinfo_get_platform_subtype() == 1) \
 	)
 
-#define MSM_8930_GSBI4_QUP_I2C_BUS_ID 4
 #define MSM_8930_GSBI3_QUP_I2C_BUS_ID 3
+#define MSM_8930_GSBI4_QUP_I2C_BUS_ID 4
+#define MSM_8930_GSBI9_QUP_I2C_BUS_ID 0
 #define MSM_8930_GSBI10_QUP_I2C_BUS_ID 10
+#define MSM_8930_GSBI12_QUP_I2C_BUS_ID 12
+
+extern struct msm_rtb_platform_data msm8930_rtb_pdata;
+extern struct msm_cache_dump_platform_data msm8930_cache_dump_pdata;

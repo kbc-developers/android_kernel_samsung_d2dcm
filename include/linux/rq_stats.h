@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,11 +25,6 @@ struct rq_data {
 	struct work_struct def_timer_work;
 	int init;
 };
-
-#ifdef CONFIG_SEC_DVFS_DUAL
-void dual_boost(unsigned int boost_on);
-int get_dual_boost_state(void);
-#endif
 
 extern spinlock_t rq_lock;
 extern struct rq_data rq_info;
