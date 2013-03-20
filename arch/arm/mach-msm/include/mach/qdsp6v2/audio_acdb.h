@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,8 +14,11 @@
 #define _AUDIO_ACDB_H
 
 #include <linux/msm_audio_acdb.h>
+#ifdef CONFIG_ARCH_MSM8974
+#include <sound/q6adm-v2.h>
+#else
 #include <sound/q6adm.h>
-
+#endif
 enum {
 	RX_CAL,
 	TX_CAL,

@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2002 ARM Ltd.
  *  All Rights Reserved
- *  Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+ *  Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -14,14 +14,15 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/regulator/krait-regulator.h>
 
 #include <asm/hardware/gic.h>
 #include <asm/cacheflush.h>
 #include <asm/cputype.h>
 #include <asm/mach-types.h>
+#include <asm/smp_plat.h>
 
 #include <mach/socinfo.h>
-#include <mach/smp.h>
 #include <mach/hardware.h>
 #include <mach/msm_iomap.h>
 
@@ -29,25 +30,55 @@
 #include "scm-boot.h"
 #include "spm.h"
 
-int pen_release = -1;
+#define VDD_SC1_ARRAY_CLAMP_GFS_CTL 0x15A0
+#define SCSS_CPU1CORE_RESET 0xD80
+#define SCSS_DBG_STATUS_CORE_PWRDUP 0xE64
 
-/* Initialize the present map (cpu_set(i, cpu_present_map)). */
-void __init platform_smp_prepare_cpus(unsigned int max_cpus)
+extern void msm_secondary_startup(void);
+
+/*
+ * control for which core is the next to come out of the secondary
+ * boot "holding pen".
+ */
+volatile int pen_release = -1;
+
+/*
+ * Write pen_release in a way that is guaranteed to be visible to all
+ * observers, irrespective of whether they're taking part in coherency
+ * or not.  This is necessary for the hotplug code to work reliably.
+ */
+static void __cpuinit write_pen_release(int val)
 {
-	int i;
-
-	for (i = 0; i < max_cpus; i++)
-		cpu_set(i, cpu_present_map);
+	pen_release = val;
+	smp_wmb();
+	__cpuc_flush_dcache_area((void *)&pen_release, sizeof(pen_release));
+	outer_clean_range(__pa(&pen_release), __pa(&pen_release + 1));
 }
 
-void __init smp_init_cpus(void)
+static DEFINE_SPINLOCK(boot_lock);
+
+void __cpuinit platform_secondary_init(unsigned int cpu)
 {
-	unsigned int i, ncores = get_core_count();
+	WARN_ON(msm_platform_secondary_init(cpu));
 
-	for (i = 0; i < ncores; i++)
-		cpu_set(i, cpu_possible_map);
+	/*
+	 * if any interrupts are already enabled for the primary
+	 * core (e.g. timer irq), then they will not have been enabled
+	 * for us: do so
+	 */
+	gic_secondary_init(0);
 
-	set_smp_cross_call(gic_raise_softirq);
+	/*
+	 * let the primary processor know we're out of the
+	 * pen, then head off into the C entry point
+	 */
+	write_pen_release(-1);
+
+	/*
+	 * Synchronise with the boot thread.
+	 */
+	spin_lock(&boot_lock);
+	spin_unlock(&boot_lock);
 }
 
 static int __cpuinit scorpion_release_secondary(void)
@@ -56,38 +87,35 @@ static int __cpuinit scorpion_release_secondary(void)
 	if (!base_ptr)
 		return -EINVAL;
 
-	writel_relaxed(0x0, base_ptr+0x15A0);
+	writel_relaxed(0, base_ptr + VDD_SC1_ARRAY_CLAMP_GFS_CTL);
 	dmb();
-	writel_relaxed(0x0, base_ptr+0xD80);
-	writel_relaxed(0x3, base_ptr+0xE64);
+	writel_relaxed(0, base_ptr + SCSS_CPU1CORE_RESET);
+	writel_relaxed(3, base_ptr + SCSS_DBG_STATUS_CORE_PWRDUP);
 	mb();
 	iounmap(base_ptr);
 
 	return 0;
 }
 
-static int __cpuinit krait_release_secondary_sim(int cpu)
+static int __cpuinit krait_release_secondary_sim(unsigned long base, int cpu)
 {
-	void *base_ptr = ioremap_nocache(0x02088000 + (cpu * 0x10000), SZ_4K);
+	void *base_ptr = ioremap_nocache(base + (cpu * 0x10000), SZ_4K);
 	if (!base_ptr)
 		return -ENODEV;
 
-	if (machine_is_msm8960_sim() || machine_is_msm8960_rumi3()) {
-		writel_relaxed(0x10, base_ptr+0x04);
-		writel_relaxed(0x80, base_ptr+0x04);
+	if (machine_is_msm8974_sim()) {
+		writel_relaxed(0x800, base_ptr+0x04);
+		writel_relaxed(0x3FFF, base_ptr+0x14);
 	}
-
-	if (machine_is_apq8064_sim())
-		writel_relaxed(0xf0000, base_ptr+0x04);
 
 	mb();
 	iounmap(base_ptr);
 	return 0;
 }
 
-static int __cpuinit krait_release_secondary(int cpu)
+static int __cpuinit krait_release_secondary(unsigned long base, int cpu)
 {
-	void *base_ptr = ioremap_nocache(0x02088000 + (cpu * 0x10000), SZ_4K);
+	void *base_ptr = ioremap_nocache(base + (cpu * 0x10000), SZ_4K);
 	if (!base_ptr)
 		return -ENODEV;
 
@@ -95,7 +123,6 @@ static int __cpuinit krait_release_secondary(int cpu)
 
 	writel_relaxed(0x109, base_ptr+0x04);
 	writel_relaxed(0x101, base_ptr+0x04);
-
 	mb();
 	ndelay(300);
 
@@ -117,6 +144,31 @@ static int __cpuinit krait_release_secondary(int cpu)
 	return 0;
 }
 
+static int __cpuinit krait_release_secondary_p3(unsigned long base, int cpu)
+{
+	void *base_ptr = ioremap_nocache(base + (cpu * 0x10000), SZ_4K);
+	if (!base_ptr)
+		return -ENODEV;
+
+	secondary_cpu_hs_init(base_ptr);
+
+	writel_relaxed(0x021, base_ptr+0x04);
+	mb();
+	udelay(2);
+
+	writel_relaxed(0x020, base_ptr+0x04);
+	mb();
+	udelay(2);
+
+	writel_relaxed(0x000, base_ptr+0x04);
+	mb();
+
+	writel_relaxed(0x080, base_ptr+0x04);
+	mb();
+	iounmap(base_ptr);
+	return 0;
+}
+
 static int __cpuinit release_secondary(unsigned int cpu)
 {
 	BUG_ON(cpu >= get_core_count());
@@ -124,12 +176,15 @@ static int __cpuinit release_secondary(unsigned int cpu)
 	if (cpu_is_msm8x60())
 		return scorpion_release_secondary();
 
-	if (machine_is_msm8960_sim() || machine_is_msm8960_rumi3() ||
-	    machine_is_apq8064_sim())
-		return krait_release_secondary_sim(cpu);
+	if (machine_is_msm8974_sim())
+		return krait_release_secondary_sim(0xf9088000, cpu);
 
-	if (cpu_is_msm8960() || cpu_is_msm8930() || cpu_is_apq8064())
-		return krait_release_secondary(cpu);
+	if (soc_class_is_msm8960() || soc_class_is_msm8930() ||
+	    soc_class_is_apq8064())
+		return krait_release_secondary(0x02088000, cpu);
+
+	if (cpu_is_msm8974())
+		return krait_release_secondary_p3(0xf9088000, cpu);
 
 	WARN(1, "unknown CPU case in release_secondary\n");
 	return -EINVAL;
@@ -143,15 +198,11 @@ static int cold_boot_flags[] = {
 	SCM_FLAG_COLDBOOT_CPU3,
 };
 
-/* Executed by primary CPU, brings other CPUs out of reset. Called at boot
-   as well as when a CPU is coming out of shutdown induced by echo 0 >
-   /sys/devices/.../cpuX.
-*/
 int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
-	int cnt = 0;
 	int ret;
-	int flag = 0;
+	unsigned int flag = 0;
+	unsigned long timeout;
 
 	pr_debug("Starting secondary CPU %d\n", cpu);
 
@@ -164,8 +215,7 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 		__WARN();
 
 	if (per_cpu(cold_boot_done, cpu) == false) {
-		ret = scm_set_boot_addr((void *)
-					virt_to_phys(msm_secondary_startup),
+		ret = scm_set_boot_addr(virt_to_phys(msm_secondary_startup),
 					flag);
 		if (ret == 0)
 			release_secondary(cpu);
@@ -175,45 +225,66 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 		per_cpu(cold_boot_done, cpu) = true;
 	}
 
-	pen_release = cpu;
-	dmac_flush_range((void *)&pen_release,
-			 (void *)(&pen_release + sizeof(pen_release)));
+	/*
+	 * set synchronisation state between this boot processor
+	 * and the secondary one
+	 */
+	spin_lock(&boot_lock);
 
-	/* Use smp_cross_call() to send a soft interrupt to wake up
-	 * the other core.
+	/*
+	 * The secondary processor is waiting to be released from
+	 * the holding pen - release it, then wait for it to flag
+	 * that it has been released by resetting pen_release.
+	 *
+	 * Note that "pen_release" is the hardware CPU ID, whereas
+	 * "cpu" is Linux's internal ID.
+	 */
+	write_pen_release(cpu_logical_map(cpu));
+
+	/*
+	 * Send the secondary CPU a soft interrupt, thereby causing
+	 * the boot monitor to read the system wide flags register,
+	 * and branch to the address found there.
 	 */
 	gic_raise_softirq(cpumask_of(cpu), 1);
 
-	while (pen_release != 0xFFFFFFFF) {
-		dmac_inv_range((void *)&pen_release,
-			       (void *)(&pen_release+sizeof(pen_release)));
-		usleep(500);
-		if (cnt++ >= 10)
+	timeout = jiffies + (1 * HZ);
+	while (time_before(jiffies, timeout)) {
+		smp_rmb();
+		if (pen_release == -1)
 			break;
+
+		udelay(10);
 	}
 
-	return 0;
+	/*
+	 * now the secondary core is starting up let it run its
+	 * calibrations, then wait for it to finish
+	 */
+	spin_unlock(&boot_lock);
+
+	return pen_release != -1 ? -ENOSYS : 0;
+}
+/*
+ * Initialise the CPU possible map early - this describes the CPUs
+ * which may be present or become present in the system.
+ */
+void __init smp_init_cpus(void)
+{
+	unsigned int i, ncores = get_core_count();
+
+	if (ncores > nr_cpu_ids) {
+		pr_warn("SMP: %u cores greater than maximum (%u), clipping\n",
+			ncores, nr_cpu_ids);
+		ncores = nr_cpu_ids;
+	}
+
+	for (i = 0; i < ncores; i++)
+		set_cpu_possible(i, true);
+
+	set_smp_cross_call(gic_raise_softirq);
 }
 
-/* Initialization routine for secondary CPUs after they are brought out of
- * reset.
-*/
-void __cpuinit platform_secondary_init(unsigned int cpu)
+void __init platform_smp_prepare_cpus(unsigned int max_cpus)
 {
-	pr_debug("CPU%u: Booted secondary processor\n", cpu);
-
-	WARN_ON(msm_platform_secondary_init(cpu));
-
-	trace_hardirqs_off();
-
-	/* Edge trigger PPIs except AVS_SVICINT and AVS_SVICINTSWDONE */
-	writel(0xFFFFD7FF, MSM_QGIC_DIST_BASE + GIC_DIST_CONFIG + 4);
-
-	/* RUMI does not adhere to GIC spec by enabling STIs by default.
-	 * Enable/clear is supposed to be RO for STIs, but is RW on RUMI.
-	 */
-	if (!machine_is_msm8x60_sim())
-		writel(0x0000FFFF, MSM_QGIC_DIST_BASE + GIC_DIST_ENABLE_SET);
-
-	gic_secondary_init(0);
 }

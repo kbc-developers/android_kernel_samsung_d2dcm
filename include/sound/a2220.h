@@ -219,7 +219,6 @@ enum A2220_NS_states {
 #define A2220_SLEEP             0
 #define A2220_ACTIVE            1
 #define A2220_CMD_FIFO_DEPTH    64
-#define ERROR                   0xffffffff
 
 enum A2220_config_mode {
 	A2220_CONFIG_FULL,

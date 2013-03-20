@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  * Copyright (c) 2010, Google Inc.
  *
  * Original authors: Code Aurora Forum
@@ -18,6 +18,7 @@
 
 #define pr_fmt(fmt) "%s: " fmt, __func__
 
+#include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/io.h>

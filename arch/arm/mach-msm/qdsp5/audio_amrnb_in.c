@@ -2,7 +2,7 @@
  *
  * amrnb encoder device
  *
- * Copyright (c) 2009, 2011-2012 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009, 2011-2012 The Linux Foundation. All rights reserved.
  *
  * This code is based in part on arch/arm/mach-msm/qdsp5/audio_in.c, which is
  * Copyright (C) 2008 Google, Inc.
@@ -37,14 +37,13 @@
 #include <linux/delay.h>
 #include <linux/msm_audio_amrnb.h>
 #include <linux/memory_alloc.h>
-#include <linux/ion.h>
+#include <linux/msm_ion.h>
 
 #include "audmgr.h"
 
 #include <mach/msm_rpcrouter.h>
 #include <mach/msm_memtypes.h>
 #include <mach/iommu.h>
-#include <mach/msm_subsystem_map.h>
 #include <mach/iommu_domains.h>
 
 #include <mach/msm_adsp.h>
@@ -825,13 +824,15 @@ static long audamrnb_in_ioctl(struct file *file,
 		}
 		/* Allow only single frame */
 		if (audio->mode == MSM_AUD_ENC_MODE_TUNNEL) {
-			if (cfg.buffer_size != (FRAME_SIZE - 8))
+			if (cfg.buffer_size != (FRAME_SIZE - 8)) {
 				rc = -EINVAL;
 				break;
+			}
 		} else {
-			if (cfg.buffer_size != (AMRNB_FRAME_SIZE + 14))
+			if (cfg.buffer_size != (AMRNB_FRAME_SIZE + 14)) {
 				rc = -EINVAL;
 				break;
+			}
 		}
 		audio->buffer_size = cfg.buffer_size;
 		break;
@@ -1022,7 +1023,7 @@ static void audrec_pcm_send_data(struct audio_amrnb_in *audio, unsigned needed)
 	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 }
 
-static int audamrnb_in_fsync(struct file *file,	int datasync)
+static int audamrnb_in_fsync(struct file *file, loff_t a, loff_t b, int datasync)
 
 {
 	struct audio_amrnb_in *audio = file->private_data;
@@ -1340,7 +1341,7 @@ static int audamrnb_in_open(struct inode *inode, struct file *file)
 	if (audio->mode == MSM_AUD_ENC_MODE_NONTUNNEL) {
 		MM_DBG("allocating BUFFER_SIZE  %d\n", BUFFER_SIZE);
 		handle = ion_alloc(client, BUFFER_SIZE,
-				SZ_4K, ION_HEAP(ION_AUDIO_HEAP_ID));
+				SZ_4K, ION_HEAP(ION_AUDIO_HEAP_ID), 0);
 		if (IS_ERR_OR_NULL(handle)) {
 			MM_ERR("Unable to create allocate write buffers\n");
 			rc = -ENOMEM;
@@ -1370,11 +1371,10 @@ static int audamrnb_in_open(struct inode *inode, struct file *file)
 			goto input_buff_get_flags_error;
 		}
 
-		audio->map_v_write = ion_map_kernel(client,
-			handle, ionflag);
+		audio->map_v_write = ion_map_kernel(client, handle);
 		if (IS_ERR(audio->map_v_write)) {
 			MM_ERR("could not map write buffers\n");
-				rc = -ENOMEM;
+			rc = -ENOMEM;
 			goto input_buff_map_error;
 		}
 		audio->out_data = audio->map_v_write;

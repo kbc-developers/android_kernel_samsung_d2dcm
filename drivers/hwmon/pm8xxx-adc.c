@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,7 +23,6 @@
 #include <linux/hwmon.h>
 #include <linux/module.h>
 #include <linux/debugfs.h>
-#include <linux/wakelock.h>
 #include <linux/interrupt.h>
 #include <linux/completion.h>
 #include <linux/hwmon-sysfs.h>
@@ -32,6 +31,7 @@
 #include <linux/mfd/pm8xxx/core.h>
 #include <linux/regulator/consumer.h>
 #include <linux/mfd/pm8xxx/pm8xxx-adc.h>
+#include <mach/msm_xo.h>
 
 /* User Bank register set */
 #define PM8XXX_ADC_ARB_USRP_CNTRL1			0x197
@@ -123,6 +123,7 @@
 #define PM8XXX_ADC_PA_THERM_VREG_UA_LOAD		100000
 #define PM8XXX_ADC_HWMON_NAME_LENGTH			32
 #define PM8XXX_ADC_BTM_INTERVAL_MAX			0x14
+#define PM8XXX_ADC_COMPLETION_TIMEOUT			(2 * HZ)
 
 struct pm8xxx_adc {
 	struct device				*dev;
@@ -141,10 +142,10 @@ struct pm8xxx_adc {
 	struct work_struct			cool_work;
 	uint32_t				mpp_base;
 	struct device				*hwmon;
-	struct wake_lock			adc_wakelock;
+	struct msm_xo_voter			*adc_voter;
 	int					msm_suspend_check;
 	struct pm8xxx_adc_amux_properties	*conv;
-	struct pm8xxx_adc_arb_btm_param		batt[0];
+	struct pm8xxx_adc_arb_btm_param		batt;
 	struct sensor_device_attribute		sens_attr[0];
 };
 
@@ -172,8 +173,45 @@ static struct pm8xxx_adc_scale_fn adc_scale_fn[] = {
 	[ADC_SCALE_PA_THERM] = {pm8xxx_adc_scale_pa_therm},
 	[ADC_SCALE_PMIC_THERM] = {pm8xxx_adc_scale_pmic_therm},
 	[ADC_SCALE_XOTHERM] = {pm8xxx_adc_tdkntcg_therm},
+#ifdef CONFIG_PM8921_SEC_CHARGER
 	[ADC_SCALE_SEC_BOARD_THERM] = {pm8xxx_adc_sec_board_therm_default},
+#endif
 };
+
+#define CHG_CNTRL_2                                    0x212
+#define EN_BATT_THERM_MASK1                    0xEF
+#define EN_BATT_THERM_MASK2                    0x10
+int pm8921_enable_batt_therm(u8 en)
+{
+	int rc;
+	u8 reg;
+	struct pm8xxx_adc *adc_pmic = pmic_adc;
+
+	rc = pm8xxx_readb(adc_pmic->dev->parent, CHG_CNTRL_2, &reg);
+	if (rc) {
+		pr_err("pm8xxx_readb failed: addr=%03X, rc=%d\n",
+		CHG_CNTRL_2, rc);
+		return rc;
+	}
+
+	if (en == 0) { 
+		reg &= EN_BATT_THERM_MASK1;
+		pr_info("[pm8921] disable Vref_batt_therm\n");
+	} else {
+		reg |= EN_BATT_THERM_MASK2;
+		pr_info("[pm8921] enable Vref_batt_therm\n");
+	}
+
+	rc = pm8xxx_writeb(adc_pmic->dev->parent, CHG_CNTRL_2, reg);
+	if (rc) {
+		pr_err("pm8xxx_writeb failed: addr=%03X, rc=%d\n",
+			CHG_CNTRL_2, rc);
+		return rc;
+	}
+	return rc;
+
+}
+
 
 /* On PM8921 ADC the MPP needs to first be configured
 as an analog input to the AMUX pre-mux channel before
@@ -224,7 +262,6 @@ static int32_t pm8xxx_adc_arb_cntrl(uint32_t arb_cntrl,
 			pr_err("PM8xxx ADC request made after suspend_noirq "
 					"with channel: %d\n", channel);
 		data_arb_cntrl |= PM8XXX_ADC_ARB_USRP_CNTRL1_EN_ARB;
-		wake_lock(&adc_pmic->adc_wakelock);
 	}
 
 	/* Write twice to the CNTRL register for the arbiter settings
@@ -243,8 +280,7 @@ static int32_t pm8xxx_adc_arb_cntrl(uint32_t arb_cntrl,
 		INIT_COMPLETION(adc_pmic->adc_rslt_completion);
 		rc = pm8xxx_writeb(adc_pmic->dev->parent,
 			PM8XXX_ADC_ARB_USRP_CNTRL1, data_arb_cntrl);
-	} else
-		wake_unlock(&adc_pmic->adc_wakelock);
+	}
 
 	return 0;
 }
@@ -294,14 +330,34 @@ static int32_t pm8xxx_adc_patherm_power(bool on)
 	return rc;
 }
 
+static int32_t pm8xxx_adc_xo_vote(bool on)
+{
+	struct pm8xxx_adc *adc_pmic = pmic_adc;
+
+	if (on)
+		msm_xo_mode_vote(adc_pmic->adc_voter, MSM_XO_MODE_ON);
+	else
+		msm_xo_mode_vote(adc_pmic->adc_voter, MSM_XO_MODE_OFF);
+
+	return 0;
+}
+
 static int32_t pm8xxx_adc_channel_power_enable(uint32_t channel,
 							bool power_cntrl)
 {
 	int rc = 0;
 
-	switch (channel)
+	switch (channel) {
 	case ADC_MPP_1_AMUX8:
 		rc = pm8xxx_adc_patherm_power(power_cntrl);
+		break;
+	case CHANNEL_DIE_TEMP:
+	case CHANNEL_MUXOFF:
+		rc = pm8xxx_adc_xo_vote(power_cntrl);
+		break;
+	default:
+		break;
+	}
 
 	return rc;
 }
@@ -446,39 +502,6 @@ static uint32_t pm8xxx_adc_read_adc_code(int32_t *data)
 	return 0;
 }
 
-#define CHG_CNTRL_2					0x212
-#define EN_BATT_THERM_MASK1			0xEF
-#define EN_BATT_THERM_MASK2			0x10
-int pm8921_enable_batt_therm(u8 en)
-{
-	int rc;
-	u8 reg;
-	struct pm8xxx_adc *adc_pmic = pmic_adc;
-
-	rc = pm8xxx_readb(adc_pmic->dev->parent, CHG_CNTRL_2, &reg);
-	if (rc) {
-		pr_err("pm8xxx_readb failed: addr=%03X, rc=%d\n",
-			CHG_CNTRL_2, rc);
-		return rc;
-	}
-
-	if (en == 0) {
-		reg &= EN_BATT_THERM_MASK1;
-		pr_info("[pm8921] disable Vref_batt_therm\n");
-	} else {
-		reg |= EN_BATT_THERM_MASK2;
-		pr_info("[pm8921] enable Vref_batt_therm\n");
-	}
-
-	rc = pm8xxx_writeb(adc_pmic->dev->parent, CHG_CNTRL_2, reg);
-	if (rc) {
-		pr_err("pm8xxx_writeb failed: addr=%03X, rc=%d\n",
-			CHG_CNTRL_2, rc);
-		return rc;
-	}
-
-}
-
 static void pm8xxx_adc_btm_warm_scheduler_fn(struct work_struct *work)
 {
 	struct pm8xxx_adc *adc_pmic = container_of(work, struct pm8xxx_adc,
@@ -488,8 +511,8 @@ static void pm8xxx_adc_btm_warm_scheduler_fn(struct work_struct *work)
 
 	spin_lock_irqsave(&adc_pmic->btm_lock, flags);
 	warm_status = irq_read_line(adc_pmic->btm_warm_irq);
-	if (adc_pmic->batt->btm_warm_fn != NULL)
-		adc_pmic->batt->btm_warm_fn(warm_status);
+	if (adc_pmic->batt.btm_warm_fn != NULL)
+		adc_pmic->batt.btm_warm_fn(warm_status);
 	spin_unlock_irqrestore(&adc_pmic->btm_lock, flags);
 }
 
@@ -502,8 +525,8 @@ static void pm8xxx_adc_btm_cool_scheduler_fn(struct work_struct *work)
 
 	spin_lock_irqsave(&adc_pmic->btm_lock, flags);
 	cool_status = irq_read_line(adc_pmic->btm_cool_irq);
-	if (adc_pmic->batt->btm_cool_fn != NULL)
-		adc_pmic->batt->btm_cool_fn(cool_status);
+	if (adc_pmic->batt.btm_cool_fn != NULL)
+		adc_pmic->batt.btm_cool_fn(cool_status);
 	spin_unlock_irqrestore(&adc_pmic->btm_lock, flags);
 }
 
@@ -750,7 +773,7 @@ uint32_t pm8xxx_adc_read(enum pm8xxx_adc_channels channel,
 	if (channel == ADC_MPP_1_AMUX6_SCALE_DEFAULT) {
 		mpp_scale = PREMUX_MPP_SCALE_1;
 		adc_pmic->conv->amux_channel =
-			 ADC_MPP_1_AMUX6 % PM8XXX_CHANNEL_MPP_SCALE1_IDX;
+			ADC_MPP_1_AMUX6 % PM8XXX_CHANNEL_MPP_SCALE1_IDX;
 	}
 #endif
 
@@ -776,7 +799,23 @@ uint32_t pm8xxx_adc_read(enum pm8xxx_adc_channels channel,
 		goto fail;
 	}
 
-	wait_for_completion(&adc_pmic->adc_rslt_completion);
+	rc = wait_for_completion_timeout(&adc_pmic->adc_rslt_completion,
+						PM8XXX_ADC_COMPLETION_TIMEOUT);
+	if (!rc) {
+		u8 data_arb_usrp_cntrl1 = 0;
+		rc = pm8xxx_adc_read_reg(PM8XXX_ADC_ARB_USRP_CNTRL1,
+					&data_arb_usrp_cntrl1);
+		if (rc < 0)
+			goto fail;
+		if (data_arb_usrp_cntrl1 == (PM8XXX_ADC_ARB_USRP_CNTRL1_EOC |
+					PM8XXX_ADC_ARB_USRP_CNTRL1_EN_ARB))
+			pr_debug("End of conversion status set\n");
+		else {
+			pr_err("EOC interrupt not received\n");
+			rc = -EINVAL;
+			goto fail;
+		}
+	}
 
 	rc = pm8xxx_adc_read_adc_code(&result->adc_code);
 	if (rc) {
@@ -914,7 +953,7 @@ uint32_t pm8xxx_adc_btm_configure(struct pm8xxx_adc_arb_btm_param *btm_param)
 		if (rc < 0)
 			goto write_err;
 
-		adc_pmic->batt->btm_cool_fn = btm_param->btm_cool_fn;
+		adc_pmic->batt.btm_cool_fn = btm_param->btm_cool_fn;
 	}
 
 	if (btm_param->btm_warm_fn != NULL) {
@@ -928,7 +967,7 @@ uint32_t pm8xxx_adc_btm_configure(struct pm8xxx_adc_arb_btm_param *btm_param)
 		if (rc < 0)
 			goto write_err;
 
-		adc_pmic->batt->btm_warm_fn = btm_param->btm_warm_fn;
+		adc_pmic->batt.btm_warm_fn = btm_param->btm_warm_fn;
 	}
 
 	rc = pm8xxx_adc_read_reg(PM8XXX_ADC_ARB_BTM_CNTRL1, &arb_btm_cntrl1);
@@ -1006,10 +1045,10 @@ static uint32_t pm8xxx_adc_btm_read(uint32_t channel)
 	if (rc < 0)
 		goto write_err;
 
-	if (pmic_adc->batt->btm_warm_fn != NULL)
+	if (pmic_adc->batt.btm_warm_fn != NULL)
 		enable_irq(adc_pmic->btm_warm_irq);
 
-	if (pmic_adc->batt->btm_cool_fn != NULL)
+	if (pmic_adc->batt.btm_cool_fn != NULL)
 		enable_irq(adc_pmic->btm_cool_irq);
 
 write_err:
@@ -1084,23 +1123,6 @@ static int get_adc(void *data, u64 *val)
 }
 DEFINE_SIMPLE_ATTRIBUTE(reg_fops, get_adc, NULL, "%llu\n");
 
-static int get_mpp_adc(void *data, u64 *val)
-{
-	struct pm8xxx_adc_chan_result result;
-	int i = (int)data;
-	int rc;
-
-	rc = pm8xxx_adc_mpp_config_read(i,
-		ADC_MPP_1_AMUX6, &result);
-	if (!rc)
-		pr_info("ADC MPP value raw:%x physical:%lld\n",
-			result.adc_code, result.physical);
-	*val = result.physical;
-
-	return 0;
-}
-DEFINE_SIMPLE_ATTRIBUTE(reg_mpp_fops, get_mpp_adc, NULL, "%llu\n");
-
 #ifdef CONFIG_DEBUG_FS
 static void create_debugfs_entries(void)
 {
@@ -1142,6 +1164,7 @@ static int32_t pm8xxx_adc_init_hwmon(struct platform_device *pdev)
 						adc_pmic->adc_channel[i].name;
 		memcpy(&adc_pmic->sens_attr[i], &pm8xxx_adc_attr,
 						sizeof(pm8xxx_adc_attr));
+		sysfs_attr_init(&adc_pmic->sens_attr[i].dev_attr.attr);
 		rc = device_create_file(&pdev->dev,
 				&adc_pmic->sens_attr[i].dev_attr);
 		if (rc) {
@@ -1192,7 +1215,7 @@ static int __devexit pm8xxx_adc_teardown(struct platform_device *pdev)
 	struct pm8xxx_adc *adc_pmic = pmic_adc;
 	int i;
 
-	wake_lock_destroy(&adc_pmic->adc_wakelock);
+	msm_xo_put(adc_pmic->adc_voter);
 	platform_set_drvdata(pdev, NULL);
 	pmic_adc = NULL;
 	if (!pa_therm) {
@@ -1220,7 +1243,6 @@ static int __devinit pm8xxx_adc_probe(struct platform_device *pdev)
 	}
 
 	adc_pmic = devm_kzalloc(&pdev->dev, sizeof(struct pm8xxx_adc) +
-			sizeof(struct pm8xxx_adc_arb_btm_param) +
 			(sizeof(struct sensor_device_attribute) *
 			pdata->adc_num_board_channel), GFP_KERNEL);
 	if (!adc_pmic) {
@@ -1295,8 +1317,6 @@ static int __devinit pm8xxx_adc_probe(struct platform_device *pdev)
 
 	disable_irq_nosync(adc_pmic->btm_cool_irq);
 	platform_set_drvdata(pdev, adc_pmic);
-	wake_lock_init(&adc_pmic->adc_wakelock, WAKE_LOCK_SUSPEND,
-					"pm8xxx_adc_wakelock");
 	adc_pmic->msm_suspend_check = 0;
 	pmic_adc = adc_pmic;
 
@@ -1313,6 +1333,14 @@ static int __devinit pm8xxx_adc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to initialize pm8xxx hwmon adc\n");
 	}
 	adc_pmic->hwmon = hwmon_device_register(adc_pmic->dev);
+
+	if (adc_pmic->adc_voter == NULL) {
+		adc_pmic->adc_voter = msm_xo_get(MSM_XO_TCXO_D0, "pmic_xoadc");
+		if (IS_ERR(adc_pmic->adc_voter)) {
+			dev_err(&pdev->dev, "Failed to get XO vote\n");
+			return PTR_ERR(adc_pmic->adc_voter);
+		}
+	}
 
 	pa_therm = regulator_get(adc_pmic->dev, "pa_therm");
 	if (IS_ERR(pa_therm)) {

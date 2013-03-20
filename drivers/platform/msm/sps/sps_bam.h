@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -26,7 +26,6 @@
 
 #include "spsi.h"
 
-#define BAM_MAX_PIPES              31
 #define BAM_HANDLE_INVALID         0
 
 enum bam_irq {
@@ -171,6 +170,7 @@ struct sps_pipe {
 	u32 pipe_index_mask;
 	u32 irq_mask;
 	int polled;
+	int hybrid;
 	u32 irq_gen_addr;
 	enum sps_mode mode;
 	u32 num_descs; /* Size (number of elements) of descriptor FIFO */
@@ -546,4 +546,20 @@ int sps_bam_set_satellite(struct sps_bam *dev, u32 pipe_index);
 int sps_bam_pipe_timer_ctrl(struct sps_bam *dev, u32 pipe_index,
 			    struct sps_timer_ctrl *timer_ctrl,
 			    struct sps_timer_result *timer_result);
+
+
+/**
+ * Get the number of unused descriptors in the descriptor FIFO
+ * of a pipe
+ *
+ * @dev - pointer to BAM device descriptor
+ *
+ * @pipe_index - pipe index
+ *
+ * @desc_num - number of unused descriptors
+ *
+ */
+int sps_bam_pipe_get_unused_desc_num(struct sps_bam *dev, u32 pipe_index,
+					u32 *desc_num);
+
 #endif	/* _SPSBAM_H_ */

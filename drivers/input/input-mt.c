@@ -9,6 +9,7 @@
  */
 
 #include <linux/input/mt.h>
+#include <linux/export.h>
 #include <linux/slab.h>
 
 #define TRKID_SGN	((TRKID_MAX + 1) >> 1)
@@ -40,6 +41,7 @@ int input_mt_init_slots(struct input_dev *dev, unsigned int num_slots)
 	dev->mtsize = num_slots;
 	input_set_abs_params(dev, ABS_MT_SLOT, 0, num_slots - 1, 0, 0);
 	input_set_abs_params(dev, ABS_MT_TRACKING_ID, 0, TRKID_MAX, 0, 0);
+	input_set_events_per_packet(dev, 6 * num_slots);
 
 	/* Mark slots as 'unused' */
 	for (i = 0; i < num_slots; i++)
@@ -116,6 +118,7 @@ void input_mt_report_finger_count(struct input_dev *dev, int count)
 	input_event(dev, EV_KEY, BTN_TOOL_DOUBLETAP, count == 2);
 	input_event(dev, EV_KEY, BTN_TOOL_TRIPLETAP, count == 3);
 	input_event(dev, EV_KEY, BTN_TOOL_QUADTAP, count == 4);
+	input_event(dev, EV_KEY, BTN_TOOL_QUINTTAP, count == 5);
 }
 EXPORT_SYMBOL(input_mt_report_finger_count);
 

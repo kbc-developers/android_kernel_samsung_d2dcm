@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2008 HTC Corporation.
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2011 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011 The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -19,6 +19,7 @@
 #include <linux/err.h>
 #include <linux/hrtimer.h>
 #include <linux/sched.h>
+#include <linux/module.h>
 #include "pmic.h"
 #include "timed_output.h"
 

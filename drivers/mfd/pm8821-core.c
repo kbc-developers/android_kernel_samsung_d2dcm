@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,6 +14,7 @@
 #define pr_fmt(fmt) "%s: " fmt, __func__
 
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/err.h>
@@ -26,10 +27,13 @@
 #define REG_HWREV_2		0x0E8  /* PMIC4 revision 2 */
 
 #define REG_MPP_BASE		0x050
-#define REG_IRQ_BASE		0x1BB
+#define REG_IRQ_BASE		0x100
+
+#define REG_TEMP_ALARM_CTRL	0x01B
+#define REG_TEMP_ALARM_PWM	0x09B
 
 #define PM8821_VERSION_MASK	0xFFF0
-#define PM8821_VERSION_VALUE	0x07F0
+#define PM8821_VERSION_VALUE	0x0BF0
 #define PM8821_REVISION_MASK	0x000F
 
 #define SINGLE_IRQ_RESOURCE(_name, _irq) \
@@ -85,7 +89,7 @@ static int pm8821_read_irq_stat(const struct device *dev, int irq)
 	const struct pm8xxx_drvdata *pm8821_drvdata = dev_get_drvdata(dev);
 	const struct pm8821 *pmic = pm8821_drvdata->pm_chip_data;
 
-	return pm8xxx_get_irq_stat(pmic->irq_chip, irq);
+	return pm8821_get_irq_stat(pmic->irq_chip, irq);
 }
 
 static enum pm8xxx_version pm8821_get_version(const struct device *dev)
@@ -141,6 +145,29 @@ static struct mfd_cell debugfs_cell __devinitdata = {
 	.pdata_size	= sizeof("pm8821-dbg"),
 };
 
+static const struct resource thermal_alarm_cell_resources[] __devinitconst = {
+	SINGLE_IRQ_RESOURCE("pm8821_tempstat_irq", PM8821_TEMPSTAT_IRQ),
+	SINGLE_IRQ_RESOURCE("pm8821_overtemp_irq", PM8821_OVERTEMP_IRQ),
+};
+
+static struct pm8xxx_tm_core_data thermal_alarm_cdata = {
+	.adc_type			= PM8XXX_TM_ADC_NONE,
+	.reg_addr_temp_alarm_ctrl	= REG_TEMP_ALARM_CTRL,
+	.reg_addr_temp_alarm_pwm	= REG_TEMP_ALARM_PWM,
+	.tm_name			= "pm8821_tz",
+	.irq_name_temp_stat		= "pm8821_tempstat_irq",
+	.irq_name_over_temp		= "pm8821_overtemp_irq",
+	.default_no_adc_temp		= 37000,
+};
+
+static struct mfd_cell thermal_alarm_cell __devinitdata = {
+	.name		= PM8XXX_TM_DEV_NAME,
+	.id		= 1,
+	.resources	= thermal_alarm_cell_resources,
+	.num_resources	= ARRAY_SIZE(thermal_alarm_cell_resources),
+	.platform_data	= &thermal_alarm_cdata,
+	.pdata_size	= sizeof(struct pm8xxx_tm_core_data),
+};
 
 static int __devinit
 pm8821_add_subdevices(const struct pm8821_platform_data *pdata,
@@ -153,7 +180,7 @@ pm8821_add_subdevices(const struct pm8821_platform_data *pdata,
 		pdata->irq_pdata->irq_cdata.nirqs = PM8821_NR_IRQS;
 		pdata->irq_pdata->irq_cdata.base_addr = REG_IRQ_BASE;
 		irq_base = pdata->irq_pdata->irq_base;
-		irq_chip = pm8xxx_irq_init(pmic->dev, pdata->irq_pdata);
+		irq_chip = pm8821_irq_init(pmic->dev, pdata->irq_pdata);
 
 		if (IS_ERR(irq_chip)) {
 			pr_err("Failed to init interrupts ret=%ld\n",
@@ -182,10 +209,18 @@ pm8821_add_subdevices(const struct pm8821_platform_data *pdata,
 		goto bail;
 	}
 
+	ret = mfd_add_devices(pmic->dev, 0, &thermal_alarm_cell, 1, NULL,
+				irq_base);
+	if (ret) {
+		pr_err("Failed to add thermal alarm subdevice ret=%d\n",
+			ret);
+		goto bail;
+	}
+
 	return 0;
 bail:
 	if (pmic->irq_chip) {
-		pm8xxx_irq_exit(pmic->irq_chip);
+		pm8821_irq_exit(pmic->irq_chip);
 		pmic->irq_chip = NULL;
 	}
 	return ret;
@@ -280,7 +315,7 @@ static int __devexit pm8821_remove(struct platform_device *pdev)
 	if (pmic)
 		mfd_remove_devices(pmic->dev);
 	if (pmic->irq_chip) {
-		pm8xxx_irq_exit(pmic->irq_chip);
+		pm8821_irq_exit(pmic->irq_chip);
 		pmic->irq_chip = NULL;
 	}
 	platform_set_drvdata(pdev, NULL);

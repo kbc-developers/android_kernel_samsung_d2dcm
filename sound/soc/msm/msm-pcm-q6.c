@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -40,7 +40,7 @@ struct snd_msm {
 };
 
 #define PLAYBACK_NUM_PERIODS	8
-#define PLAYBACK_PERIOD_SIZE 2048
+#define PLAYBACK_PERIOD_SIZE	2048
 #define CAPTURE_NUM_PERIODS	2
 #define CAPTURE_MAX_PERIOD_SIZE 4096
 #define CAPTURE_MIN_PERIOD_SIZE 320
@@ -681,8 +681,8 @@ static int msm_pcm_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	if (ret < 0) {
-		pr_err("%s Audio Start: Buffer Allocation failed %d\n",
-			__func__, ret);
+		pr_err("Audio Start: Buffer Allocation failed \
+					rc = %d\n", ret);
 		return -ENOMEM;
 	}
 	buf = prtd->audio_client->port[dir].buf;

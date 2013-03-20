@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -21,9 +21,6 @@
 #include <asm/cacheflush.h>
 
 #include <mach/scm.h>
-#if CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
-#endif
 
 #define SCM_ENOMEM		-5
 #define SCM_EOPNOTSUPP		-4
@@ -431,6 +428,19 @@ int scm_is_call_available(u32 svc_id, u32 cmd_id)
 	return ret_val;
 }
 EXPORT_SYMBOL(scm_is_call_available);
+
+#define GET_FEAT_VERSION_CMD	3
+int scm_get_feat_version(u32 feat)
+{
+	if (scm_is_call_available(SCM_SVC_INFO, GET_FEAT_VERSION_CMD)) {
+		u32 version;
+		if (!scm_call(SCM_SVC_INFO, GET_FEAT_VERSION_CMD, &feat,
+				sizeof(feat), &version, sizeof(version)))
+			return version;
+	}
+	return 0;
+}
+EXPORT_SYMBOL(scm_get_feat_version);
 
 static int scm_init(void)
 {

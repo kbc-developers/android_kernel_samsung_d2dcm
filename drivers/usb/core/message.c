@@ -435,7 +435,7 @@ int usb_sg_init(struct usb_sg_request *io, struct usb_device *dev,
 
 			len = sg->length;
 			if (length) {
-				len = min_t(unsigned, len, length);
+				len = min_t(size_t, len, length);
 				length -= len;
 				if (length == 0)
 					io->entries = i + 1;
@@ -1535,7 +1535,7 @@ static int usb_if_uevent(struct device *dev, struct kobj_uevent_env *env)
 
 	if (add_uevent_var(env,
 		   "MODALIAS=usb:"
-		   "v%04Xp%04Xd%04Xdc%02Xdsc%02Xdp%02Xic%02Xisc%02Xip%02X",
+		   "v%04Xp%04Xd%04Xdc%02Xdsc%02Xdp%02Xic%02Xisc%02Xip%02Xin%02X",
 		   le16_to_cpu(usb_dev->descriptor.idVendor),
 		   le16_to_cpu(usb_dev->descriptor.idProduct),
 		   le16_to_cpu(usb_dev->descriptor.bcdDevice),
@@ -1544,7 +1544,8 @@ static int usb_if_uevent(struct device *dev, struct kobj_uevent_env *env)
 		   usb_dev->descriptor.bDeviceProtocol,
 		   alt->desc.bInterfaceClass,
 		   alt->desc.bInterfaceSubClass,
-		   alt->desc.bInterfaceProtocol))
+		   alt->desc.bInterfaceProtocol,
+		   alt->desc.bInterfaceNumber))
 		return -ENOMEM;
 
 	return 0;
@@ -1770,8 +1771,31 @@ free_interfaces:
 		goto free_interfaces;
 	}
 
-	/*
-	 * Initialize the new interface structures and the
+	dev->actconfig = cp;
+	if (cp)
+		usb_notify_config_device(dev);
+	ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0),
+			      USB_REQ_SET_CONFIGURATION, 0, configuration, 0,
+			      NULL, 0, USB_CTRL_SET_TIMEOUT);
+	if (ret < 0) {
+		/* All the old state is gone, so what else can we do?
+		 * The device is probably useless now anyway.
+		 */
+		dev->actconfig = cp = NULL;
+	}
+
+	if (!cp) {
+		usb_notify_config_device(dev);
+		usb_set_device_state(dev, USB_STATE_ADDRESS);
+		usb_hcd_alloc_bandwidth(dev, NULL, NULL, NULL);
+		mutex_unlock(hcd->bandwidth_mutex);
+		usb_autosuspend_device(dev);
+		goto free_interfaces;
+	}
+	mutex_unlock(hcd->bandwidth_mutex);
+	usb_set_device_state(dev, USB_STATE_CONFIGURED);
+
+	/* Initialize the new interface structures and the
 	 * hc/hcd/usbcore interface/endpoint state.
 	 */
 	for (i = 0; i < nintf; ++i) {

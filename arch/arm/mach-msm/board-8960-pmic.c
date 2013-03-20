@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -88,61 +88,34 @@ struct pm8xxx_mpp_init {
 			PM_GPIO_STRENGTH_HIGH, \
 			PM_GPIO_FUNC_NORMAL, 0, 0)
 
+#define PM8XXX_GPIO_OUTPUT_STRENGTH(_gpio, _val, _out_strength) \
+	PM8XXX_GPIO_INIT(_gpio, PM_GPIO_DIR_OUT, PM_GPIO_OUT_BUF_CMOS, _val, \
+			PM_GPIO_PULL_NO, PM_GPIO_VIN_S4, \
+			_out_strength, \
+			PM_GPIO_FUNC_NORMAL, 0, 0)
+
 /* Initial PM8921 GPIO configurations */
 static struct pm8xxx_gpio_init pm8921_gpios[] __initdata = {
-#if !defined(CONFIG_MACH_M2_DCM) && !defined(CONFIG_MACH_K2_KDI)
+	PM8XXX_GPIO_OUTPUT_VIN(6, 1, PM_GPIO_VIN_VPH),	 /* MHL power EN_N */
+	PM8XXX_GPIO_DISABLE(7),				 /* Disable NFC */
 	PM8XXX_GPIO_INPUT(16,	    PM_GPIO_PULL_UP_30), /* SD_CARD_WP */
     /* External regulator shared by display and touchscreen on LiQUID */
-	PM8XXX_GPIO_OUTPUT_VIN(21, 1, PM_GPIO_VIN_VPH),	 /* Backlight Enable */
+	PM8XXX_GPIO_OUTPUT(17,	    0),			 /* DISP 3.3 V Boost */
+	PM8XXX_GPIO_OUTPUT(18,	0),	/* TABLA SPKR_LEFT_EN=off */
+	PM8XXX_GPIO_OUTPUT(19,	0),	/* TABLA SPKR_RIGHT_EN=off */
 	PM8XXX_GPIO_DISABLE(22),			 /* Disable NFC */
-#endif
-	PM8XXX_GPIO_OUTPUT_FUNC(24, 0, PM_GPIO_FUNC_2),	 /* Bl: Off, PWM mode */
-#if defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL) \
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL)
-	PM8XXX_GPIO_OUTPUT_FUNC(25, 0, PM_GPIO_FUNC_2), /* LED_BACKLIGHT_PWM */
-#endif /* CONFIG_MACH_ESPRESSO_VZW/ATT */
-
-	PM8XXX_GPIO_INPUT(26,	    PM_GPIO_PULL_NO), /* SD_CARD_DET_N */
-#if defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL) \
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL)
-	PM8XXX_GPIO_OUTPUT(43,	    0), /* LED_BACKLIGHT_RESET */
-#else
-	PM8XXX_GPIO_OUTPUT(43,	    1), /* DISP_RESET_N */
-#endif
-	PM8XXX_GPIO_INPUT(42, PM_GPIO_PULL_NO), /* USB 5V reg enable */
-#if defined(CONFIG_CHARGER_SMB347)
-	PM8XXX_GPIO_INPUT(17, PM_GPIO_PULL_UP_30), /* CHG_STAT */
-#else
-	PM8XXX_GPIO_OUTPUT(17,	 0),	 /* DISP 3.3 V Boost */
-#endif
-#if defined(CONFIG_MACH_ESPRESSO_VZW) || defined(CONFIG_MACH_ESPRESSO10_VZW) \
-		|| defined(CONFIG_MACH_ESPRESSO10_ATT) \
-		|| defined(CONFIG_MACH_ESPRESSO10_SPR) \
-		|| defined(CONFIG_MACH_ESPRESSO_SPR)
-	PM8XXX_GPIO_OUTPUT(38,   1),
-#endif
-
-#if defined(CONFIG_MACH_AEGIS2) /* Disable NC GPIOs for AEGIS2*/
-	PM8XXX_GPIO_DISABLE(1),
-	PM8XXX_GPIO_DISABLE(2),
-	PM8XXX_GPIO_DISABLE(9),
-	PM8XXX_GPIO_DISABLE(15),
-	PM8XXX_GPIO_DISABLE(23),
-	PM8XXX_GPIO_DISABLE(28),
-	PM8XXX_GPIO_DISABLE(35),
-	PM8XXX_GPIO_DISABLE(40),
-	PM8XXX_GPIO_DISABLE(41),
-#endif
+	PM8XXX_GPIO_OUTPUT_FUNC(25, 0, PM_GPIO_FUNC_2),	 /* TN_CLK */
+	PM8XXX_GPIO_INPUT(26,	    PM_GPIO_PULL_UP_30), /* SD_CARD_DET_N */
+	PM8XXX_GPIO_OUTPUT(43, 1),                       /* DISP_RESET_N */
+	PM8XXX_GPIO_OUTPUT(42, 0),                      /* USB 5V reg enable */
+	/* TABLA CODEC RESET */
+	PM8XXX_GPIO_OUTPUT_STRENGTH(34, 0, PM_GPIO_STRENGTH_MED)
 };
 
 /* Initial PM8921 MPP configurations */
 static struct pm8xxx_mpp_init pm8921_mpps[] __initdata = {
 	/* External 5V regulator enable; shared by HDMI and USB_OTG switches. */
 	PM8XXX_MPP_INIT(7, D_INPUT, PM8921_MPP_DIG_LEVEL_VPH, DIN_TO_INT),
-#ifdef CONFIG_OPTICAL_GP2A
-	PM8XXX_MPP_INIT(PM8XXX_AMUX_MPP_4, A_INPUT, PM8XXX_MPP_AIN_AMUX_CH7,
-		DOUT_CTRL_LOW),
-#endif
 	PM8XXX_MPP_INIT(PM8XXX_AMUX_MPP_8, A_INPUT, PM8XXX_MPP_AIN_AMUX_CH8,
 								DOUT_CTRL_LOW),
 };
@@ -203,13 +176,6 @@ static struct pm8xxx_adc_amux pm8xxx_adc_channels_data[] = {
 		ADC_DECIMATION_TYPE2, ADC_SCALE_XOTHERM},
 	{"pa_therm0", ADC_MPP_1_AMUX3, CHAN_PATH_SCALING1, AMUX_RSV1,
 		ADC_DECIMATION_TYPE2, ADC_SCALE_PA_THERM},
-	{"dev_mpp_7", ADC_MPP_1_AMUX6, CHAN_PATH_SCALING1, AMUX_RSV1,
-		ADC_DECIMATION_TYPE2, ADC_SCALE_SEC_BOARD_THERM},  /*main_thm */
-#ifdef CONFIG_SAMSUNG_JACK
-	{"earjack", ADC_MPP_1_AMUX6_SCALE_DEFAULT,
-		CHAN_PATH_SCALING1, AMUX_RSV1,
-		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
-#endif
 };
 
 static struct pm8xxx_adc_properties pm8xxx_adc_data = {
@@ -279,11 +245,12 @@ static struct pm8xxx_keypad_platform_data keypad_data_liquid = {
 	.keymap_data            = &keymap_data_liquid,
 };
 
+
 static const unsigned int keymap[] = {
-	KEY(0, 0, KEY_SEARCH),
-	KEY(0, 1, KEY_BACK),
-	KEY(0, 2, KEY_HOME),
-	KEY(0, 3, KEY_MENU),
+	KEY(0, 0, KEY_VOLUMEUP),
+	KEY(0, 1, KEY_VOLUMEDOWN),
+	KEY(0, 2, KEY_CAMERA_FOCUS),
+	KEY(0, 3, KEY_CAMERA_SNAPSHOT),
 };
 
 static struct matrix_keymap_data keymap_data = {
@@ -419,25 +386,6 @@ static const unsigned int keymap_sim[] = {
 	KEY(0, 3, KEY_CAMERA_FOCUS),
 };
 
-static struct matrix_keymap_data keymap_data_sim = {
-	.keymap_size    = ARRAY_SIZE(keymap_sim),
-	.keymap         = keymap_sim,
-};
-
-static struct pm8xxx_keypad_platform_data keypad_data_sim = {
-	.input_name             = "keypad_8960",
-	.input_phys_device      = "keypad_8960/input0",
-	.num_rows               = 12,
-	.num_cols               = 8,
-	.rows_gpio_start	= PM8921_GPIO_PM_TO_SYS(9),
-	.cols_gpio_start	= PM8921_GPIO_PM_TO_SYS(1),
-	.debounce_ms            = 15,
-	.scan_delay_ms          = 32,
-	.row_hold_ns            = 91500,
-	.wakeup                 = 1,
-	.keymap_data            = &keymap_data_sim,
-};
-
 static int pm8921_therm_mitigation[] = {
 	1100,
 	700,
@@ -446,23 +394,19 @@ static int pm8921_therm_mitigation[] = {
 };
 
 #define MAX_VOLTAGE_MV		4200
+#define CHG_TERM_MA		100
 static struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
-#ifdef CONFIG_PM8921_SEC_CHARGER
-	.safety_time		= 512, /* max */
-	.update_time		= 30000,
-	.cool_temp		= 0,
-	.warm_temp		= 0,
-	.get_cable_type		= msm8960_get_cable_type,
-#else
-	.safety_time		= 180,
 	.update_time		= 60000,
-	.cool_temp		= 10,
-	.warm_temp		= 40,
-#endif /* CONFIG_PM8921_SEC_CHARGER */
 	.max_voltage		= MAX_VOLTAGE_MV,
 	.min_voltage		= 3200,
-	.resume_voltage_delta	= 100,
-	.term_current		= 100,
+	.uvd_thresh_voltage	= 4050,
+	.alarm_low_mv		= 3400,
+	.alarm_high_mv		= 4000,
+	.resume_voltage_delta	= 60,
+	.resume_charge_percent	= 99,
+	.term_current		= CHG_TERM_MA,
+	.cool_temp		= 10,
+	.warm_temp		= 45,
 	.temp_check_period	= 1,
 	.max_bat_chg_current	= 1100,
 	.cool_bat_chg_current	= 350,
@@ -471,6 +415,7 @@ static struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
 	.warm_bat_voltage	= 4100,
 	.thermal_mitigation	= pm8921_therm_mitigation,
 	.thermal_levels		= ARRAY_SIZE(pm8921_therm_mitigation),
+	.rconn_mohm		= 18,
 };
 
 static struct pm8xxx_misc_platform_data pm8xxx_misc_pdata = {
@@ -478,102 +423,85 @@ static struct pm8xxx_misc_platform_data pm8xxx_misc_pdata = {
 };
 
 static struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
-	.r_sense		= 10,
-	.i_test			= 2500,
-	.v_failure		= 3000,
-	.calib_delay_ms		= 600000,
-	.max_voltage_uv		= MAX_VOLTAGE_MV * 1000,
+	.battery_type			= BATT_UNKNOWN,
+	.r_sense_uohm			= 10000,
+	.v_cutoff			= 3400,
+	.max_voltage_uv			= MAX_VOLTAGE_MV * 1000,
+	.rconn_mohm			= 18,
+	.shutdown_soc_valid_limit	= 20,
+	.adjust_soc_low_threshold	= 25,
+	.chg_term_ua			= CHG_TERM_MA * 1000,
+	.normal_voltage_calc_ms		= 20000,
+	.low_voltage_calc_ms		= 1000,
+	.alarm_low_mv			= 3400,
+	.alarm_high_mv			= 4000,
 };
 
-#define	PM8921_LC_LED_MAX_CURRENT	2	/* I = 4mA */
+#define	PM8921_LC_LED_MAX_CURRENT	4	/* I = 4mA */
 #define	PM8921_LC_LED_LOW_CURRENT	1	/* I = 1mA */
 #define PM8XXX_LED_PWM_PERIOD		1000
-
-#define PM8XXX_LED_PWM_DUTY_MS_PAT1_R		1
-#define PM8XXX_LED_PWM_DUTY_MS_PAT1_G		1
-
-#define PM8XXX_LED_PWM_DUTY_MS_PAT2		1
-
-#define PM8XXX_LED_PWM_DUTY_MS_PAT3		1
-
-#define PM8XXX_LED_PWM_DUTY_MS_PAT4		1
-
-#define PM8XXX_LED_PWM_DUTY_MS_PAT5_R		1
-#define PM8XXX_LED_PWM_DUTY_MS_PAT5_G		1
-#define PM8XXX_LED_PWM_DUTY_MS_PAT5_B		1
-
-#define PM8XXX_LED_PWM_DUTY_MS_PAT6_G		32
-
-#define PM8XXX_LED_PWM_DUTY_MS_PAT6_B		32
-
-#define PM8XXX_LED_PWM_DUTY_MS_PAT8		1
-
+#define PM8XXX_LED_PWM_DUTY_MS		20
 /**
  * PM8XXX_PWM_CHANNEL_NONE shall be used when LED shall not be
  * driven using PWM feature.
  */
 #define PM8XXX_PWM_CHANNEL_NONE		-1
 
+static struct led_info pm8921_led_info_liquid[] = {
+	{
+		.name		= "led:red",
+		.flags		= PM8XXX_ID_LED_0,
+		.default_trigger	= "battery-charging",
+	},
+	{
+		.name		= "led:green",
+		.flags		= PM8XXX_ID_LED_0,
+		.default_trigger	= "battery-full",
+	},
+	{
+		.name		= "led:blue",
+		.flags		= PM8XXX_ID_LED_2,
+		.default_trigger	= "notification",
+	},
+};
+
+static struct pm8xxx_led_config pm8921_led_configs_liquid[] = {
+	[0] = {
+		.id = PM8XXX_ID_LED_0,
+		.mode = PM8XXX_LED_MODE_MANUAL,
+		.max_current = PM8921_LC_LED_MAX_CURRENT,
+	},
+	[1] = {
+		.id = PM8XXX_ID_LED_1,
+		.mode = PM8XXX_LED_MODE_MANUAL,
+		.max_current = PM8921_LC_LED_LOW_CURRENT,
+	},
+	[2] = {
+		.id = PM8XXX_ID_LED_2,
+		.mode = PM8XXX_LED_MODE_MANUAL,
+		.max_current = PM8921_LC_LED_MAX_CURRENT,
+	},
+};
+
+static struct led_platform_data pm8xxx_leds_core_liquid = {
+	.num_leds = ARRAY_SIZE(pm8921_led_info_liquid),
+	.leds = pm8921_led_info_liquid,
+};
+
+static struct pm8xxx_led_platform_data pm8xxx_leds_pdata_liquid = {
+	.led_core = &pm8xxx_leds_core_liquid,
+	.configs = pm8921_led_configs_liquid,
+	.num_configs = ARRAY_SIZE(pm8921_led_configs_liquid),
+};
+
 static struct led_info pm8921_led_info[] = {
-	[PM8XXX_LED_PAT1_RED] = {
-		.name			= "led:red_chrg",
+	[0] = {
+		.name			= "led:battery_charging",
+		.default_trigger	= "battery-charging",
 	},
-	[PM8XXX_LED_PAT1_GREEN] = {
-		.name			= "led:green_chrg",
-	},
-	[PM8XXX_LED_PAT2_RED] = {
-		.name			= "led:red_chrg_err",
-	},
-	[PM8XXX_LED_PAT2_GREEN] = {
-		.name			= "led:green_chrg_err",
-	},
-	[PM8XXX_LED_PAT3_RED] = {
-		.name			= "led:red_miss_noti",
-	},
-	[PM8XXX_LED_PAT3_GREEN] = {
-		.name			= "led:green_miss_noti",
-	},
-	[PM8XXX_LED_PAT4_RED] = {
-		.name			= "led:red_in_lowbat",
-	},
-	[PM8XXX_LED_PAT4_GREEN] = {
-		.name			= "led:green_in_lowbat",
-	},
-	[PM8XXX_LED_PAT5_RED] = {
-		.name			= "led:red_full_chrg",
-	},
-	[PM8XXX_LED_PAT5_GREEN] = {
-		.name			= "led:green_full_chrg",
-	},
-	[PM8XXX_LED_PAT5_BLUE] = {
-		.name			= "led:blue_full_chrg",
-	},
-	[PM8XXX_LED_PAT6_GREEN] = {
-		.name			= "led:green_pwr",
-	},
-	[PM8XXX_LED_PAT6_BLUE] = {
-		.name			= "led:blue_pwr",
-	},
-	[PM8XXX_LED_PAT7_RED] = {
-		.name			= "led:r",
-	},
-	[PM8XXX_LED_PAT7_GREEN] = {
-		.name			= "led:g",
-	},
-	[PM8XXX_LED_PAT7_BLUE] = {
-		.name			= "led:b",
-	},
-	[PM8XXX_LED_PAT8_RED] = {
-		.name			= "led:blink_red",
-	},
-	[PM8XXX_LED_PAT8_GREEN] = {
-		.name			= "led:blink_green",
-	},
-	[PM8XXX_LED_PAT8_BLUE] = {
-		.name			= "led:blink_blue",
-	},
-	[PM8XXX_LED_KB_LED] = {
-		.name = "kb:backlight",
+	[1] = {
+		.name			= "led:battery_full",
+		.default_trigger	= "battery-full",
 	},
 };
 
@@ -582,383 +510,65 @@ static struct led_platform_data pm8921_led_core_pdata = {
 	.leds = pm8921_led_info,
 };
 
-
-int pm8921_led0_pat1_red_pwm_duty_pcts[] = {
-	100, 100
-};
-int pm8921_led0_pat1_green_pwm_duty_pcts[] = {
-	0, 0
-};
-
-int pm8921_led0_pat2_red_pwm_duty_pcts[] = {
-	0, 100
-};
-int pm8921_led0_pat2_green_pwm_duty_pcts[] = {
-	0, 0
+static int pm8921_led0_pwm_duty_pcts[56] = {
+		1, 4, 8, 12, 16, 20, 24, 28, 32, 36,
+		40, 44, 46, 52, 56, 60, 64, 68, 72, 76,
+		80, 84, 88, 92, 96, 100, 100, 100, 98, 95,
+		92, 88, 84, 82, 78, 74, 70, 66, 62, 58,
+		58, 54, 50, 48, 42, 38, 34, 30, 26, 22,
+		14, 10, 6, 4, 1
 };
 
-int pm8921_led0_pat3_red_pwm_duty_pcts[] = {
-	0, 0
+/*
+ * Note: There is a bug in LPG module that results in incorrect
+ * behavior of pattern when LUT index 0 is used. So effectively
+ * there are 63 usable LUT entries.
+ */
+static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_duty_cycles = {
+	.duty_pcts = (int *)&pm8921_led0_pwm_duty_pcts,
+	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pwm_duty_pcts),
+	.duty_ms = PM8XXX_LED_PWM_DUTY_MS,
+	.start_idx = 1,
 };
-
-int pm8921_led0_pat3_green_pwm_duty_pcts[] = {
-	0, 0
-};
-
-int pm8921_led0_pat3_blue_pwm_duty_pcts[] = {
-	0, 100
-};
-
-int pm8921_led0_pat4_red_pwm_duty_pcts[] = {
-	0, 100
-};
-int pm8921_led0_pat4_green_pwm_duty_pcts[] = {
-	0, 0
-};
-
-int pm8921_led0_pat5_red_pwm_duty_pcts[] = {
-	0, 0
-};
-int pm8921_led0_pat5_green_pwm_duty_pcts[] = {
-	100, 100
-};
-int pm8921_led0_pat5_blue_pwm_duty_pcts[] = {
-	0, 0
-};
-
-
-static int pm8921_led0_pat6_green_pwm_duty_pcts[] = {
-	8, 10 , 11, 13, 15, 17, 18, 19, 20, 22, 24, 26, 28, 31, 33, 34, 37, 39,
-	41, 43, 44, 46, 48, 49, 51,
-};
-static int pm8921_led0_pat6_blue_pwm_duty_pcts[] = {
-	79, 80, 80, 81, 82, 83, 84, 85, 85, 86, 87, 88, 89, 90, 91, 92, 92, 93,
-	94, 95, 96, 97, 98, 99, 100,
-};
-
-int pm8921_led0_pat8_red_pwm_duty_pcts[] = {
-	0, 100
-};
-int pm8921_led0_pat8_green_pwm_duty_pcts[] = {
-	0, 100
-};
-int pm8921_led0_pat8_blue_pwm_duty_pcts[] = {
-	0, 100
-};
-
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat5_red_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat5_red_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat5_red_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT5_R,
-	.start_idx = 0,
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat5_green_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat5_green_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat5_green_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT5_G,
-	.start_idx = ARRAY_SIZE(pm8921_led0_pat5_red_pwm_duty_pcts),
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat5_blue_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat5_blue_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat5_blue_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT5_B,
-	.start_idx = ARRAY_SIZE(pm8921_led0_pat5_red_pwm_duty_pcts) +
-			ARRAY_SIZE(pm8921_led0_pat5_green_pwm_duty_pcts),
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat4_red_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat4_red_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat4_red_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT4,
-	.start_idx = 0,
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat4_green_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat4_green_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat4_green_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT4,
-	.start_idx = ARRAY_SIZE(pm8921_led0_pat4_red_pwm_duty_pcts),
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat3_red_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat3_red_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat3_red_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT3,
-	.start_idx = 0,
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat3_green_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat3_green_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat3_green_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT3,
-	.start_idx = ARRAY_SIZE(pm8921_led0_pat3_red_pwm_duty_pcts),
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat3_blue_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat3_blue_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat3_blue_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT3,
-	.start_idx =  ARRAY_SIZE(pm8921_led0_pat3_red_pwm_duty_pcts) +
-			ARRAY_SIZE(pm8921_led0_pat3_green_pwm_duty_pcts),
-};
-
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat2_red_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat2_red_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat2_red_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT2,
-	.start_idx = 0,
-};
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat2_green_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat2_green_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat2_green_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT2,
-	.start_idx = ARRAY_SIZE(pm8921_led0_pat2_red_pwm_duty_pcts),
-};
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat1_red_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat1_red_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat1_red_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT1_R,
-	.start_idx = 0,
-};
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat1_green_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat1_green_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat1_green_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT1_G,
-	.start_idx = ARRAY_SIZE(pm8921_led0_pat1_red_pwm_duty_pcts),
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat6_green_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat6_green_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat6_green_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT6_G,
-	.start_idx = 0,
-};
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat6_blue_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat6_blue_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat6_blue_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT6_B,
-	.start_idx = ARRAY_SIZE(pm8921_led0_pat6_green_pwm_duty_pcts),
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat8_red_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat8_red_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat8_red_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT8,
-	.start_idx = 0,
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat8_green_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat8_green_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat8_green_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT8,
-	.start_idx = ARRAY_SIZE(pm8921_led0_pat8_red_pwm_duty_pcts),
-};
-
-static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat8_blue_duty_cycles = {
-	.duty_pcts = (int *)&pm8921_led0_pat8_blue_pwm_duty_pcts,
-	.num_duty_pcts = ARRAY_SIZE(pm8921_led0_pat8_blue_pwm_duty_pcts),
-	.duty_ms = PM8XXX_LED_PWM_DUTY_MS_PAT8,
-	.start_idx =  ARRAY_SIZE(pm8921_led0_pat8_red_pwm_duty_pcts) +
-			ARRAY_SIZE(pm8921_led0_pat8_green_pwm_duty_pcts),
-};
-
-
-
 
 static struct pm8xxx_led_config pm8921_led_configs[] = {
-	/*pattern 1 Charging*/
-	[PM8XXX_LED_PAT1_RED] = {
+	[0] = {
 		.id = PM8XXX_ID_LED_0,
 		.mode = PM8XXX_LED_MODE_PWM2,
 		.max_current = PM8921_LC_LED_MAX_CURRENT,
 		.pwm_channel = 5,
 		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat1_red_duty_cycles,
+		.pwm_duty_cycles = &pm8921_led0_pwm_duty_cycles,
 	},
-	[PM8XXX_LED_PAT1_GREEN] = {
-		.id = PM8XXX_ID_LED_1,
-		.mode = PM8XXX_LED_MODE_PWM1,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 4,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat1_green_duty_cycles
-	},
-	/*pattern 2 Charging Error*/
-
-	[PM8XXX_LED_PAT2_RED] = {
-		.id = PM8XXX_ID_LED_0,
-		.mode = PM8XXX_LED_MODE_PWM2,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 5,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat2_red_duty_cycles
-	},
-	[PM8XXX_LED_PAT2_GREEN] = {
-		.id = PM8XXX_ID_LED_1,
-		.mode = PM8XXX_LED_MODE_PWM1,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 4,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat2_green_duty_cycles
-	},
-	/*pattern 3 Missed Noti*/
-
-	[PM8XXX_LED_PAT3_RED] = {
-		.id = PM8XXX_ID_LED_0,
-		.mode = PM8XXX_LED_MODE_PWM2,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 5,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat3_red_duty_cycles
-	},
-	[PM8XXX_LED_PAT3_GREEN] = {
-		.id = PM8XXX_ID_LED_1,
-		.mode = PM8XXX_LED_MODE_PWM1,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 4,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat3_green_duty_cycles
-	},
-	[PM8XXX_LED_PAT3_BLUE] = {
-		.id = PM8XXX_ID_LED_2,
-		.mode = PM8XXX_LED_MODE_PWM3,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 6,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat3_blue_duty_cycles
-	},
-	/*pattern 4 Low Batt*/
-	[PM8XXX_LED_PAT4_RED] = {
-		.id = PM8XXX_ID_LED_0,
-		.mode = PM8XXX_LED_MODE_PWM2,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 5,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat4_red_duty_cycles
-	},
-	[PM8XXX_LED_PAT4_GREEN] = {
-		.id = PM8XXX_ID_LED_1,
-		.mode = PM8XXX_LED_MODE_PWM1,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 4,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat4_green_duty_cycles
-	},
-	/*pattern 5 Fully Charged*/
-
-	[PM8XXX_LED_PAT5_RED] = {
-		.id = PM8XXX_ID_LED_0,
-		.mode = PM8XXX_LED_MODE_PWM2,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 5,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat5_red_duty_cycles
-	},
-	[PM8XXX_LED_PAT5_GREEN] = {
-		.id = PM8XXX_ID_LED_1,
-		.mode = PM8XXX_LED_MODE_PWM1,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 4,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat5_green_duty_cycles
-	},
-	[PM8XXX_LED_PAT5_BLUE] = {
-		.id = PM8XXX_ID_LED_2,
-		.mode = PM8XXX_LED_MODE_PWM3,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 6,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat5_blue_duty_cycles
-	},
-
-	/*pattern 6 Powering */
-	[PM8XXX_LED_PAT6_GREEN] = {
-		.id = PM8XXX_ID_LED_1,
-		.mode = PM8XXX_LED_MODE_PWM1,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 4,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat6_green_duty_cycles
-	},
-	[PM8XXX_LED_PAT6_BLUE] = {
-		.id = PM8XXX_ID_LED_2,
-		.mode = PM8XXX_LED_MODE_PWM3,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 6,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat6_blue_duty_cycles
-	},
-	/*pattern 7*/
-	[PM8XXX_LED_PAT7_RED] = {
-		.id = PM8XXX_ID_LED_0,
-		.mode = PM8XXX_LED_MODE_PWM2,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 5,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-	},
-	[PM8XXX_LED_PAT7_GREEN] = {
+	[1] = {
 		.id = PM8XXX_ID_LED_1,
 		.mode = PM8XXX_LED_MODE_PWM1,
 		.max_current = PM8921_LC_LED_MAX_CURRENT,
 		.pwm_channel = 4,
 		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
 	},
-	[PM8XXX_LED_PAT7_BLUE] = {
-		.id = PM8XXX_ID_LED_2,
-		.mode = PM8XXX_LED_MODE_PWM3,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 6,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-	},
-
-	/*pattern 8*/
-	[PM8XXX_LED_PAT8_RED] = {
-		.id = PM8XXX_ID_LED_0,
-		.mode = PM8XXX_LED_MODE_PWM2,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 5,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat8_red_duty_cycles,
-	},
-	[PM8XXX_LED_PAT8_GREEN] = {
-		.id = PM8XXX_ID_LED_1,
-		.mode = PM8XXX_LED_MODE_PWM1,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 4,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat8_green_duty_cycles,
-	},
-	[PM8XXX_LED_PAT8_BLUE] = {
-		.id = PM8XXX_ID_LED_2,
-		.mode = PM8XXX_LED_MODE_PWM3,
-		.max_current = PM8921_LC_LED_MAX_CURRENT,
-		.pwm_channel = 6,
-		.pwm_period_us = PM8XXX_LED_PWM_PERIOD,
-		.pwm_duty_cycles = &pm8921_led0_pwm_pat8_blue_duty_cycles,
-	},
-
-	[PM8XXX_LED_KB_LED] = {
-		.id = PM8XXX_ID_LED_KB_LIGHT,
-		.mode = PM8XXX_LED_MODE_MANUAL,
-		.max_current = 30,
-		.pwm_channel = 7,
-	},
-
 };
 
 static struct pm8xxx_led_platform_data pm8xxx_leds_pdata = {
 		.led_core = &pm8921_led_core_pdata,
 		.configs = pm8921_led_configs,
 		.num_configs = ARRAY_SIZE(pm8921_led_configs),
-		.led_power_on = NULL,
 };
 
 static struct pm8xxx_ccadc_platform_data pm8xxx_ccadc_pdata = {
-	.r_sense		= 10,
+	.r_sense_uohm		= 10000,
+	.calib_delay_ms		= 600000,
+};
+
+/**
+ * PM8XXX_PWM_DTEST_CHANNEL_NONE shall be used when no LPG
+ * channel should be in DTEST mode.
+ */
+
+#define PM8XXX_PWM_DTEST_CHANNEL_NONE   (-1)
+
+static struct pm8xxx_pwm_platform_data pm8xxx_pwm_pdata = {
+	.dtest_channel	= PM8XXX_PWM_DTEST_CHANNEL_NONE,
 };
 
 static struct pm8921_platform_data pm8921_platform_data __devinitdata = {
@@ -975,6 +585,7 @@ static struct pm8921_platform_data pm8921_platform_data __devinitdata = {
 	.adc_pdata		= &pm8xxx_adc_pdata,
 	.leds_pdata		= &pm8xxx_leds_pdata,
 	.ccadc_pdata		= &pm8xxx_ccadc_pdata,
+	.pwm_pdata		= &pm8xxx_pwm_pdata,
 };
 
 static struct msm_ssbi_platform_data msm8960_ssbi_pm8921_pdata __devinitdata = {
@@ -985,63 +596,27 @@ static struct msm_ssbi_platform_data msm8960_ssbi_pm8921_pdata __devinitdata = {
 	},
 };
 
-static void msm8921_sec_charger_init(void)
-{
-	/* batt_id */
-	if (machine_is_M2_ATT() && system_rev >= 0x02) {
-		pm8921_chg_pdata.batt_id_min = 860000;
-		pm8921_chg_pdata.batt_id_max = 960000;
-	} else if (machine_is_M2_SKT() && system_rev >= 0x02) {
-		pm8921_chg_pdata.batt_id_min = 860000;
-		pm8921_chg_pdata.batt_id_max = 960000;
-	} else if (machine_is_M2_SPR() && system_rev >= 0x01) {
-		pm8921_chg_pdata.batt_id_min = 860000;
-		pm8921_chg_pdata.batt_id_max = 960000;
-	} else if (machine_is_M2_VZW() && system_rev >= 0x04) {
-		pm8921_chg_pdata.batt_id_min = 810000;
-		pm8921_chg_pdata.batt_id_max = 960000;
-	} else if (machine_is_M2_DCM() && system_rev >= 0x00) {
-		pm8921_chg_pdata.batt_id_min = 860000;
-		pm8921_chg_pdata.batt_id_max = 960000;
-	} else if (machine_is_jaguar() && system_rev >= 0x04) {
-		pm8921_chg_pdata.batt_id_min = 860000;
-		pm8921_chg_pdata.batt_id_max = 960000;
-	} else {
-		/*
-		* PMIC ES1 has problem for adc reading
-		* So batt_id min and max should be '0',
-		* Then charger driver will skip batt_id checking
-		*/
-		pm8921_chg_pdata.batt_id_min = 0;
-		pm8921_chg_pdata.batt_id_max = 0;
-	}
-
-	/* battery voltage */
-	if ((machine_is_M2_ATT() && system_rev >= 0x02) ||
-		(machine_is_M2_SPR() && system_rev >= 0x02) ||
-		(machine_is_M2_VZW() && system_rev >= 0x06) ||
-		(machine_is_jaguar() && system_rev >= 0x0A) ||
-		(machine_is_M2_DCM() && system_rev >= 0x00) ||
-		machine_is_JASPER())
-		pm8921_chg_pdata.max_voltage = 4350;
-}
-
 void __init msm8960_init_pmic(void)
 {
-	msm8921_sec_charger_init();
-
-#if !defined(CONFIG_MACH_AEGIS2) && !defined(CONFIG_MACH_JASPER)\
-	&& !defined(CONFIG_MACH_M2_VZW)
 	pmic_reset_irq = PM8921_IRQ_BASE + PM8921_RESOUT_IRQ;
-#endif
 	msm8960_device_ssbi_pmic.dev.platform_data =
 				&msm8960_ssbi_pm8921_pdata;
 	pm8921_platform_data.num_regulators = msm_pm8921_regulator_pdata_len;
 
-	/* Simulator supports a QWERTY keypad */
-	if (machine_is_msm8960_sim())
-		pm8921_platform_data.keypad_pdata = &keypad_data_sim;
-
-	if (machine_is_msm8960_liquid())
+	if (machine_is_msm8960_liquid()) {
 		pm8921_platform_data.keypad_pdata = &keypad_data_liquid;
+		pm8921_platform_data.leds_pdata = &pm8xxx_leds_pdata_liquid;
+		pm8921_platform_data.bms_pdata->battery_type = BATT_DESAY;
+	} else if (machine_is_msm8960_mtp()) {
+		pm8921_platform_data.bms_pdata->battery_type = BATT_PALLADIUM;
+	} else if (machine_is_msm8960_cdp()) {
+		pm8921_chg_pdata.has_dc_supply = true;
+	}
+
+	if (machine_is_msm8960_fluid())
+		pm8921_bms_pdata.rconn_mohm = 20;
+
+	if (!machine_is_msm8960_fluid() && !machine_is_msm8960_liquid()
+			&& !machine_is_msm8960_mtp())
+		pm8921_chg_pdata.battery_less_hardware = 1;
 }

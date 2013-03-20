@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,26 +29,18 @@
 #define MSM_8960_GSBI7_QUP_I2C_BUS_ID 7
 
 #define MSM_MHL_I2C_BUS_ID             9
-#define MSM_FSA9485_I2C_BUS_ID	11
+#define MSM_FSA9485_I2C_BUS_ID  11
 #define MSM_SNS_I2C_BUS_ID     12
 #define MSM_FUELGAUGE_I2C_BUS_ID             13
 #define MSM_OPT_I2C_BUS_ID     14
-#define MSM_TOUCHKEY_I2C_BUS_ID		16
-#define MSM_NFC_I2C_BUS_ID		17
+#define MSM_TOUCHKEY_I2C_BUS_ID         16
+#define MSM_NFC_I2C_BUS_ID              17
 #define MSM_A2220_I2C_BUS_ID            18
 #ifdef CONFIG_SAMSUNG_CMC624
 #define MSM_CMC624_I2C_BUS_ID   19
 #endif
 
-#if defined(CONFIG_KEYBOARD_ADP5588) || defined(CONFIG_KEYBOARD_ADP5588_MODULE)
-#define MSM_ADP5588_KEYS_BUS_ID	20
-#endif
-#ifdef CONFIG_IRDA_MC96
-#define MSM_MC96_I2C_BUS_ID   21
-#endif
-#ifdef CONFIG_ADC_STMPE811
-#define MSM_STMPE811_I2C_BUS_ID 22
-#endif
+
 #ifdef CONFIG_SND_SOC_MSM8660_APQ
 extern struct platform_device msm_pcm;
 extern struct platform_device msm_pcm_routing;
@@ -82,6 +74,7 @@ extern struct platform_device msm_bus_def_fab;
 extern struct platform_device msm_device_smd;
 extern struct platform_device msm_device_gpio;
 extern struct platform_device msm_device_vidc;
+extern struct platform_device apq8064_msm_device_vidc;
 
 extern struct platform_device msm_charm_modem;
 extern struct platform_device msm_device_tz_log;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -128,8 +128,6 @@ enum dsi_trigger_type {
 #define DSI_CMD_TRIGGER_SW		0x04
 #define DSI_CMD_TRIGGER_SW_SEOF		0x05	/* cmd dma only */
 #define DSI_CMD_TRIGGER_SW_TE		0x06
-#define MIPI_DSI_TX_TIMEOUT_MS	(HZ * 40/1000)/*40ms*/
-#define MIPI_DSI_TX_REF_MS	17
 
 extern struct device dsi_dev;
 extern int mipi_dsi_clk_on;
@@ -288,6 +286,7 @@ struct dcs_cmd_list {
 	struct dcs_cmd_req list[CMD_REQ_MAX];
 };
 
+
 char *mipi_dsi_buf_reserve_hdr(struct dsi_buf *dp, int hlen);
 char *mipi_dsi_buf_init(struct dsi_buf *dp);
 void mipi_dsi_init(void);
@@ -316,8 +315,6 @@ void mipi_dsi_set_tear_on(struct msm_fb_data_type *mfd);
 void mipi_dsi_set_tear_off(struct msm_fb_data_type *mfd);
 void mipi_dsi_set_backlight(struct msm_fb_data_type *mfd, int level);
 void mipi_dsi_cmd_backlight_tx(struct dsi_buf *dp);
-void mipi_dsi_clk_enable(void);
-void mipi_dsi_clk_disable(void);
 void mipi_dsi_pre_kickoff_action(void);
 void mipi_dsi_post_kickoff_action(void);
 void mipi_dsi_pre_kickoff_add(struct dsi_kickoff_action *act);
@@ -331,16 +328,47 @@ void mipi_dsi_mdp_busy_wait(void);
 irqreturn_t mipi_dsi_isr(int irq, void *ptr);
 
 void mipi_set_tx_power_mode(int mode);
-void mipi_dsi_phy_ctrl(int on);
 void mipi_dsi_phy_init(int panel_ndx, struct msm_panel_info const *panel_info,
 	int target_type);
 int mipi_dsi_clk_div_config(uint8 bpp, uint8 lanes,
 			    uint32 *expected_dsi_pclk);
 int mipi_dsi_clk_init(struct platform_device *pdev);
 void mipi_dsi_clk_deinit(struct device *dev);
+
+#ifdef CONFIG_FB_MSM_MIPI_DSI
+void mipi_dsi_clk_enable(void);
+void mipi_dsi_clk_disable(void);
 void mipi_dsi_prepare_clocks(void);
 void mipi_dsi_unprepare_clocks(void);
 void mipi_dsi_ahb_ctrl(u32 enable);
+void mipi_dsi_phy_ctrl(int on);
+#else
+static inline void mipi_dsi_clk_enable(void)
+{
+	/* empty */
+}
+void mipi_dsi_clk_disable(void)
+{
+	/* empty */
+}
+void mipi_dsi_prepare_clocks(void)
+{
+	/* empty */
+}
+void mipi_dsi_unprepare_clocks(void)
+{
+	/* empty */
+}
+void mipi_dsi_ahb_ctrl(u32 enable)
+{
+	/* empty */
+}
+void mipi_dsi_phy_ctrl(int on)
+{
+	/* empty */
+}
+#endif
+
 void cont_splash_clk_ctrl(int enable);
 void mipi_dsi_turn_on_clks(void);
 void mipi_dsi_turn_off_clks(void);
@@ -350,6 +378,8 @@ int mipi_dsi_cmdlist_put(struct dcs_cmd_req *cmdreq);
 struct dcs_cmd_req *mipi_dsi_cmdlist_get(void);
 void mipi_dsi_cmdlist_commit(int from_mdp);
 void mipi_dsi_cmd_mdp_busy(void);
+void mipi_dsi_configure_fb_divider(u32 fps_level);
+void mipi_dsi_wait4video_done(void);
 
 #ifdef CONFIG_FB_MSM_MDP303
 void update_lane_config(struct msm_panel_info *pinfo);

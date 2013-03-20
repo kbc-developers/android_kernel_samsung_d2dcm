@@ -29,21 +29,20 @@
 #include <linux/delay.h>
 #include <linux/wakelock.h>
 #include <linux/memory_alloc.h>
-
 #include <linux/msm_audio.h>
 #include <linux/android_pmem.h>
+#include <linux/pm_qos.h>
 
 #include <mach/msm_adsp.h>
 #include <mach/iommu.h>
 #include <mach/iommu_domains.h>
-#include <mach/msm_subsystem_map.h>
 #include <mach/qdsp5v2/qdsp5audppcmdi.h>
 #include <mach/qdsp5v2/qdsp5audppmsg.h>
 #include <mach/qdsp5v2/audio_dev_ctl.h>
 #include <mach/qdsp5v2/audpp.h>
 #include <mach/qdsp5v2/audio_dev_ctl.h>
 #include <mach/msm_memtypes.h>
-#include <linux/ion.h>
+#include <mach/cpuidle.h>
 
 #include <mach/htc_pwrsink.h>
 #include <mach/debug_mm.h>
@@ -86,7 +85,7 @@ struct audio {
 	/* data allocated for various buffers */
 	char *data;
 	dma_addr_t phys;
-	struct msm_mapped_buffer *map_v_write;
+	void *map_v_write;
 	int teos; /* valid only if tunnel mode & no data left for decoder */
 	int opened;
 	int enabled;
@@ -96,11 +95,9 @@ struct audio {
 	int voice_state;
 
 	struct wake_lock wakelock;
-	struct wake_lock idlelock;
+	struct pm_qos_request pm_qos_req;
 
 	struct audpp_cmd_cfg_object_params_volume vol_pan;
-	struct ion_client *client;
-	struct ion_handle *buff_handle;
 };
 
 static void audio_out_listener(u32 evt_id, union auddev_evt_data *evt_payload,
@@ -151,13 +148,14 @@ static void audio_prevent_sleep(struct audio *audio)
 {
 	MM_DBG("\n"); /* Macro prints the file name and function */
 	wake_lock(&audio->wakelock);
-	wake_lock(&audio->idlelock);
+	pm_qos_update_request(&audio->pm_qos_req,
+			      msm_cpuidle_get_deep_idle_latency());
 }
 
 static void audio_allow_sleep(struct audio *audio)
 {
+	pm_qos_update_request(&audio->pm_qos_req, PM_QOS_DEFAULT_VALUE);
 	wake_unlock(&audio->wakelock);
-	wake_unlock(&audio->idlelock);
 	MM_DBG("\n"); /* Macro prints the file name and function */
 }
 
@@ -466,7 +464,7 @@ static long audio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 
 /* Only useful in tunnel-mode */
-static int audio_fsync(struct file *file,	int datasync)
+static int audio_fsync(struct file *file, loff_t ppos1, loff_t ppos2, int datasync)
 {
 	struct audio *audio = file->private_data;
 	int rc = 0;
@@ -704,53 +702,19 @@ struct miscdevice audio_misc = {
 
 static int __init audio_init(void)
 {
-	unsigned long ionflag = 0;
-	ion_phys_addr_t addr = 0;
-	int rc;
-	int len = 0;
-	struct ion_handle *handle = NULL;
-	struct ion_client *client = NULL;
-
-	client = msm_ion_client_create(UINT_MAX, "HostPCM");
-	if (IS_ERR_OR_NULL(client)) {
-		MM_ERR("Unable to create ION client\n");
-		rc = -ENOMEM;
-		goto client_create_error;
+	the_audio.phys = allocate_contiguous_ebi_nomap(DMASZ, SZ_4K);
+	if (the_audio.phys) {
+		the_audio.map_v_write = ioremap(the_audio.phys, DMASZ);
+		if (IS_ERR(the_audio.map_v_write)) {
+			MM_ERR("could not map physical buffers\n");
+			free_contiguous_memory_by_paddr(the_audio.phys);
+			return -ENOMEM;
+		}
+		the_audio.data = the_audio.map_v_write;
+	} else {
+			MM_ERR("could not allocate physical buffers\n");
+			return -ENOMEM;
 	}
-	the_audio.client = client;
-
-	handle = ion_alloc(client, DMASZ, SZ_4K,
-		ION_HEAP(ION_AUDIO_HEAP_ID));
-	if (IS_ERR_OR_NULL(handle)) {
-		MM_ERR("Unable to create allocate O/P buffers\n");
-		rc = -ENOMEM;
-		goto buff_alloc_error;
-	}
-	the_audio.buff_handle = handle;
-
-	rc = ion_phys(client, handle, &addr, &len);
-	if (rc) {
-		MM_ERR("O/P buffers:Invalid phy: %x sz: %x\n",
-			(unsigned int) addr, (unsigned int) len);
-		goto buff_get_phys_error;
-	} else
-		MM_INFO("O/P buffers:valid phy: %x sz: %x\n",
-			(unsigned int) addr, (unsigned int) len);
-	the_audio.phys = (int32_t)addr;
-
-	rc = ion_handle_get_flags(client, handle, &ionflag);
-	if (rc) {
-		MM_ERR("could not get flags for the handle\n");
-		goto buff_get_flags_error;
-	}
-
-	the_audio.map_v_write = ion_map_kernel(client, handle, ionflag);
-	if (IS_ERR(the_audio.map_v_write)) {
-		MM_ERR("could not map write buffers\n");
-		rc = -ENOMEM;
-		goto buff_map_error;
-	}
-	the_audio.data = (char *)the_audio.map_v_write;
 	MM_DBG("Memory addr = 0x%8x  phy addr = 0x%8x\n",\
 		(int) the_audio.data, (int) the_audio.phys);
 	mutex_init(&the_audio.lock);
@@ -758,17 +722,9 @@ static int __init audio_init(void)
 	spin_lock_init(&the_audio.dsp_lock);
 	init_waitqueue_head(&the_audio.wait);
 	wake_lock_init(&the_audio.wakelock, WAKE_LOCK_SUSPEND, "audio_pcm");
-	wake_lock_init(&the_audio.idlelock, WAKE_LOCK_IDLE, "audio_pcm_idle");
+	pm_qos_add_request(&the_audio.pm_qos_req, PM_QOS_CPU_DMA_LATENCY,
+				PM_QOS_DEFAULT_VALUE);
 	return misc_register(&audio_misc);
-buff_map_error:
-buff_get_phys_error:
-buff_get_flags_error:
-	ion_free(client, the_audio.buff_handle);
-buff_alloc_error:
-	ion_client_destroy(client);
-client_create_error:
-	return rc;
-
 }
 
 late_initcall(audio_init);

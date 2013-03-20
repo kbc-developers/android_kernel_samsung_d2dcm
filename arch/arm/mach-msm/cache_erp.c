@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,14 +20,8 @@
 #include <linux/io.h>
 #include <mach/msm-krait-l2-accessors.h>
 #include <mach/msm_iomap.h>
-#include <mach/socinfo.h>
 #include <asm/cputype.h>
 #include "acpuclock.h"
-#include <linux/ratelimit.h>
-
-#ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
-#include <mach/sec_debug.h>
-#endif
 
 #define CESR_DCTPE		BIT(0)
 #define CESR_DCDPE		BIT(1)
@@ -37,8 +31,6 @@
 #define CESR_ICTE		(BIT(6) | BIT(7))
 #define CESR_TLBMH		BIT(16)
 #define CESR_I_MASK		0x000000CC
-
-#define CESR_VALID_MASK		0x000100FF
 
 /* Print a message for everything but TLB MH events */
 #define CESR_PRINT_MASK		0x000000FF
@@ -72,16 +64,10 @@
 #define ERP_L1_ERR(a) do { } while (0)
 #endif
 
-#ifdef CONFIG_MSM_L1_RECOV_ERR_PANIC
-#define ERP_L1_RECOV_ERR(a) panic(a)
-#else
-#define ERP_L1_RECOV_ERR(a) do { } while (0)
-#endif
-
 #ifdef CONFIG_MSM_L2_ERP_PORT_PANIC
 #define ERP_PORT_ERR(a) panic(a)
 #else
-#define ERP_PORT_ERR(a) do { } while (0)
+#define ERP_PORT_ERR(a) WARN(1, a)
 #endif
 
 #ifdef CONFIG_MSM_L2_ERP_1BIT_PANIC
@@ -104,15 +90,7 @@
 
 #define MODULE_NAME "msm_cache_erp"
 
-#define L2_ERROR_RATELIMIT_INTERVAL 10
-#define L2_ERROR_RATELIMIT_BURST 10
-
-static DEFINE_RATELIMIT_STATE(_rs,				\
-				      L2_ERROR_RATELIMIT_INTERVAL,	\
-				      L2_ERROR_RATELIMIT_BURST);
-
-static unsigned int msm_l2_mpdcd_err_cnt;
-#define ERP_LOG_MAGIC_ADDR	0x748
+#define ERP_LOG_MAGIC_ADDR	0x6A4
 #define ERP_LOG_MAGIC		0x11C39893
 
 struct msm_l1_err_stats {
@@ -142,9 +120,6 @@ static struct msm_l2_err_stats msm_l2_erp_stats;
 static int l1_erp_irq, l2_erp_irq;
 static struct proc_dir_entry *procfs_entry;
 
-static unsigned int l2_err_msg_mask = (L2ESR_MPDCD | L2ESR_TSESB
-	| L2ESR_TSEDB | L2ESR_DSESB | L2ESR_DSEDB | L2ESR_MSE
-	| L2ESR_MPLDREXNOK);
 #ifdef CONFIG_MSM_L1_ERR_LOG
 static struct proc_dir_entry *procfs_log_entry;
 #endif
@@ -278,20 +253,11 @@ static irqreturn_t msm_l1_erp_irq(int irq, void *dev_id)
 	int print_regs = cesr & CESR_PRINT_MASK;
 	int log_event = cesr & CESR_LOG_EVENT_MASK;
 
-	void *const saw_bases[] = {
-		MSM_SAW0_BASE,
-		MSM_SAW1_BASE,
-	};
-
 	if (print_regs) {
 		pr_alert("L1 / TLB Error detected on CPU %d!\n", cpu);
 		pr_alert("\tCESR      = 0x%08x\n", cesr);
 		pr_alert("\tCPU speed = %lu\n", acpuclk_get_rate(cpu));
 		pr_alert("\tMIDR      = 0x%08x\n", read_cpuid_id());
-		pr_alert("\tPTE fuses = 0x%08x\n",
-					readl_relaxed(MSM_QFPROM_BASE + 0xC0));
-		pr_alert("\tPMIC_VREG = 0x%08x\n",
-					readl_relaxed(saw_bases[cpu] + 0x14));
 	}
 
 	if (cesr & CESR_DCTPE) {
@@ -353,18 +319,8 @@ static irqreturn_t msm_l1_erp_irq(int irq, void *dev_id)
 	/* Clear the interrupt bits we processed */
 	write_cesr(cesr);
 
-#ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
 	if (print_regs)
-		sec_l1_dcache_check_fail();
-#else
-	if (print_regs) {
-		if ((cesr & (~CESR_I_MASK & CESR_VALID_MASK)) ||
-		    cpu_is_krait_v1() || cpu_is_krait_v2())
-			ERP_L1_ERR("L1 nonrecoverable cache error detected");
-		else
-			ERP_L1_RECOV_ERR("L1 recoverable error detected\n");
-	}
-#endif
+		ERP_L1_ERR("L1 cache error detected");
 
 	return IRQ_HANDLED;
 }
@@ -387,7 +343,9 @@ static irqreturn_t msm_l2_erp_irq(int irq, void *dev_id)
 	l2ear0 = get_l2_indirect_reg(L2EAR0_IND_ADDR);
 	l2ear1 = get_l2_indirect_reg(L2EAR1_IND_ADDR);
 
-	if (l2esr & l2_err_msg_mask) {
+	print_alert = print_access_errors() || (l2esr & L2ESR_ACCESS_ERR_MASK);
+
+	if (print_alert) {
 		pr_alert("L2 Error detected!\n");
 		pr_alert("\tL2ESR    = 0x%08x\n", l2esr);
 		pr_alert("\tL2ESYNR0 = 0x%08x\n", l2esynr0);
@@ -395,71 +353,62 @@ static irqreturn_t msm_l2_erp_irq(int irq, void *dev_id)
 		pr_alert("\tL2EAR0   = 0x%08x\n", l2ear0);
 		pr_alert("\tL2EAR1   = 0x%08x\n", l2ear1);
 		pr_alert("\tCPU bitmap = 0x%x\n", (l2esr >> L2ESR_CPU_SHIFT) &
-						    L2ESR_CPU_MASK);
+							L2ESR_CPU_MASK);
 	}
 
 	if (l2esr & L2ESR_MPDCD) {
-		if (l2esr & l2_err_msg_mask)
+		if (print_alert)
 			pr_alert("L2 master port decode error\n");
 		port_error++;
 		msm_l2_erp_stats.mpdcd++;
-
-		if (!__ratelimit(&_rs))
-			msm_l2_mpdcd_err_cnt++;
 	}
 
 	if (l2esr & L2ESR_MPSLV) {
-		if (l2esr & l2_err_msg_mask)
+		if (print_alert)
 			pr_alert("L2 master port slave error\n");
 		port_error++;
 		msm_l2_erp_stats.mpslv++;
 	}
 
 	if (l2esr & L2ESR_TSESB) {
-		if (l2esr & l2_err_msg_mask)
-			pr_alert("L2 tag soft error, single-bit\n");
+		pr_alert("L2 tag soft error, single-bit\n");
 		soft_error++;
 		msm_l2_erp_stats.tsesb++;
 	}
 
 	if (l2esr & L2ESR_TSEDB) {
-		if (l2esr & l2_err_msg_mask)
-			pr_alert("L2 tag soft error, double-bit\n");
+		pr_alert("L2 tag soft error, double-bit\n");
 		soft_error++;
 		unrecoverable++;
 		msm_l2_erp_stats.tsedb++;
 	}
 
 	if (l2esr & L2ESR_DSESB) {
-		if (l2esr & l2_err_msg_mask)
-			pr_alert("L2 data soft error, single-bit\n");
+		pr_alert("L2 data soft error, single-bit\n");
 		soft_error++;
 		msm_l2_erp_stats.dsesb++;
 	}
 
 	if (l2esr & L2ESR_DSEDB) {
-		if (l2esr & l2_err_msg_mask)
-			pr_alert("L2 data soft error, double-bit\n");
+		pr_alert("L2 data soft error, double-bit\n");
 		soft_error++;
 		unrecoverable++;
 		msm_l2_erp_stats.dsedb++;
 	}
 
 	if (l2esr & L2ESR_MSE) {
-		if (l2esr & l2_err_msg_mask)
-			pr_alert("L2 modified soft error\n");
+		pr_alert("L2 modified soft error\n");
 		soft_error++;
 		msm_l2_erp_stats.mse++;
 	}
 
 	if (l2esr & L2ESR_MPLDREXNOK) {
-		if (l2esr & l2_err_msg_mask)
-			pr_alert("L2 master port LDREX received Normal OK response\n");
+		pr_alert("L2 master port LDREX received Normal OK response\n");
 		port_error++;
 		msm_l2_erp_stats.mplxrexnok++;
 	}
 
-	if (port_error && (l2esr & l2_err_msg_mask))
+	if (port_error && print_alert)
 		ERP_PORT_ERR("L2 master port error detected");
 
 	if (soft_error && !unrecoverable)
@@ -590,12 +539,18 @@ static int msm_cache_erp_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static struct of_device_id cache_erp_match_table[] = {
+	{	.compatible = "qcom,cache_erp",	},
+	{}
+};
+
 static struct platform_driver msm_cache_erp_driver = {
 	.probe = msm_cache_erp_probe,
 	.remove = msm_cache_erp_remove,
 	.driver = {
 		.name = MODULE_NAME,
 		.owner = THIS_MODULE,
+		.of_match_table = cache_erp_match_table,
 	},
 };
 

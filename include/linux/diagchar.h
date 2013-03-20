@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,12 +18,14 @@
 #define EVENT_MASKS_TYPE		4
 #define PKT_TYPE			8
 #define DEINIT_TYPE			16
-#define USER_SPACE_LOG_TYPE		32
+#define USER_SPACE_DATA_TYPE		32
+#define DCI_DATA_TYPE			64
 #define USB_MODE			1
 #define MEMORY_DEVICE_MODE		2
 #define NO_LOGGING_MODE			3
 #define UART_MODE			4
-
+#define SOCKET_MODE			5
+#define CALLBACK_MODE			6
 /* different values that go in for diag_data_type */
 #define DATA_TYPE_EVENT         	0
 #define DATA_TYPE_F3            	1
@@ -35,26 +37,26 @@
 #define DIAG_IOCTL_SWITCH_LOGGING	7
 #define DIAG_IOCTL_GET_DELAYED_RSP_ID 	8
 #define DIAG_IOCTL_LSM_DEINIT		9
+#define DIAG_IOCTL_DCI_INIT		20
+#define DIAG_IOCTL_DCI_DEINIT		21
+#define DIAG_IOCTL_DCI_SUPPORT		22
+#define DIAG_IOCTL_DCI_REG		23
+#define DIAG_IOCTL_DCI_STREAM_INIT	24
+#define DIAG_IOCTL_DCI_HEALTH_STATS	25
+#define DIAG_IOCTL_REMOTE_DEV		32
 
-/* Machine ID and corresponding PC Tools IDs */
-#define APQ8060_MACHINE_ID	86
-#define AO8960_MACHINE_ID	87
-#define MSM8660_MACHINE_ID	71
-#define MDM9615_MACHINE_ID	104
-#define APQ8064_MACHINE_ID	109
-#define MSM8930_MACHINE_ID	116
-#define MSM8630_MACHINE_ID	117
-#define MSM8230_MACHINE_ID	118
-#define APQ8030_MACHINE_ID	119
-#define MSM8627_MACHINE_ID	120
-#define MSM8227_MACHINE_ID	121
-#define MSM8260A_MACHINE_ID	123
-#define MSM8974_MACHINE_ID	126
+/* PC Tools IDs */
 #define APQ8060_TOOLS_ID	4062
 #define AO8960_TOOLS_ID		4064
 #define APQ8064_TOOLS_ID	4072
-#define MSM8930_TOOLS_ID	4072
-#define MSM8974_TOOLS_ID	4072
+#define MSM8625_TOOLS_ID	4075
+#define MSM8930_TOOLS_ID	4076
+#define MSM8630_TOOLS_ID	4077
+#define MSM8230_TOOLS_ID	4078
+#define APQ8030_TOOLS_ID	4079
+#define MSM8627_TOOLS_ID	4080
+#define MSM8227_TOOLS_ID	4081
+#define MSM8974_TOOLS_ID	4083
 
 #define MSG_MASK_0			(0x00000001)
 #define MSG_MASK_1			(0x00000002)
@@ -110,10 +112,10 @@ the appropriate macros. */
 /* This needs to be modified manually now, when we add
  a new RANGE of SSIDs to the msg_mask_tbl */
 #define MSG_MASK_TBL_CNT		24
-#define EVENT_LAST_ID			0x08AD
+#define EVENT_LAST_ID			0x09AB
 
 #define MSG_SSID_0			0
-#define MSG_SSID_0_LAST			90
+#define MSG_SSID_0_LAST			94
 #define MSG_SSID_1			500
 #define MSG_SSID_1_LAST			506
 #define MSG_SSID_2			1000
@@ -127,13 +129,13 @@ the appropriate macros. */
 #define MSG_SSID_6			4500
 #define MSG_SSID_6_LAST			4526
 #define MSG_SSID_7			4600
-#define MSG_SSID_7_LAST			4612
+#define MSG_SSID_7_LAST			4613
 #define MSG_SSID_8			5000
 #define MSG_SSID_8_LAST			5029
 #define MSG_SSID_9			5500
 #define MSG_SSID_9_LAST			5516
 #define MSG_SSID_10			6000
-#define MSG_SSID_10_LAST		6072
+#define MSG_SSID_10_LAST		6080
 #define MSG_SSID_11			6500
 #define MSG_SSID_11_LAST		6521
 #define MSG_SSID_12			7000
@@ -157,7 +159,7 @@ the appropriate macros. */
 #define MSG_SSID_21			10300
 #define MSG_SSID_21_LAST		10300
 #define MSG_SSID_22			10350
-#define MSG_SSID_22_LAST		10361
+#define MSG_SSID_22_LAST		10374
 #define MSG_SSID_23			0xC000
 #define MSG_SSID_23_LAST		0xC063
 
@@ -275,6 +277,10 @@ static const uint32_t msg_bld_masks_0[] = {
 	MSG_LVL_LOW|MSG_LVL_MED|MSG_LVL_HIGH|MSG_LVL_ERROR|MSG_LVL_FATAL,
 	MSG_LVL_LOW,
 	MSG_LVL_MED,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_HIGH,
 	MSG_LVL_LOW
 };
 
@@ -387,6 +393,7 @@ static const uint32_t msg_bld_masks_7[] = {
 	MSG_LVL_MED,
 	MSG_LVL_MED,
 	MSG_LVL_MED,
+	MSG_LVL_LOW,
 	MSG_LVL_LOW
 };
 
@@ -521,6 +528,14 @@ static const uint32_t msg_bld_masks_10[] =  {
 	MSG_LVL_MED,
 	MSG_LVL_MED,
 	MSG_LVL_MED,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
 	MSG_LVL_LOW
 };
 
@@ -671,24 +686,37 @@ static const uint32_t msg_bld_masks_21[] = {
 };
 
 static const uint32_t msg_bld_masks_22[] = {
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW
 };
 
 /* LOG CODES */
 
 #define LOG_0	0x0
-#define LOG_1	0x15A7
+#define LOG_1	0x1755
 #define LOG_2	0x0
 #define LOG_3	0x0
 #define LOG_4	0x4910
@@ -705,5 +733,6 @@ static const uint32_t msg_bld_masks_22[] = {
 #define LOG_15	0x0
 
 #define LOG_GET_ITEM_NUM(xx_code) (xx_code & 0x0FFF)
+#define LOG_GET_EQUIP_ID(xx_code) ((xx_code & 0xF000) >> 12)
 
 #endif

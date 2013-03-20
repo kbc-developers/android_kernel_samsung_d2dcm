@@ -45,7 +45,7 @@
 #include <linux/bitops.h>
 #include <linux/termios.h>
 #include <linux/wakelock.h>
-#include <mach/gpio.h>
+#include <mach/gpio-v1.h>
 #include <linux/serial_core.h>
 #include <mach/msm_serial_hs.h>
 

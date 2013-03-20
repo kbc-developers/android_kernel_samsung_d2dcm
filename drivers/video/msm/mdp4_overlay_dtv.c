@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -31,10 +31,8 @@
 #include "msm_fb.h"
 #include "hdmi_msm.h"
 #include "mdp4.h"
-#include "hdmi_msm.h"
 
 #define DTV_BASE	0xD0000
-#define DMA_E_BASE	0xB0000
 
 static int dtv_enabled;
 
@@ -74,6 +72,7 @@ static struct vsycn_ctrl {
 	int dmae_intr_cnt;
 	atomic_t suspend;
 	atomic_t vsync_resume;
+	int dmae_wait_cnt;
 	int wait_vsync_cnt;
 	int blt_change;
 	int sysfs_created;
@@ -199,6 +198,11 @@ int mdp4_dtv_pipe_commit(int cndx, int wait)
 	undx =  vctrl->update_ndx;
 	vp = &vctrl->vlist[undx];
 	pipe = vctrl->base_pipe;
+	if (pipe == NULL) {
+		pr_err("%s: NO base pipe\n", __func__);
+		mutex_unlock(&vctrl->update_lock);
+		return 0;
+	}
 	mixer = pipe->mixer_num;
 	mdp4_overlay_iommu_unmap_freelist(mixer);
 
@@ -385,10 +389,7 @@ ssize_t mdp4_dtv_show_event(struct device *dev,
 		msecs_to_jiffies(VSYNC_PERIOD * 4));
 	if (ret <= 0) {
 		vctrl->wait_vsync_cnt = 0;
-		vsync_tick = ktime_to_ns(ktime_get());
-		ret = snprintf(buf, PAGE_SIZE, "VSYNC=%llu", vsync_tick);
-		buf[strlen(buf) + 1] = '\0';
-		return ret;
+		vctrl->vsync_time = ktime_get();
 	}
 
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
@@ -457,6 +458,7 @@ static int mdp4_dtv_start(struct msm_fb_data_type *mfd)
 	int data_en_polarity;
 	int hsync_start_x;
 	int hsync_end_x;
+	uint32_t userformat;
 	struct fb_info *fbi;
 	struct fb_var_screeninfo *var;
 	struct vsycn_ctrl *vctrl;
@@ -495,9 +497,10 @@ static int mdp4_dtv_start(struct msm_fb_data_type *mfd)
 	dtv_border_clr = mfd->panel_info.lcdc.border_clr;
 	dtv_underflow_clr = mfd->panel_info.lcdc.underflow_clr;
 	dtv_hsync_skew = mfd->panel_info.lcdc.hsync_skew;
+	userformat = var->reserved[3] >> 16;
 
 	pr_info("%s: <ID=%d %dx%d (%d,%d,%d), (%d,%d,%d) %dMHz>\n", __func__,
-		var->reserved[3], var->xres, var->yres,
+		userformat, var->xres, var->yres,
 		var->right_margin, var->hsync_len, var->left_margin,
 		var->lower_margin, var->vsync_len, var->upper_margin,
 		var->pixclock/1000/1000);
@@ -563,15 +566,6 @@ static int mdp4_dtv_start(struct msm_fb_data_type *mfd)
 	MDP_OUTP(MDP_BASE + DTV_BASE + 0x30, active_v_start);
 	MDP_OUTP(MDP_BASE + DTV_BASE + 0x38, active_v_end);
 
-	/* All of hdmi resolution except of 640*480p
-	   should trasmmit as a limited RGB range following HDMI/MHL SPEC.*/
-	if (var->reserved[3] != 1) {
-		/*MHL CTS 3.2.3.4 Video Quantization Ranges*/
-		MDP_OUTP(MDP_BASE + DMA_E_BASE + 0x70, 0x00EB0010);
-		MDP_OUTP(MDP_BASE + DMA_E_BASE + 0x74, 0x00EB0010);
-		MDP_OUTP(MDP_BASE + DMA_E_BASE + 0x78, 0x00EB0010);
-	}
-
 	/* Test pattern 8 x 8 pixel */
 	/* MDP_OUTP(MDP_BASE + DTV_BASE + 0x4C, 0x80000808); */
 
@@ -598,13 +592,7 @@ int mdp4_dtv_on(struct platform_device *pdev)
 	if (mfd->key != MFD_KEY)
 		return -EINVAL;
 
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2) || \
-		defined(CONFIG_VIDEO_MHL_TAB_V2)
-	if (!hdmi_msm_state->hpd_on_offline) {
-		pr_info("hdmi_online is not\n");
-		return -ENODEV;
-	}
-#endif
+	mutex_lock(&mfd->dma->ov_mutex);
 
 	vctrl->dev = mfd->fbi->dev;
 	vctrl->vsync_irq_enabled = 0;
@@ -620,6 +608,7 @@ int mdp4_dtv_on(struct platform_device *pdev)
 		if (mdp4_overlay_dtv_set(mfd, NULL)) {
 			pr_warn("%s: dtv_pipe is NULL, dtv_set failed\n",
 				__func__);
+			mutex_unlock(&mfd->dma->ov_mutex);
 			return -EINVAL;
 		}
 	}
@@ -629,6 +618,9 @@ int mdp4_dtv_on(struct platform_device *pdev)
 		pr_warn("%s: panel_next_on failed", __func__);
 
 	atomic_set(&vctrl->suspend, 0);
+
+	mutex_unlock(&mfd->dma->ov_mutex);
+
 	pr_info("%s:\n", __func__);
 
 	return ret;
@@ -657,15 +649,10 @@ int mdp4_dtv_off(struct platform_device *pdev)
 	struct vsycn_ctrl *vctrl;
 	struct mdp4_overlay_pipe *pipe;
 	struct vsync_update *vp;
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2) || \
-		defined(CONFIG_VIDEO_MHL_TAB_V2)
-	if (hdmi_msm_state->hpd_on_offline) {
-		pr_info("hpd_offline is not\n");
-		return -ENODEV;
-	}
-#endif
 
 	mfd = (struct msm_fb_data_type *)platform_get_drvdata(pdev);
+
+	mutex_lock(&mfd->dma->ov_mutex);
 
 	vctrl = &vsync_ctrl_db[cndx];
 
@@ -684,10 +671,6 @@ int mdp4_dtv_off(struct platform_device *pdev)
 			if (pipe->pipe_type == OVERLAY_TYPE_BF)
 				mdp4_overlay_borderfill_stage_down(pipe);
 
-			/* base pipe may change after borderfill_stage_down */
-			pipe = vctrl->base_pipe;
-			mdp4_mixer_stage_down(pipe, 1);
-			mdp4_overlay_pipe_free(pipe);
 			/* pipe == rgb2 */
 			vctrl->base_pipe = NULL;
 		} else {
@@ -719,6 +702,8 @@ int mdp4_dtv_off(struct platform_device *pdev)
 
 	/* Mdp clock disable */
 	mdp_clk_ctrl(0);
+
+	mutex_unlock(&mfd->dma->ov_mutex);
 
 	pr_info("%s:\n", __func__);
 	return ret;
@@ -997,49 +982,37 @@ void mdp4_overlay1_done_dtv(void)
 	spin_unlock(&vctrl->spin_lock);
 }
 
-void mdp4_dtv_set_black_screen()
+void mdp4_dtv_set_black_screen(void)
 {
 	char *rgb_base;
 	/*Black color*/
 	uint32 color = 0x00000000;
 	uint32 temp_src_format;
-	int commit = 1, cndx = 0;
-	int pipe_num = OVERLAY_PIPE_RGB1;
+	int cndx = 0;
 	struct vsycn_ctrl *vctrl;
 
 	vctrl = &vsync_ctrl_db[cndx];
-	if (!hdmi_prim_display)
+	if (vctrl->base_pipe == NULL || !hdmi_prim_display) {
+		pr_err("dtv_pipe is not configured yet\n");
 		return;
+	}
+	rgb_base = MDP_BASE + MDP4_RGB_BASE;
+	rgb_base += (MDP4_RGB_OFF * vctrl->base_pipe->pipe_num);
 
-	if (vctrl->base_pipe == NULL)
-		commit = 0;
-	else
-		pipe_num = vctrl->base_pipe->pipe_num;
-
-	rgb_base = MDP_BASE;
-	rgb_base += (MDP4_RGB_OFF * (pipe_num + 2));
-
-	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
-
-	/* RGB Constant Color */
+	/*
+	* RGB Constant Color
+	*/
 	MDP_OUTP(rgb_base + 0x1008, color);
-
-	/* MDP_RGB_SRC_FORMAT */
+	/*
+	* MDP_RGB_SRC_FORMAT
+	*/
 	temp_src_format = inpdw(rgb_base + 0x0050);
 	MDP_OUTP(rgb_base + 0x0050, temp_src_format | BIT(22));
+	mdp4_overlay_reg_flush(vctrl->base_pipe, 1);
 
-	if (commit) {
-		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
-
-		mdp4_overlay_reg_flush(vctrl->base_pipe, 1);
-		mdp4_mixer_stage_up(vctrl->base_pipe, 0);
-		mdp4_mixer_stage_commit(vctrl->base_pipe->mixer_num);
-	} else {
-		/* MDP_OVERLAY_REG_FLUSH for pipe*/
-		MDP_OUTP(MDP_BASE + 0x18000,
-			BIT(pipe_num + 2) | BIT(MDP4_MIXER1));
-		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
-	}
+	mdp4_mixer_stage_up(vctrl->base_pipe, 0);
+	mdp4_mixer_stage_commit(vctrl->base_pipe->mixer_num);
+	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 }
 
 static void mdp4_dtv_do_blt(struct msm_fb_data_type *mfd, int enable)
@@ -1150,8 +1123,8 @@ void mdp4_dtv_overlay(struct msm_fb_data_type *mfd)
 		mdp4_dtv_pipe_queue(0, pipe);
 	}
 
-	if (mdp4_dtv_pipe_commit(0, 0))
-		mdp4_dtv_wait4dmae(0);
-
+	mdp4_overlay_mdp_perf_upd(mfd, 1);
+	mdp4_dtv_pipe_commit(0, 0);
+	mdp4_overlay_mdp_perf_upd(mfd, 0);
 	mutex_unlock(&mfd->dma->ov_mutex);
 }

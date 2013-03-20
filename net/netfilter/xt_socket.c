@@ -22,7 +22,7 @@
 #include <net/netfilter/nf_tproxy_core.h>
 #include <net/netfilter/ipv4/nf_defrag_ipv4.h>
 
-#if defined(CONFIG_IP6_NF_IPTABLES) || defined(CONFIG_IP6_NF_IPTABLES_MODULE)
+#if IS_ENABLED(CONFIG_IP6_NF_IPTABLES)
 #define XT_SOCKET_HAVE_IPV6 1
 #include <linux/netfilter_ipv6/ip6_tables.h>
 #include <net/netfilter/ipv6/nf_defrag_ipv6.h>
@@ -30,7 +30,7 @@
 
 #include <linux/netfilter/xt_socket.h>
 
-#if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
+#if IS_ENABLED(CONFIG_NF_CONNTRACK)
 #define XT_SOCKET_HAVE_CONNTRACK 1
 #include <net/netfilter/nf_conntrack.h>
 #endif
@@ -108,9 +108,9 @@ xt_socket_get4_sk(const struct sk_buff *skb, struct xt_action_param *par)
 	const struct iphdr *iph = ip_hdr(skb);
 	struct udphdr _hdr, *hp = NULL;
 	struct sock *sk;
-	__be32 daddr, saddr;
-	__be16 dport, sport;
-	u8 protocol;
+	__be32 daddr = 0, saddr = 0;
+	__be16 dport = 0, sport = 0;
+	u8 protocol = 0;
 #ifdef XT_SOCKET_HAVE_CONNTRACK
 	struct nf_conn const *ct;
 	enum ip_conntrack_info ctinfo;
@@ -226,6 +226,7 @@ extract_icmp6_fields(const struct sk_buff *skb,
 	struct icmp6hdr *icmph, _icmph;
 	__be16 *ports, _ports[2];
 	u8 inside_nexthdr;
+	__be16 inside_fragoff;
 	int inside_hdrlen;
 
 	icmph = skb_header_pointer(skb, outside_hdrlen,
@@ -241,7 +242,8 @@ extract_icmp6_fields(const struct sk_buff *skb,
 		return 1;
 	inside_nexthdr = inside_iph->nexthdr;
 
-	inside_hdrlen = ipv6_skip_exthdr(skb, outside_hdrlen + sizeof(_icmph) + sizeof(_inside_iph), &inside_nexthdr);
+	inside_hdrlen = ipv6_skip_exthdr(skb, outside_hdrlen + sizeof(_icmph) + sizeof(_inside_iph),
+					 &inside_nexthdr, &inside_fragoff);
 	if (inside_hdrlen < 0)
 		return 1; /* hjm: Packet has no/incomplete transport layer headers. */
 
@@ -271,8 +273,8 @@ xt_socket_get6_sk(const struct sk_buff *skb, struct xt_action_param *par)
 	struct ipv6hdr *iph = ipv6_hdr(skb);
 	struct udphdr _hdr, *hp = NULL;
 	struct sock *sk;
-	struct in6_addr *daddr, *saddr;
-	__be16 dport, sport;
+	struct in6_addr *daddr = NULL, *saddr = NULL;
+	__be16 dport = 0, sport = 0;
 	int thoff, tproto;
 
 	tproto = ipv6_find_hdr(skb, &thoff, -1, NULL);

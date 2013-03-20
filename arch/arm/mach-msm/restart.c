@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,11 +30,6 @@
 #include <mach/msm_iomap.h>
 #include <mach/restart.h>
 #include <mach/socinfo.h>
-#ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
-#include <linux/notifier.h>
-#include <linux/ftrace.h>
-#endif
 #include <mach/irqs.h>
 #include <mach/scm.h>
 #include "msm_watchdog.h"
@@ -56,10 +51,15 @@
 
 #define SCM_IO_DISABLE_PMIC_ARBITER	1
 
-static int restart_mode;
-#ifndef CONFIG_SEC_DEBUG
-void *restart_reason;
+#ifdef CONFIG_LGE_CRASH_HANDLER
+#define LGE_ERROR_HANDLER_MAGIC_NUM	0xA97F2C46
+#define LGE_ERROR_HANDLER_MAGIC_ADDR	0x18
+void *lge_error_handler_cookie_addr;
+static int ssr_magic_number = 0;
 #endif
+
+static int restart_mode;
+void *restart_reason;
 
 int pmic_reset_irq;
 static void __iomem *msm_tmr0_base;
@@ -91,20 +91,13 @@ static void set_dload_mode(int on)
 		__raw_writel(on ? 0xE47B337D : 0, dload_mode_addr);
 		__raw_writel(on ? 0xCE14091A : 0,
 		       dload_mode_addr + sizeof(unsigned int));
-		mb();
-#ifdef CONFIG_SEC_DEBUG
-		pr_err("set_dload_mode <%d> ( %x )\n", on, CALLER_ADDR0);
+#ifdef CONFIG_LGE_CRASH_HANDLER
+		__raw_writel(on ? LGE_ERROR_HANDLER_MAGIC_NUM : 0,
+				lge_error_handler_cookie_addr);
 #endif
+		mb();
 	}
 }
-
-#ifdef CONFIG_SEC_DEBUG
-void sec_debug_set_qc_dload_magic(int on)
-{
-	pr_info("%s: on=%d\n", __func__, on);
-	set_dload_mode(on);
-}
-#endif
 
 static int dload_set(const char *val, struct kernel_param *kp)
 {
@@ -123,6 +116,9 @@ static int dload_set(const char *val, struct kernel_param *kp)
 	}
 
 	set_dload_mode(download_mode);
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	ssr_magic_number = 0;
+#endif
 
 	return 0;
 }
@@ -133,6 +129,10 @@ static int dload_set(const char *val, struct kernel_param *kp)
 void msm_set_restart_mode(int mode)
 {
 	restart_mode = mode;
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	if (download_mode == 1 && (mode & 0xFFFF0000) == 0x6D630000)
+		panic("LGE crash handler detected panic");
+#endif
 }
 EXPORT_SYMBOL(msm_set_restart_mode);
 
@@ -199,11 +199,46 @@ static irqreturn_t resout_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-void arch_reset(char mode, const char *cmd)
-{
-	unsigned long value;
+#ifdef CONFIG_LGE_CRASH_HANDLER
+#define SUBSYS_NAME_MAX_LENGTH	40
 
-#ifndef CONFIG_SEC_DEBUG
+int get_ssr_magic_number(void)
+{
+	return ssr_magic_number;
+}
+
+void set_ssr_magic_number(const char* subsys_name)
+{
+	int i;
+	const char *subsys_list[] = {
+		"modem", "riva", "dsps", "lpass",
+		"external_modem", "gss",
+	};
+
+	ssr_magic_number = (0x6d630000 | 0x0000f000);
+
+	for (i=0; i < ARRAY_SIZE(subsys_list); i++) {
+		if (!strncmp(subsys_list[i], subsys_name,
+					SUBSYS_NAME_MAX_LENGTH)) {
+			ssr_magic_number = (0x6d630000 | ((i+1)<<12));
+			break;
+		}
+	}
+}
+
+void set_kernel_crash_magic_number(void)
+{
+	pet_watchdog();
+	if (ssr_magic_number == 0)
+		__raw_writel(0x6d630100, restart_reason);
+	else
+		__raw_writel(restart_mode, restart_reason);
+}
+#endif /* CONFIG_LGE_CRASH_HANDLER */
+
+void msm_restart(char mode, const char *cmd)
+{
+
 #ifdef CONFIG_MSM_DLOAD_MODE
 
 	/* This looks like a normal reboot at this point. */
@@ -213,105 +248,49 @@ void arch_reset(char mode, const char *cmd)
 	set_dload_mode(in_panic);
 
 	/* Write download mode flags if restart_mode says so */
-	if (restart_mode == RESTART_DLOAD)
+	if (restart_mode == RESTART_DLOAD) {
 		set_dload_mode(1);
+#ifdef CONFIG_LGE_CRASH_HANDLER
+		writel(0x6d63c421, restart_reason);
+		goto reset;
+#endif
+	}
 
 	/* Kill download mode if master-kill switch is set */
 	if (!download_mode)
 		set_dload_mode(0);
 #endif
-#endif
 
-#ifdef CONFIG_SEC_DEBUG_LOW_LOG
-#ifdef CONFIG_MSM_DLOAD_MODE
-#ifdef CONFIG_SEC_DEBUG
-
-	if (sec_debug_is_enabled()
-	&& ((restart_mode == RESTART_DLOAD) || in_panic))
-		set_dload_mode(1);
-	else
-		set_dload_mode(0);
-#else
-	/* This looks like a normal reboot at this point. */
-	set_dload_mode(0);
-
-	/* Write download mode flags if we're panic'ing */
-	set_dload_mode(in_panic);
-
-	/* Write download mode flags if restart_mode says so */
-	if (restart_mode == RESTART_DLOAD)
-		set_dload_mode(1);
-#endif
-
-#endif
-#endif
 	printk(KERN_NOTICE "Going down for restart now\n");
 
 	pm8xxx_reset_pwr_off(1);
-
-#ifdef CONFIG_SEC_DEBUG
-	/* onlyjazz.ed26  : avoid ioreamp is possible
-		because arch_reset can be called in interrupt context */
-	if (!restart_reason)
-		restart_reason = ioremap_nocache((MSM_IMEM_BASE \
-						+ RESTART_REASON_ADDR), SZ_4K);
-#endif
 
 	if (cmd != NULL) {
 		if (!strncmp(cmd, "bootloader", 10)) {
 			__raw_writel(0x77665500, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
 			__raw_writel(0x77665502, restart_reason);
-		} else if (!strncmp(cmd, "oem-", 4)) {
-			unsigned long code;
-			code = simple_strtoul(cmd + 4, NULL, 16) & 0xff;
-			__raw_writel(0x6f656d00 | code, restart_reason);
-#ifdef CONFIG_SEC_DEBUG
-		} else if (!strncmp(cmd, "sec_debug_hw_reset", 18)) {
-			__raw_writel(0x776655ee, restart_reason);
-#endif
-#ifdef CONFIG_SEC_PERIPHERAL_SECURE_CHK
-		} else if (!strncmp(cmd, "peripheral_hw_reset", 19)) {
-			__raw_writel(0x77665507, restart_reason);
-			printk(KERN_NOTICE "peripheral_hw_reset C777!!!!\n");
-#endif
-#ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
-		} else if (!strncmp(cmd, "l1_dcache_reset", 15)) {
-			__raw_writel(0x77665588, restart_reason);
-			printk(KERN_NOTICE "l1_dcache_reset !!!!\n");
-#endif
 		} else if (!strncmp(cmd, "download", 8)) {
 			__raw_writel(0x12345671, restart_reason);
-		} else if (!strncmp(cmd, "sud", 3)) {
-			__raw_writel(0xabcf0000 | (cmd[3] - '0'),
-					restart_reason);
-		} else if (!strncmp(cmd, "debug", 5) /* set debug leve */
-				&& !kstrtoul(cmd + 5, 0, &value)) {
-			__raw_writel(0xabcd0000 | value, restart_reason);
-#ifdef CONFIG_SEC_SSR_DEBUG_LEVEL_CHK
-		} else if (!strncmp(cmd, "cpdebug", 7) /* set cp debug level */
-				&& !kstrtoul(cmd + 7, 0, &value)) {
-			__raw_writel(0xfedc0000 | value, restart_reason);
-#endif
 		} else if (!strncmp(cmd, "nvbackup", 8)) {
 			__raw_writel(0x77665511, restart_reason);
 		} else if (!strncmp(cmd, "nvrestore", 9)) {
 			__raw_writel(0x77665512, restart_reason);
-		} else if (!strncmp(cmd, "nverase", 7)) {
-			__raw_writel(0x77665514, restart_reason);
-		} else if (!strncmp(cmd, "nvrecovery", 10)) {
-			__raw_writel(0x77665515, restart_reason);
+		} else if (!strncmp(cmd, "oem-", 4)) {
+			unsigned long code;
+			code = simple_strtoul(cmd + 4, NULL, 16) & 0xff;
+			__raw_writel(0x6f656d00 | code, restart_reason);
 		} else {
 			__raw_writel(0x77665501, restart_reason);
 		}
+	} else {
+		__raw_writel(0x77665501, restart_reason);
 	}
-#ifdef CONFIG_SEC_DEBUG
-	else {
-		printk(KERN_NOTICE "%s : clear reset flag\r\n", __func__);
-		/* clear abnormal reset flag */
-		__raw_writel(0x12345678, restart_reason);
-	}
-#endif
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	if (in_panic == 1)
+		set_kernel_crash_magic_number();
+reset:
+#endif /* CONFIG_LGE_CRASH_HANDLER */
 
 	__raw_writel(0, msm_tmr0_base + WDT0_EN);
 	if (!(machine_is_msm8x60_fusion() || machine_is_msm8x60_fusn_ffa())) {
@@ -330,18 +309,28 @@ void arch_reset(char mode, const char *cmd)
 	printk(KERN_ERR "Restarting has failed\n");
 }
 
-#ifdef CONFIG_SEC_DEBUG
-static int dload_mode_normal_reboot_handler(struct notifier_block *nb,
-				unsigned long l, void *p)
+static int __init msm_pmic_restart_init(void)
 {
-	set_dload_mode(0);
+	int rc;
+
+	if (pmic_reset_irq != 0) {
+		rc = request_any_context_irq(pmic_reset_irq,
+					resout_irq_handler, IRQF_TRIGGER_HIGH,
+					"restart_from_pmic", NULL);
+		if (rc < 0)
+			pr_err("pmic restart irq fail rc = %d\n", rc);
+	} else {
+		pr_warn("no pmic restart interrupt specified\n");
+	}
+
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	__raw_writel(0x6d63ad00, restart_reason);
+#endif
+
 	return 0;
 }
 
-static struct notifier_block dload_reboot_block = {
-	.notifier_call = dload_mode_normal_reboot_handler
-};
-#endif
+late_initcall(msm_pmic_restart_init);
 
 #ifdef CONFIG_KEXEC_HARDBOOT
 void msm_kexec_hardboot(void)
@@ -357,46 +346,22 @@ void msm_kexec_hardboot(void)
 
 static int __init msm_restart_init(void)
 {
-	int rc;
-
 #ifdef CONFIG_MSM_DLOAD_MODE
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
 	dload_mode_addr = MSM_IMEM_BASE + DLOAD_MODE_ADDR;
-
-#ifdef CONFIG_SEC_DEBUG
-	register_reboot_notifier(&dload_reboot_block);
+#ifdef CONFIG_LGE_CRASH_HANDLER
+	lge_error_handler_cookie_addr = MSM_IMEM_BASE +
+		LGE_ERROR_HANDLER_MAGIC_ADDR;
 #endif
-
-/* Reset detection is switched on below.*/
-#ifdef CONFIG_SEC_DEBUG_LOW_LOG
-	if (!sec_debug_is_enabled()) {
-		set_dload_mode(0);
-	} else
-#endif
-		set_dload_mode(1);
+	set_dload_mode(download_mode);
 #endif
 	msm_tmr0_base = msm_timer_get_timer0_base();
-#ifndef CONFIG_SEC_DEBUG
 	restart_reason = MSM_IMEM_BASE + RESTART_REASON_ADDR;
-#endif
 	pm_power_off = msm_power_off;
 #ifdef CONFIG_KEXEC_HARDBOOT
 	kexec_hardboot_hook = msm_kexec_hardboot;
 #endif
 
-	if (pmic_reset_irq != 0) {
-		rc = request_any_context_irq(pmic_reset_irq,
-					resout_irq_handler, IRQF_TRIGGER_HIGH,
-					"restart_from_pmic", NULL);
-		if (rc < 0) {
-			pr_err("pmic restart irq fail rc = %d\n", rc);
-			return rc;
-		}
-	} else {
-		pr_warn("no pmic restart interrupt specified\n");
-	}
-
 	return 0;
 }
-
-late_initcall(msm_restart_init);
+early_initcall(msm_restart_init);

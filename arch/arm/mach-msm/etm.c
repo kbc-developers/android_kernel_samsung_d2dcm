@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -21,11 +21,10 @@
 #include <linux/io.h>
 #include <linux/uaccess.h>
 #include <linux/wakelock.h>
-#include <linux/pm_qos_params.h>
+#include <linux/pm_qos.h>
 
 #include <asm/atomic.h>
-
-#include "cp14.h"
+#include <asm/hardware/cp14.h>
 
 #define LOG_BUF_LEN			32768
 /* each slot is 4 bytes, 8kb total */
@@ -73,7 +72,7 @@ static int trace_enabled;
 static int cpu_to_dump;
 static int next_cpu_to_dump;
 static struct wake_lock etm_wake_lock;
-static struct pm_qos_request_list etm_qos_req;
+static struct pm_qos_request etm_qos_req;
 static int trace_on_boot;
 module_param_named(
 	trace_on_boot, trace_on_boot, int, S_IRUGO

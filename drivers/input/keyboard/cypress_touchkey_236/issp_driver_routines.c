@@ -24,7 +24,7 @@
 #include <m8c.h>
 #include "PSoCAPI.h"
 */
-#include <mach/gpio.h>
+#include <mach/gpio-v1.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>

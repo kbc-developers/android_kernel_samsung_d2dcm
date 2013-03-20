@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -62,6 +62,8 @@ static DEFINE_PER_CPU(struct cp_params, cp_param)
 static struct sysdev_class cpaccess_sysclass = {
 	.name = "cpaccess",
 };
+
+void cpaccess_dummy_inst(void);
 
 #ifdef CONFIG_ARCH_MSM_KRAIT
 /*
@@ -143,9 +145,13 @@ static void do_il2_rw(char *str_tmp)
  */
 static noinline unsigned long cpaccess_dummy(unsigned long write_val)
 {
-	asm("mrc p15, 0, r0, c0, c0, 0\n\t");
-	asm("bx	lr\n\t");
-	return 0xBEEF;
+	unsigned long ret = 0xBEEF;
+
+	asm volatile (".globl cpaccess_dummy_inst\n"
+			"cpaccess_dummy_inst:\n\t"
+			"mrc p15, 0, %0, c0, c0, 0\n\t" : "=r" (ret) :
+				"r" (write_val));
+	return ret;
 } __attribute__((aligned(32)))
 
 /*
@@ -195,7 +201,7 @@ static unsigned long do_cpregister_rw(int write)
 	 * Grab address of the Dummy function, write the MRC/MCR
 	 * instruction, ensuring cache coherency.
 	 */
-	p_opcode = (unsigned long *)&cpaccess_dummy;
+	p_opcode = (unsigned long *)&cpaccess_dummy_inst;
 	mem_text_write_kernel_word(p_opcode, opcode);
 
 #ifdef CONFIG_SMP
@@ -254,14 +260,10 @@ static int get_register_params(char *str_tmp)
 /*
  * cp_register_write_sysfs - sysfs interface for writing to
  * CP register
- * @dev:	sys device
- * @attr:	device attribute
- * @buf:	write value
- * @cnt:	not used
- *
  */
-static ssize_t cp_register_write_sysfs(struct sys_device *dev,
-	struct sysdev_attribute *attr, const char *buf, size_t cnt)
+static ssize_t cp_register_write_sysfs(
+	struct kobject *kobj, struct kobj_attribute *attr,
+	const char *buf, size_t cnt)
 {
 	char *str_tmp = (char *)buf;
 
@@ -274,18 +276,24 @@ static ssize_t cp_register_write_sysfs(struct sys_device *dev,
 }
 
 /*
+ * wrapper for deprecated sysdev write interface
+ */
+static ssize_t sysdev_cp_register_write_sysfs(struct sys_device *dev,
+	struct sysdev_attribute *attr, const char *buf, size_t cnt)
+{
+	return cp_register_write_sysfs(NULL, NULL, buf, cnt);
+}
+
+/*
  * cp_register_read_sysfs - sysfs interface for reading CP registers
- * @dev:        sys device
- * @attr:       device attribute
- * @buf:        write value
  *
  * Code to read in the CPxx crn, crm, op1, op2 variables, or into
  * the base MRC opcode, store to executable memory, clean/invalidate
  * caches and then execute the new instruction and provide the
  * result to the caller.
  */
-static ssize_t cp_register_read_sysfs(struct sys_device *dev,
-	struct sysdev_attribute *attr, char *buf)
+static ssize_t cp_register_read_sysfs(
+	struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int ret;
 
@@ -304,13 +312,40 @@ static ssize_t cp_register_read_sysfs(struct sys_device *dev,
 }
 
 /*
+ * wrapper for deprecated sysdev read interface
+ */
+static ssize_t sysdev_cp_register_read_sysfs(struct sys_device *dev,
+	struct sysdev_attribute *attr, char *buf)
+{
+	return cp_register_read_sysfs(NULL, NULL, buf);
+}
+
+/*
  * Setup sysfs files
  */
-SYSDEV_ATTR(cp_rw, 0644, cp_register_read_sysfs, cp_register_write_sysfs);
+SYSDEV_ATTR(cp_rw, 0644, sysdev_cp_register_read_sysfs,
+	    sysdev_cp_register_write_sysfs);
 
 static struct sys_device device_cpaccess = {
 	.id     = 0,
 	.cls    = &cpaccess_sysclass,
+};
+
+static struct device cpaccess_dev = {
+	.init_name = "cpaccess",
+};
+
+static struct kobj_attribute cp_rw_attribute =
+	__ATTR(cp_rw, 0644, cp_register_read_sysfs, cp_register_write_sysfs);
+
+static struct attribute *attrs[] = {
+	&cp_rw_attribute.attr,
+	NULL,
+};
+
+static struct attribute_group attr_group = {
+	.name = "cpaccess0",
+	.attrs = attrs,
 };
 
 /*
@@ -318,32 +353,45 @@ static struct sys_device device_cpaccess = {
  */
 static int __init init_cpaccess_sysfs(void)
 {
+	/*
+	 * sysdev interface is deprecated and will be removed
+	 * after migration to new sysfs entry
+	 */
+
 	int error = sysdev_class_register(&cpaccess_sysclass);
 
-	if (!error) {
+	if (!error)
 		error = sysdev_register(&device_cpaccess);
-	} else {
+	else
 		pr_err("Error initializing cpaccess interface\n");
-		return error;
-	}
 
 	if (!error)
 		error = sysdev_create_file(&device_cpaccess,
 		 &attr_cp_rw);
 	else {
 		pr_err("Error initializing cpaccess interface\n");
-		sysdev_class_unregister(&cpaccess_sysclass);
-		return error;
+		goto exit0;
 	}
 
-	if (!error) {
-		sema_init(&cp_sem, 1);
-	} else {
-		pr_err("Error create cpaccess file interface\n");
-		sysdev_unregister(&device_cpaccess);
-		sysdev_class_unregister(&cpaccess_sysclass);
+	error = device_register(&cpaccess_dev);
+	if (error) {
+		pr_err("Error registering cpaccess device\n");
+		goto exit0;
+	}
+	error = sysfs_create_group(&cpaccess_dev.kobj, &attr_group);
+	if (error) {
+		pr_err("Error creating cpaccess sysfs group\n");
+		goto exit1;
 	}
 
+	sema_init(&cp_sem, 1);
+	return 0;
+
+exit1:
+	device_unregister(&cpaccess_dev);
+exit0:
+	sysdev_unregister(&device_cpaccess);
+	sysdev_class_unregister(&cpaccess_sysclass);
 	return error;
 }
 
@@ -352,6 +400,9 @@ static void __exit exit_cpaccess_sysfs(void)
 	sysdev_remove_file(&device_cpaccess, &attr_cp_rw);
 	sysdev_unregister(&device_cpaccess);
 	sysdev_class_unregister(&cpaccess_sysclass);
+
+	sysfs_remove_group(&cpaccess_dev.kobj, &attr_group);
+	device_unregister(&cpaccess_dev);
 }
 
 module_init(init_cpaccess_sysfs);

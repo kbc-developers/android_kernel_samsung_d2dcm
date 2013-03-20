@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,6 +13,7 @@
 #ifndef _ARCH_ARM_MACH_MSM_SMSM_H_
 #define _ARCH_ARM_MACH_MSM_SMSM_H_
 
+#include <linux/notifier.h>
 #if defined(CONFIG_MSM_N_WAY_SMSM)
 enum {
 	SMSM_APPS_STATE,
@@ -56,7 +57,7 @@ extern uint32_t SMSM_NUM_HOSTS;
 #define SMSM_PWRC              0x00000200
 #define SMSM_TIMEWAIT          0x00000400
 #define SMSM_TIMEINIT          0x00000800
-#define SMSM_PWRC_EARLY_EXIT   0x00001000
+#define SMSM_PROC_AWAKE        0x00001000
 #define SMSM_WFPI              0x00002000
 #define SMSM_SLEEP             0x00004000
 #define SMSM_SLEEPEXIT         0x00008000
@@ -93,8 +94,16 @@ extern uint32_t SMSM_NUM_HOSTS;
 #define SMSM_WLAN_TX_RINGS_EMPTY 0x00000200
 #define SMSM_WLAN_TX_ENABLE	0x00000400
 
+#define SMSM_SUBSYS2AP_STATUS         0x00008000
 
+#ifdef CONFIG_MSM_SMD
 void *smem_alloc(unsigned id, unsigned size);
+#else
+void *smem_alloc(unsigned id, unsigned size)
+{
+	return NULL;
+}
+#endif
 void *smem_alloc2(unsigned id, unsigned size_in);
 void *smem_get_entry(unsigned id, unsigned *size);
 int smsm_change_state(uint32_t smsm_entry,

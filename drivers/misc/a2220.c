@@ -15,6 +15,7 @@
  *
  */
 #include <linux/interrupt.h>
+#include <linux/module.h>
 #include <linux/i2c.h>
 #include <linux/irq.h>
 #include <linux/miscdevice.h>
@@ -175,7 +176,7 @@ static void a2220_i2c_sw_reset(struct a2220_data *a2220, unsigned int reset_cmd)
 a2220_hw_reset(struct a2220_data *a2220, struct a2220img *img)
 {
 	struct a2220img *vp = img;
-	int rc, i, pass = 0;
+	int rc = 0, i, pass = 0;
 	int remaining;
 	int retry = RETRY_CNT;
 	unsigned char *index;
@@ -599,7 +600,7 @@ static unsigned char pcm_reset[] = {
 
 static ssize_t chk_wakeup_a2220(struct a2220_data *a2220)
 {
-	int i, rc = 0, retry = 4;
+	int rc = 0, retry = 4;
 
 	if (a2220->suspended == 1) {
 		mdelay(1);
@@ -1008,7 +1009,7 @@ static long a2220_ioctl(struct file *file, unsigned int cmd,
 			struct a2220_data, device);
 	static struct task_struct *task;
 	int rc = 0;
-#if ENABLE_DIAG_IOCTLS
+#if 0
 	char msg[4];
 	int mic_cases = 0;
 	int mic_sel = 0;
@@ -1046,7 +1047,7 @@ static long a2220_ioctl(struct file *file, unsigned int cmd,
 					A2220_CONFIG_VP);
 		mutex_unlock(&a2220->lock);
 		break;
-#if ENABDIAG_IOCTLS
+#if 0
 	case A2220_SET_MIC_ONOFF:
 		mutex_lock(&a2220->lock);
 		rc = chk_wakeup_a2220(a2220);
@@ -1124,7 +1125,7 @@ static long a2220_ioctl(struct file *file, unsigned int cmd,
 			rc = exe_cmd_in_file(msg);
 		mutex_unlock(&a2220->lock);
 		break;
-#endif /* ENABLE_DIAG_IOCTLS */
+#endif
 	default:
 		pr_err("%s: invalid command %d\n", __func__, _IOC_NR(cmd));
 		rc = -EINVAL;
@@ -1197,7 +1198,7 @@ static int a2220_probe(
 	}
 
 	atomic_set(&a2220->opened, 1);
-	xo = msm_xo_get(MSM_XO_CXO, "audio_driver");
+	xo = msm_xo_get(MSM_XO_TCXO_D0, "audio_driver");
 	if (!xo) {
 		pr_err("please check the xo driver,something is wrong!!");
 		rc = -EAGAIN;

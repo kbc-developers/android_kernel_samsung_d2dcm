@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011 Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2011 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,7 +13,7 @@
 #include <linux/kernel.h>
 #include <linux/io.h>
 #include <mach/gpiomux.h>
-#include "proc_comm.h"
+#include <mach/proc_comm.h>
 #include "gpio.h"
 
 void __msm_gpiomux_write(unsigned gpio, struct gpiomux_setting val)

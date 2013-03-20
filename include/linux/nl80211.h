@@ -514,6 +514,12 @@
  *	of PMKSA caching dandidates.
  *
  * @NL80211_CMD_TDLS_OPER: Perform a high-level TDLS command (e.g. link setup).
+ *     In addition, this can be used as an event to request userspace to take
+ *     actions on TDLS links (set up a new link or tear down an existing one).
+ *     In such events, %NL80211_ATTR_TDLS_OPERATION indicates the requested
+ *     operation, %NL80211_ATTR_MAC contains the peer MAC address, and
+ *     %NL80211_ATTR_REASON_CODE the reason code to be used (only with
+ *     %NL80211_TDLS_TEARDOWN).
  * @NL80211_CMD_TDLS_MGMT: Send a TDLS management frame.
  *
  * @NL80211_CMD_UNEXPECTED_FRAME: Used by an application controlling an AP
@@ -1826,6 +1832,9 @@ enum nl80211_mpath_info {
  * @NL80211_BAND_ATTR_HT_CAPA: HT capabilities, as in the HT information IE
  * @NL80211_BAND_ATTR_HT_AMPDU_FACTOR: A-MPDU factor, as in 11n
  * @NL80211_BAND_ATTR_HT_AMPDU_DENSITY: A-MPDU density, as in 11n
+ * @NL80211_BAND_ATTR_VHT_MCS_SET: 32-byte attribute containing the MCS set as
+ *	defined in 802.11ac
+ * @NL80211_BAND_ATTR_VHT_CAPA: VHT capabilities, as in the HT information IE
  * @NL80211_BAND_ATTR_MAX: highest band attribute currently defined
  * @__NL80211_BAND_ATTR_AFTER_LAST: internal use
  */
@@ -1838,6 +1847,9 @@ enum nl80211_band_attr {
 	NL80211_BAND_ATTR_HT_CAPA,
 	NL80211_BAND_ATTR_HT_AMPDU_FACTOR,
 	NL80211_BAND_ATTR_HT_AMPDU_DENSITY,
+
+	NL80211_BAND_ATTR_VHT_MCS_SET,
+	NL80211_BAND_ATTR_VHT_CAPA,
 
 	/* keep last */
 	__NL80211_BAND_ATTR_AFTER_LAST,

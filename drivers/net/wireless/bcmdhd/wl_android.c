@@ -243,7 +243,7 @@ extern bool ap_fw_loaded;
 #if defined(CUSTOMER_HW2) || defined(CUSTOMER_HW4)
 extern char iface_name[IFNAMSIZ];
 #endif
-
+#undef WIFI_TURNOFF_DELAY
 #define WIFI_TURNOFF_DELAY	0
 /**
  * Local (static) functions and variables

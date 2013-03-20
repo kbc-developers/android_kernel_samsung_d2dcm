@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -521,6 +521,8 @@ int ov7692_sensor_config(void __user *argp)
 		break;
 	case CFG_PWR_DOWN:
 		rc = ov7692_power_down();
+		break;
+	case CFG_SET_EFFECT:
 		break;
 	default:
 		rc = -EFAULT;

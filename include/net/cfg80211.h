@@ -211,6 +211,22 @@ struct ieee80211_sta_ht_cap {
 };
 
 /**
+ * struct ieee80211_sta_vht_cap - STA's VHT capabilities
+ *
+ * This structure describes most essential parameters needed
+ * to describe 802.11ac VHT capabilities for an STA.
+ *
+ * @vht_supported: is VHT supported by the STA
+ * @cap: VHT capabilities map as described in 802.11ac spec
+ * @vht_mcs: Supported VHT MCS rates
+ */
+struct ieee80211_sta_vht_cap {
+	bool vht_supported;
+	u32 cap; /* use IEEE80211_VHT_CAP_ */
+	struct ieee80211_vht_mcs_info vht_mcs;
+};
+
+/**
  * struct ieee80211_supported_band - frequency band definition
  *
  * This structure describes a frequency band a wiphy
@@ -233,6 +249,7 @@ struct ieee80211_supported_band {
 	int n_channels;
 	int n_bitrates;
 	struct ieee80211_sta_ht_cap ht_cap;
+	struct ieee80211_sta_vht_cap vht_cap;
 };
 
 /*
@@ -2478,6 +2495,15 @@ unsigned int ieee80211_get_hdrlen_from_skb(const struct sk_buff *skb);
 unsigned int __attribute_const__ ieee80211_hdrlen(__le16 fc);
 
 /**
+ * ieee80211_get_mesh_hdrlen - get mesh extension header length
+ * @meshhdr: the mesh extension header, only the flags field
+ *	(first byte) will be accessed
+ * Returns the length of the extension header, which is always at
+ * least 6 bytes and at most 18 if address 5 and 6 are present.
+ */
+unsigned int ieee80211_get_mesh_hdrlen(struct ieee80211s_hdr *meshhdr);
+
+/**
  * DOC: Data path helpers
  *
  * In addition to generic utilities, cfg80211 also offers
@@ -3339,6 +3365,25 @@ void cfg80211_report_obss_beacon(struct wiphy *wiphy,
 int cfg80211_can_beacon_sec_chan(struct wiphy *wiphy,
 				 struct ieee80211_channel *chan,
 				 enum nl80211_channel_type channel_type);
+
+/*
+ * cfg80211_tdls_oper_request - request userspace to perform TDLS operation
+ * @dev: the device on which the operation is requested
+ * @peer: the MAC address of the peer device
+ * @oper: the requested TDLS operation (NL80211_TDLS_SETUP or
+ *	NL80211_TDLS_TEARDOWN)
+ * @reason_code: the reason code for teardown request
+ * @gfp: allocation flags
+ *
+ * This function is used to request userspace to perform TDLS operation that
+ * requires knowledge of keys, i.e., link setup or teardown when the AP
+ * connection uses encryption. This is optional mechanism for the driver to use
+ * if it can automatically determine when a TDLS link could be useful (e.g.,
+ * based on traffic and signal strength for a peer).
+ */
+void cfg80211_tdls_oper_request(struct net_device *dev, const u8 *peer,
+				enum nl80211_tdls_operation oper,
+				u16 reason_code, gfp_t gfp);
 
 /*
  * cfg80211_calculate_bitrate - calculate actual bitrate (in 100Kbps units)

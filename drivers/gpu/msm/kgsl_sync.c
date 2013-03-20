@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -69,6 +69,7 @@ static int kgsl_sync_pt_compare(struct sync_pt *a, struct sync_pt *b)
 
 struct kgsl_fence_event_priv {
 	struct kgsl_context *context;
+	unsigned int timestamp;
 };
 
 /**
@@ -85,7 +86,7 @@ static inline void kgsl_fence_event_cb(struct kgsl_device *device,
 	void *priv, u32 context_id, u32 timestamp)
 {
 	struct kgsl_fence_event_priv *ev = priv;
-	kgsl_sync_timeline_signal(ev->context->timeline, timestamp);
+	kgsl_sync_timeline_signal(ev->context->timeline, ev->timestamp);
 	kgsl_context_put(ev->context);
 	kfree(ev);
 }
@@ -125,6 +126,7 @@ int kgsl_add_fence_event(struct kgsl_device *device,
 	if (event == NULL)
 		return -ENOMEM;
 	event->context = context;
+	event->timestamp = timestamp;
 	kgsl_context_get(context);
 
 	pt = kgsl_sync_pt_create(context->timeline, timestamp);
@@ -179,7 +181,6 @@ fail_pt:
 }
 
 static const struct sync_timeline_ops kgsl_sync_timeline_ops = {
-	.driver_name = "kgsl-timeline",
 	.dup = kgsl_sync_pt_dup,
 	.has_signaled = kgsl_sync_pt_has_signaled,
 	.compare = kgsl_sync_pt_compare,
@@ -205,7 +206,9 @@ void kgsl_sync_timeline_signal(struct sync_timeline *timeline,
 {
 	struct kgsl_sync_timeline *ktimeline =
 		(struct kgsl_sync_timeline *) timeline;
-	ktimeline->last_timestamp = timestamp;
+
+	if (timestamp_cmp(timestamp, ktimeline->last_timestamp > 0))
+		ktimeline->last_timestamp = timestamp;
 	sync_timeline_signal(timeline);
 }
 

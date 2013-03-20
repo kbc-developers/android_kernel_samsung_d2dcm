@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,7 +18,6 @@
 #ifndef __MFD_PM8921_H
 #define __MFD_PM8921_H
 
-#include <linux/device.h>
 #include <linux/mfd/pm8xxx/irq.h>
 #include <linux/mfd/pm8xxx/gpio.h>
 #include <linux/mfd/pm8xxx/mpp.h>
@@ -40,8 +39,10 @@
 #define PM8921_NR_IRQS		256
 
 #define PM8921_NR_GPIOS		44
+#define PM8917_NR_GPIOS		38
 
 #define PM8921_NR_MPPS		12
+#define PM8917_NR_MPPS		10
 
 #define PM8921_GPIO_BLOCK_START	24
 #define PM8921_MPP_BLOCK_START	16
@@ -140,6 +141,7 @@ struct pm8921_platform_data {
 	struct pm8xxx_led_platform_data		*leds_pdata;
 	struct pm8xxx_vibrator_platform_data	*vibrator_pdata;
 	struct pm8xxx_ccadc_platform_data	*ccadc_pdata;
+	struct pm8xxx_pwm_platform_data		*pwm_pdata;
 };
 
 #endif

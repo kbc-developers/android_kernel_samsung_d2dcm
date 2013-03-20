@@ -38,7 +38,6 @@
 #define PWM_DEVICE	1
 
 static bool g_bampenabled;
-static u8 pwr_on;
 
 static int32_t vibe_set_pwm_freq(int nForce)
 {

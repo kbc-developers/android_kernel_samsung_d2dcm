@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2008 Google, Inc.
  * Copyright (C) 2008 HTC Corporation
- * Copyright (c) 2008-2009, 2011-2012 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2009, 2011-2012 The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -34,12 +34,11 @@
 #include <linux/slab.h>
 #include <linux/msm_audio_aac.h>
 #include <linux/memory_alloc.h>
-#include <linux/ion.h>
+#include <linux/msm_ion.h>
 
 #include <mach/msm_adsp.h>
 #include <mach/iommu.h>
 #include <mach/iommu_domains.h>
-#include <mach/msm_subsystem_map.h>
 #include <mach/qdsp5/qdsp5audppcmdi.h>
 #include <mach/qdsp5/qdsp5audppmsg.h>
 #include <mach/qdsp5/qdsp5audplaycmdi.h>
@@ -301,6 +300,7 @@ static int audio_disable(struct audio *audio)
 			rc = -EFAULT;
 		else
 			rc = 0;
+		audio->stopped = 1;
 		wake_up(&audio->write_wait);
 		wake_up(&audio->read_wait);
 		msm_adsp_disable(audio->audplay);
@@ -675,24 +675,31 @@ static void audplay_send_data(struct audio *audio, unsigned needed)
 
 static void audio_flush(struct audio *audio)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&audio->dsp_lock, flags);
 	audio->out[0].used = 0;
 	audio->out[1].used = 0;
 	audio->out_head = 0;
 	audio->out_tail = 0;
 	audio->reserved = 0;
 	audio->out_needed = 0;
+	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 	atomic_set(&audio->out_bytes, 0);
 }
 
 static void audio_flush_pcm_buf(struct audio *audio)
 {
 	uint8_t index;
+	unsigned long flags;
 
+	spin_lock_irqsave(&audio->dsp_lock, flags);
 	for (index = 0; index < PCM_BUF_MAX_COUNT; index++)
 		audio->in[index].used = 0;
 	audio->buf_refresh = 0;
 	audio->read_next = 0;
 	audio->fill_next = 0;
+	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 }
 
 static int audaac_validate_usr_config(struct msm_audio_aac_config *config)
@@ -993,7 +1000,6 @@ static long audio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case AUDIO_STOP:
 		MM_DBG("AUDIO_STOP\n");
 		rc = audio_disable(audio);
-		audio->stopped = 1;
 		audio_ioport_reset(audio);
 		audio->stopped = 0;
 		break;
@@ -1157,7 +1163,7 @@ static long audio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return rc;
 }
 /* Only useful in tunnel-mode */
-static int audaac_fsync(struct file *file, int datasync)
+static int audaac_fsync(struct file *file, loff_t a, loff_t b, int datasync)
 {
 	struct audio *audio = file->private_data;
 	struct buffer *frame;
@@ -1709,7 +1715,7 @@ static int audio_open(struct inode *inode, struct file *file)
 
 	MM_DBG("allocating mem sz = %d\n", mem_sz);
 	handle = ion_alloc(client, mem_sz, SZ_4K,
-		ION_HEAP(ION_AUDIO_HEAP_ID));
+		ION_HEAP(ION_AUDIO_HEAP_ID), 0);
 	if (IS_ERR_OR_NULL(handle)) {
 		MM_ERR("Unable to create allocate O/P buffers\n");
 		rc = -ENOMEM;
@@ -1735,11 +1741,11 @@ static int audio_open(struct inode *inode, struct file *file)
 		goto output_buff_get_flags_error;
 	}
 
-	audio->map_v_write = ion_map_kernel(client, handle, ionflag);
+	audio->map_v_write = ion_map_kernel(client, handle);
 	if (IS_ERR(audio->map_v_write)) {
 		MM_ERR("could not map write buffers,freeing instance 0x%08x\n",
-						(int)audio);
-				rc = -ENOMEM;
+				(int)audio);
+		rc = -ENOMEM;
 		goto output_buff_map_error;
 	}
 	audio->data = audio->map_v_write;
@@ -1751,10 +1757,10 @@ static int audio_open(struct inode *inode, struct file *file)
 	mem_sz = (PCM_BUFSZ_MIN * PCM_BUF_MAX_COUNT);
 	MM_DBG("allocating mem sz = %d\n", mem_sz);
 	handle = ion_alloc(client, mem_sz,
-			SZ_4K, ION_HEAP(ION_AUDIO_HEAP_ID));
+			SZ_4K, ION_HEAP(ION_AUDIO_HEAP_ID), 0);
 	if (IS_ERR_OR_NULL(handle)) {
 		MM_ERR("Unable to create allocate I/P buffers\n");
-			rc = -ENOMEM;
+		rc = -ENOMEM;
 		goto input_buff_alloc_error;
 	}
 
@@ -1778,8 +1784,7 @@ static int audio_open(struct inode *inode, struct file *file)
 		goto input_buff_get_flags_error;
 	}
 
-	audio->map_v_read = ion_map_kernel(client,
-		handle, ionflag);
+	audio->map_v_read = ion_map_kernel(client, handle);
 	if (IS_ERR(audio->map_v_read)) {
 		MM_ERR("could not map read buffers, freeing instance \
 				0x%08x\n", (int)audio);

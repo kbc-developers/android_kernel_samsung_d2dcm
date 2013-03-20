@@ -15,6 +15,10 @@
 #ifndef _LINUX_MMS_TOUCH_H
 #define _LINUX_MMS_TOUCH_H
 
+struct tsp_callbacks {
+	void (*inform_charger)(struct tsp_callbacks *tsp_cb, bool mode);
+};
+
 struct mms_ts_platform_data {
 	int	max_x;
 	int	max_y;
@@ -39,8 +43,5 @@ struct mms_ts_platform_data {
 extern struct class *sec_class;
 extern int poweroff_charging;
 extern unsigned char LCD_Get_Value(void);
-extern struct tsp_callbacks {
-	void (*inform_charger)(struct tsp_callbacks *tsp_cb, bool mode);
-};
 extern struct tsp_callbacks *charger_callbacks;
 #endif /* _LINUX_MMS_TOUCH_H */

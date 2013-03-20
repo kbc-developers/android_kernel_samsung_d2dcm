@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,10 +16,10 @@
 #include <linux/i2c.h>
 #include <linux/mfd/pmic8901.h>
 #include <mach/board.h>
-#include <mach/msm_bus_board.h>
-#include <mach/gpiomux.h>
 #include <mach/board-msm8660.h>
-#include <devices-msm8x60.h>
+#include <mach/gpiomux.h>
+#include <mach/msm_bus_board.h>
+#include "devices-msm8x60.h"
 #include "devices.h"
 
 #define GPIO_EXT_CAMIF_PWR_EN1 (PM8901_MPP_BASE + PM8901_MPPS + 13)
@@ -39,7 +39,6 @@ static struct msm_camera_sensor_flash_src msm_flash_src = {
 	._fsrc.pmic_src.led_src_2 = PMIC8058_ID_FLASH_LED_1,
 	._fsrc.pmic_src.pmic_set_current = pm8058_set_flash_led_current,
 };
-#ifdef CONFIG_IMX074
 static struct msm_camera_sensor_strobe_flash_data strobe_flash_xenon = {
 	.flash_trigger = VFE_CAMIF_TIMER2_GPIO,
 	.flash_charge = VFE_CAMIF_TIMER1_GPIO,
@@ -48,9 +47,7 @@ static struct msm_camera_sensor_strobe_flash_data strobe_flash_xenon = {
 	.irq = MSM_GPIO_TO_INT(VFE_CAMIF_TIMER3_GPIO_INT),
 };
 #endif
-#endif
 
-#ifdef CONFIG_MSM_BUS_SCALING
 static struct msm_bus_vectors cam_init_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_VFE,
@@ -360,12 +357,10 @@ static struct msm_bus_scale_pdata cam_bus_client_pdata = {
 		ARRAY_SIZE(cam_bus_client_config),
 		.name = "msm_camera",
 };
-#endif
 
 static struct msm_camera_device_platform_data msm_camera_csi_device_data[] = {
 	{
 		.csid_core = 0,
-		.is_csic = 1,
 		.is_vpe    = 1,
 		.cam_bus_scale_table = &cam_bus_client_pdata,
 		.ioclk = {
@@ -374,7 +369,6 @@ static struct msm_camera_device_platform_data msm_camera_csi_device_data[] = {
 	},
 	{
 		.csid_core = 1,
-		.is_csic = 1,
 		.is_vpe    = 1,
 		.cam_bus_scale_table = &cam_bus_client_pdata,
 		.ioclk = {
@@ -417,17 +411,15 @@ static struct msm_camera_gpio_conf msm_8x60_back_cam_gpio_conf = {
 };
 
 
-#ifdef CONFIG_IMX074
-
 static struct i2c_board_info imx074_actuator_i2c_info = {
-	I2C_BOARD_INFO("imx074_act", 0x11),
+	I2C_BOARD_INFO("msm_actuator", 0x11),
 };
 
 static struct msm_actuator_info imx074_actuator_info = {
 	.board_info     = &imx074_actuator_i2c_info,
+	.cam_name   = MSM_ACTUATOR_MAIN_CAM_0,
 	.bus_id         = MSM_GSBI4_QUP_I2C_BUS_ID,
-	.vcm_pwd        = 0,
-	.vcm_enable     = 1,
+	.vcm_enable     = 0,
 };
 
 static struct msm_camera_sensor_flash_data flash_imx074 = {
@@ -454,8 +446,6 @@ static struct msm_camera_sensor_info msm_camera_sensor_imx074_data = {
 	.camera_type = BACK_CAMERA_2D,
 	.actuator_info = &imx074_actuator_info
 };
-
-#endif
 
 static struct msm_camera_sensor_flash_data flash_mt9e013 = {
 	.flash_type	= MSM_CAMERA_FLASH_NONE,
@@ -514,8 +504,14 @@ static struct msm_camera_sensor_info msm_camera_sensor_ov7692_data = {
 	.camera_type = FRONT_CAMERA_2D,
 };
 
+static struct platform_device msm_camera_server = {
+	.name = "msm_cam_server",
+	.id = 0,
+};
+
 void __init msm8x60_init_cam(void)
 {
+	platform_device_register(&msm_camera_server);
 	platform_device_register(&msm_device_csic0);
 	platform_device_register(&msm_device_csic1);
 	platform_device_register(&msm_device_vfe);

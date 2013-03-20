@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2010, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2010, 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,17 +24,12 @@
 #define MODEM_NOTIFIER_END_RESET 0x2
 #define MODEM_NOTIFIER_SMSM_INIT 0x3
 
-#ifdef CONFIG_SEC_DEBUG_LOW_LOG
-extern unsigned long long sec_log_reserve_base;
-extern int sec_debug_is_enabled(void);
-extern unsigned sec_debug_get_reset_reason(void);
-#endif
-
 extern int modem_register_notifier(struct notifier_block *nb);
 extern int modem_unregister_notifier(struct notifier_block *nb);
 extern void modem_notify(void *data, unsigned int state);
 extern void modem_queue_start_reset_notify(void);
 extern void modem_queue_end_reset_notify(void);
 extern void modem_queue_smsm_init_notify(void);
+extern int __init msm_init_modem_notifier_list(void);
 
 #endif /* _MODEM_NOTIFIER_H */

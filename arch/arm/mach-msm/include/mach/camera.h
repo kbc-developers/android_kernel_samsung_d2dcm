@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -26,6 +26,7 @@
 #include <media/msm_camera.h>
 #include <mach/msm_subsystem_map.h>
 #include <linux/ion.h>
+#include <linux/msm_ion.h>
 
 #if defined(CONFIG_MACH_ESPRESSO_VZW)
 extern int cam_mode;

@@ -26,6 +26,7 @@
 #include <linux/i2c/fsa9485.h>
 #include <mach/msm8960-gpio.h>
 #include <linux/gpio.h>
+#include <asm/system_info.h>
 
 /* Slave address */
 #define SMB347_SLAVE_ADDR		0x0C
@@ -326,7 +327,6 @@ static void smb347_set_command_reg(struct i2c_client *client)
 
 static void smb347_enter_suspend(struct i2c_client *client)
 {
-	int val, reg;
 	u8 data = 0;
 
 	pr_info("%s: ENTER SUSPEND\n", __func__);
@@ -1685,7 +1685,7 @@ static int __devinit smb347_probe(struct i2c_client *client,
 	mutex_init(&chip->mutex);
 
 	chip->psy_bat.name = "sec-charger",
-	chip->psy_bat.type = POWER_SUPPLY_TYPE_UNKNOWN,
+	chip->psy_bat.type = POWER_SUPPLY_TYPE_BATTERY,
 	chip->psy_bat.properties = smb347_battery_props,
 	chip->psy_bat.num_properties = ARRAY_SIZE(smb347_battery_props),
 	chip->psy_bat.get_property = smb347_chg_get_property,
@@ -1702,7 +1702,7 @@ static int __devinit smb347_probe(struct i2c_client *client,
 	ret =
 		smb347_write_reg(client, SMB347_SYSOK_USB30_SELECTION, value);
 	if (ret < 0) {
-		pr_err("%s: INOK polarity setting error!\n");
+		pr_err("%s: INOK polarity setting error!\n", __func__);
 	}
 
 	ret =

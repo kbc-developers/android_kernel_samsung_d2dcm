@@ -107,7 +107,8 @@ static struct linux_binfmt script_format = {
 
 static int __init init_script_binfmt(void)
 {
-	return register_binfmt(&script_format);
+	register_binfmt(&script_format);
+	return 0;
 }
 
 static void __exit exit_script_binfmt(void)

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2009, 2012 Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2009, 2012 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2403,7 +2403,10 @@ void mdp_adjust_start_addr(uint8 **src0,
 			   uint32 width,
 			   uint32 height, int bpp, MDPIBUF *iBuf, int layer)
 {
-	*src0 += (x + y * width) * bpp;
+	if (iBuf->mdpImg.imgType == MDP_Y_CBCR_H2V2_ADRENO && layer == 0)
+		*src0 += (x + y * ALIGN(width, 32)) * bpp;
+	else
+		*src0 += (x + y * width) * bpp;
 
 	/* if it's dest/bg buffer, we need to adjust it for rotation */
 	if (layer != 0)
@@ -2414,9 +2417,14 @@ void mdp_adjust_start_addr(uint8 **src0,
 		 * MDP_Y_CBCR_H2V2/MDP_Y_CRCB_H2V2 cosite for now
 		 * we need to shift x direction same as y dir for offsite
 		 */
-		*src1 +=
-		    ((x / h_slice) * h_slice +
-		     ((y == 0) ? 0 : ((y + 1) / v_slice - 1) * width)) * bpp;
+		if (iBuf->mdpImg.imgType == MDP_Y_CBCR_H2V2_ADRENO
+							&& layer == 0)
+			*src1 += ((x / h_slice) * h_slice + ((y == 0) ? 0 :
+			(((y + 1) / v_slice - 1) * (ALIGN(width/2, 32) * 2))))
+									* bpp;
+		else
+			*src1 += ((x / h_slice) * h_slice +
+			((y == 0) ? 0 : ((y + 1) / v_slice - 1) * width)) * bpp;
 
 		/* if it's dest/bg buffer, we need to adjust it for rotation */
 		if (layer != 0)
@@ -2459,8 +2467,7 @@ void mdp_set_blend_attr(MDPIBUF *iBuf,
 			bg_alpha = PPP_BLEND_BG_USE_ALPHA_SEL |
 				PPP_BLEND_BG_ALPHA_REVERSE;
 
-			if ((perPixelAlpha) && !(iBuf->mdpImg.mdpOp &
-							MDPOP_LAYER_IS_FG)) {
+			if (perPixelAlpha) {
 				bg_alpha |= PPP_BLEND_BG_SRCPIXEL_ALPHA;
 			} else {
 				bg_alpha |= PPP_BLEND_BG_CONSTANT_ALPHA;
@@ -2471,14 +2478,10 @@ void mdp_set_blend_attr(MDPIBUF *iBuf,
 			if (iBuf->mdpImg.mdpOp & MDPOP_TRANSP)
 				*pppop_reg_ptr |= PPP_BLEND_CALPHA_TRNASP;
 		} else if (perPixelAlpha) {
-				if (iBuf->mdpImg.mdpOp & MDPOP_LAYER_IS_FG)
-					*pppop_reg_ptr |= PPP_OP_ROT_ON |
-						  PPP_OP_BLEND_ON |
-						  PPP_OP_BLEND_CONSTANT_ALPHA;
-				else
-					*pppop_reg_ptr |= PPP_OP_ROT_ON |
+				*pppop_reg_ptr |= PPP_OP_ROT_ON |
 						  PPP_OP_BLEND_ON |
 						  PPP_OP_BLEND_SRCPIXEL_ALPHA;
+				outpdw(MDP_BASE + 0x70010, 0);
 			} else {
 				if ((iBuf->mdpImg.mdpOp & MDPOP_ALPHAB)
 					&& (iBuf->mdpImg.alpha == 0xff)) {
@@ -2497,6 +2500,7 @@ void mdp_set_blend_attr(MDPIBUF *iBuf,
 				if (iBuf->mdpImg.mdpOp & MDPOP_TRANSP)
 					*pppop_reg_ptr |=
 						PPP_BLEND_CALPHA_TRNASP;
+				outpdw(MDP_BASE + 0x70010, 0);
 			}
 	} else {
 		if (perPixelAlpha) {

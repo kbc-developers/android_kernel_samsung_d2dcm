@@ -54,7 +54,7 @@ int install_user_keyrings(void)
 
 	kenter("%p{%u}", user, user->uid);
 
-	if (user->uid_keyring) {
+	if (user->uid_keyring && user->session_keyring) {
 		kleave(" = 0 [exist]");
 		return 0;
 	}
@@ -270,7 +270,7 @@ static int install_session_keyring(struct key *keyring)
 	if (!new)
 		return -ENOMEM;
 
-	ret = install_session_keyring_to_cred(new, NULL);
+	ret = install_session_keyring_to_cred(new, keyring);
 	if (ret < 0) {
 		abort_creds(new);
 		return ret;
@@ -589,9 +589,19 @@ try_again:
 			ret = install_user_keyrings();
 			if (ret < 0)
 				goto error;
-			ret = install_session_keyring(
-				cred->user->session_keyring);
+			if (lflags & KEY_LOOKUP_CREATE)
+				ret = join_session_keyring(NULL);
+			else
+				ret = install_session_keyring(
+					cred->user->session_keyring);
 
+			if (ret < 0)
+				goto error;
+			goto reget_creds;
+		} else if (cred->tgcred->session_keyring ==
+			   cred->user->session_keyring &&
+			   lflags & KEY_LOOKUP_CREATE) {
+			ret = join_session_keyring(NULL);
 			if (ret < 0)
 				goto error;
 			goto reget_creds;
@@ -647,7 +657,8 @@ try_again:
 			goto error;
 
 		down_read(&cred->request_key_auth->sem);
-		if (cred->request_key_auth->flags & KEY_FLAG_REVOKED) {
+		if (test_bit(KEY_FLAG_REVOKED,
+			     &cred->request_key_auth->flags)) {
 			key_ref = ERR_PTR(-EKEYREVOKED);
 			key = NULL;
 		} else {

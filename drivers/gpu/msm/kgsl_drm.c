@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -237,17 +237,16 @@ kgsl_gem_alloc_memory(struct drm_gem_object *obj)
 		}
 	}
 
-	if (TYPE_IS_PMEM(priv->type)) {
-		int type;
+	/* Set the flags for the memdesc (probably 0, unless it is cached) */
+	priv->memdesc.priv = 0;
 
+	if (TYPE_IS_PMEM(priv->type)) {
 		if (priv->type == DRM_KGSL_GEM_TYPE_EBI ||
 		    priv->type & DRM_KGSL_GEM_PMEM_EBI) {
-				type = PMEM_MEMTYPE_EBI1;
 				result = kgsl_sharedmem_ebimem_user(
 						&priv->memdesc,
 						priv->pagetable,
-						obj->size * priv->bufcount,
-						0);
+						obj->size * priv->bufcount);
 				if (result) {
 					DRM_ERROR(
 					"Unable to allocate PMEM memory\n");
@@ -265,7 +264,7 @@ kgsl_gem_alloc_memory(struct drm_gem_object *obj)
 
 		result = kgsl_sharedmem_page_alloc_user(&priv->memdesc,
 					priv->pagetable,
-					obj->size * priv->bufcount, 0);
+					obj->size * priv->bufcount);
 
 		if (result != 0) {
 				DRM_ERROR(
@@ -1448,6 +1447,16 @@ struct drm_ioctl_desc kgsl_drm_ioctls[] = {
 		      DRM_MASTER),
 };
 
+static const struct file_operations kgsl_drm_driver_fops = {
+	.owner = THIS_MODULE,
+	.open = drm_open,
+	.release = drm_release,
+	.unlocked_ioctl = drm_ioctl,
+	.mmap = msm_drm_gem_mmap,
+	.poll = drm_poll,
+	.fasync = drm_fasync,
+};
+
 static struct drm_driver driver = {
 	.driver_features = DRIVER_GEM,
 	.load = kgsl_drm_load,
@@ -1459,17 +1468,7 @@ static struct drm_driver driver = {
 	.gem_init_object = kgsl_gem_init_object,
 	.gem_free_object = kgsl_gem_free_object,
 	.ioctls = kgsl_drm_ioctls,
-
-	.fops = {
-		 .owner = THIS_MODULE,
-		 .open = drm_open,
-		 .release = drm_release,
-		 .unlocked_ioctl = drm_ioctl,
-		 .mmap = msm_drm_gem_mmap,
-		 .poll = drm_poll,
-		 .fasync = drm_fasync,
-		 },
-
+	.fops = &kgsl_drm_driver_fops,
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
 	.date = DRIVER_DATE,

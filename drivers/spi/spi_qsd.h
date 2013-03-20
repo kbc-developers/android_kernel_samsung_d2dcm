@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -187,7 +187,7 @@ struct spi_dmov_cmd {
 	dma_addr_t cmd_ptr;
 };
 
-static struct pm_qos_request_list qos_req_list;
+static struct pm_qos_request qos_req_list;
 
 #ifdef CONFIG_DEBUG_FS
 /* Used to create debugfs entries */
@@ -285,6 +285,7 @@ struct msm_spi {
 	int                      output_block_size;
 	int                      burst_size;
 	atomic_t                 rx_irq_called;
+	atomic_t                 tx_irq_called;
 	/* Used to pad messages unaligned to block size */
 	u8                       *tx_padding;
 	dma_addr_t               tx_padding_dma;
@@ -321,6 +322,7 @@ struct msm_spi {
 	/* SPI CS GPIOs for each slave */
 	struct spi_cs_gpio       cs_gpios[ARRAY_SIZE(spi_cs_rsrcs)];
 	int                      qup_ver;
+	int			 max_trfr_len;
 };
 
 /* Forward declaration */

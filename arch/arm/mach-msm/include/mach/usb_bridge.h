@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,10 +17,8 @@
 #include <linux/netdevice.h>
 #include <linux/usb.h>
 
-/* bridge device 0: DUN
- * bridge device 1 : Tethered RMNET
- */
-#define MAX_BRIDGE_DEVICES 2
+#define MAX_BRIDGE_DEVICES 4
+#define BRIDGE_NAME_MAX_LEN 20
 
 struct bridge_ops {
 	int (*send_pkt)(void *, void *, size_t actual);
@@ -37,16 +35,54 @@ struct bridge {
 	/* context of the gadget port using bridge driver */
 	void *ctx;
 
-	/* bridge device array index mapped to the gadget port array index.
-	 * data bridge[ch_id] <-- bridge --> gadget port[ch_id]
-	 */
+	/*to maps bridge driver instance*/
 	unsigned int ch_id;
+
+	/*to match against bridge xport name to get bridge driver instance*/
+	char *name;
 
 	/* flow control bits */
 	unsigned long flags;
 
 	/* data/ctrl bridge callbacks */
 	struct bridge_ops ops;
+};
+
+/**
+ * timestamp_info: stores timestamp info for skb life cycle during data
+ * transfer for tethered rmnet/DUN.
+ * @created: stores timestamp at the time of creation of SKB.
+ * @rx_queued: stores timestamp when SKB queued to HW to receive
+ * data.
+ * @rx_done: stores timestamp when skb queued to h/w is completed.
+ * @rx_done_sent: stores timestamp when SKB is sent from gadget rmnet/DUN
+ * driver to bridge rmnet/DUN driver or vice versa.
+ * @tx_queued: stores timestamp when SKB is queued to send data.
+ *
+ * note that size of this struct shouldnt exceed 48bytes that's the max skb->cb
+ * holds.
+ */
+struct timestamp_info {
+	struct data_bridge	*dev;
+
+	unsigned int		created;
+	unsigned int		rx_queued;
+	unsigned int		rx_done;
+	unsigned int		rx_done_sent;
+	unsigned int		tx_queued;
+};
+
+/* Maximum timestamp message length */
+#define DBG_DATA_MSG	128UL
+
+/* Maximum timestamp messages */
+#define DBG_DATA_MAX	32UL
+
+/* timestamp buffer descriptor */
+struct timestamp_buf {
+	char		(buf[DBG_DATA_MAX])[DBG_DATA_MSG];   /* buffer */
+	unsigned	idx;   /* index */
+	rwlock_t	lck;   /* lock */
 };
 
 #if defined(CONFIG_USB_QCOM_MDM_BRIDGE) ||	\
@@ -64,7 +100,10 @@ int data_bridge_write(unsigned int , struct sk_buff *);
 int data_bridge_unthrottle_rx(unsigned int);
 
 /* defined in control bridge */
-int ctrl_bridge_probe(struct usb_interface *, struct usb_host_endpoint *, int);
+int ctrl_bridge_init(void);
+void ctrl_bridge_exit(void);
+int ctrl_bridge_probe(struct usb_interface *, struct usb_host_endpoint *,
+		char *, int);
 void ctrl_bridge_disconnect(unsigned int);
 int ctrl_bridge_resume(unsigned int);
 int ctrl_bridge_suspend(unsigned int);
@@ -115,4 +154,5 @@ static inline int __maybe_unused data_bridge_unthrottle_rx(unsigned int id)
 }
 
 #endif
+
 #endif

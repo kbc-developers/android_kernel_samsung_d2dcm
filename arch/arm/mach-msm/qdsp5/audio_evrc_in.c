@@ -2,7 +2,7 @@
  *
  * evrc audio input device
  *
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This code is based in part on arch/arm/mach-msm/qdsp5v2/audio_evrc_in.c,
  * Copyright (C) 2008 Google, Inc.
@@ -33,7 +33,7 @@
 
 
 #include <linux/memory_alloc.h>
-#include <linux/ion.h>
+#include <linux/msm_ion.h>
 
 #include <asm/atomic.h>
 #include <asm/ioctls.h>
@@ -42,7 +42,6 @@
 #include <mach/msm_rpcrouter.h>
 #include <mach/iommu.h>
 #include <mach/iommu_domains.h>
-#include <mach/msm_subsystem_map.h>
 
 #include "audmgr.h"
 
@@ -285,6 +284,8 @@ static int audevrc_in_disable(struct audio_evrc_in *audio)
 		wake_up(&audio->wait);
 		wait_event_interruptible_timeout(audio->wait_enable,
 				audio->running == 0, 1*HZ);
+		audio->stopped = 1;
+		wake_up(&audio->wait);
 		msm_adsp_disable(audio->audrec);
 		if (audio->mode == MSM_AUD_ENC_MODE_TUNNEL) {
 			msm_adsp_disable(audio->audpre);
@@ -659,21 +660,23 @@ static void audevrc_ioport_reset(struct audio_evrc_in *audio)
 	 * sleep and knowing that system is not able
 	 * to process io request at the moment
 	 */
-	wake_up(&audio->write_wait);
-	mutex_lock(&audio->write_lock);
-	audevrc_in_flush(audio);
-	mutex_unlock(&audio->write_lock);
 	wake_up(&audio->wait);
 	mutex_lock(&audio->read_lock);
-	audevrc_out_flush(audio);
+	audevrc_in_flush(audio);
 	mutex_unlock(&audio->read_lock);
+	wake_up(&audio->write_wait);
+	mutex_lock(&audio->write_lock);
+	audevrc_out_flush(audio);
+	mutex_unlock(&audio->write_lock);
 }
 
 static void audevrc_in_flush(struct audio_evrc_in *audio)
 {
 	int i;
+	unsigned long flags;
 
 	audio->dsp_cnt = 0;
+	spin_lock_irqsave(&audio->dsp_lock, flags);
 	audio->in_head = 0;
 	audio->in_tail = 0;
 	audio->in_count = 0;
@@ -682,6 +685,7 @@ static void audevrc_in_flush(struct audio_evrc_in *audio)
 		audio->in[i].size = 0;
 		audio->in[i].read = 0;
 	}
+	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 	MM_DBG("in_bytes %d\n", atomic_read(&audio->in_bytes));
 	MM_DBG("in_samples %d\n", atomic_read(&audio->in_samples));
 	atomic_set(&audio->in_bytes, 0);
@@ -691,15 +695,18 @@ static void audevrc_in_flush(struct audio_evrc_in *audio)
 static void audevrc_out_flush(struct audio_evrc_in *audio)
 {
 	int i;
+	unsigned long flags;
 
 	audio->out_head = 0;
-	audio->out_tail = 0;
 	audio->out_count = 0;
+	spin_lock_irqsave(&audio->dsp_lock, flags);
+	audio->out_tail = 0;
 	for (i = OUT_FRAME_NUM-1; i >= 0; i--) {
 		audio->out[i].size = 0;
 		audio->out[i].read = 0;
 		audio->out[i].used = 0;
 	}
+	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 }
 
 /* ------------------- device --------------------- */
@@ -739,7 +746,6 @@ static long audevrc_in_ioctl(struct file *file,
 	}
 	case AUDIO_STOP: {
 		rc = audevrc_in_disable(audio);
-		audio->stopped = 1;
 		break;
 	}
 	case AUDIO_FLUSH: {
@@ -797,13 +803,15 @@ static long audevrc_in_ioctl(struct file *file,
 		}
 		/* Allow only single frame */
 		if (audio->mode == MSM_AUD_ENC_MODE_TUNNEL) {
-			if (cfg.buffer_size != (FRAME_SIZE - 8))
+			if (cfg.buffer_size != (FRAME_SIZE - 8)) {
 				rc = -EINVAL;
 				break;
+			}
 		} else {
-			if (cfg.buffer_size != (EVRC_FRAME_SIZE + 14))
+			if (cfg.buffer_size != (EVRC_FRAME_SIZE + 14)) {
 				rc = -EINVAL;
 				break;
+			}
 		}
 		audio->buffer_size = cfg.buffer_size;
 		break;
@@ -999,7 +1007,8 @@ static void audrec_pcm_send_data(struct audio_evrc_in *audio, unsigned needed)
 	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 }
 
-static int audevrc_in_fsync(struct file *file,	int datasync)
+static int audevrc_in_fsync(struct file *file, loff_t a, loff_t b,
+	int datasync)
 
 {
 	struct audio_evrc_in *audio = file->private_data;
@@ -1302,7 +1311,7 @@ static int audevrc_in_open(struct inode *inode, struct file *file)
 
 	MM_DBG("allocating mem sz = %d\n", dma_size);
 	handle = ion_alloc(client, dma_size, SZ_4K,
-		ION_HEAP(ION_AUDIO_HEAP_ID));
+		ION_HEAP(ION_AUDIO_HEAP_ID), 0);
 	if (IS_ERR_OR_NULL(handle)) {
 		MM_ERR("Unable to create allocate O/P buffers\n");
 		rc = -ENOMEM;
@@ -1330,22 +1339,22 @@ static int audevrc_in_open(struct inode *inode, struct file *file)
 		goto output_buff_get_flags_error;
 	}
 
-	audio->map_v_read = ion_map_kernel(client, handle, ionflag);
+	audio->map_v_read = ion_map_kernel(client, handle);
 	if (IS_ERR(audio->map_v_read)) {
 		MM_ERR("could not map read buffers,freeing instance 0x%08x\n",
 				(int)audio);
-			rc = -ENOMEM;
+		rc = -ENOMEM;
 		goto output_buff_map_error;
 	}
 	audio->data = audio->map_v_read;
-		MM_DBG("read buf: phy addr 0x%08x kernel addr 0x%08x\n",
-				audio->phys, (int)audio->data);
+	MM_DBG("read buf: phy addr 0x%08x kernel addr 0x%08x\n",
+		audio->phys, (int)audio->data);
 
 	audio->out_data = NULL;
 	if (audio->mode == MSM_AUD_ENC_MODE_NONTUNNEL) {
 		MM_DBG("allocating BUFFER_SIZE  %d\n", BUFFER_SIZE);
 		handle = ion_alloc(client, BUFFER_SIZE,
-				SZ_4K, ION_HEAP(ION_AUDIO_HEAP_ID));
+				SZ_4K, ION_HEAP(ION_AUDIO_HEAP_ID), 0);
 		if (IS_ERR_OR_NULL(handle)) {
 			MM_ERR("Unable to create allocate I/P buffers\n");
 			rc = -ENOMEM;
@@ -1375,11 +1384,10 @@ static int audevrc_in_open(struct inode *inode, struct file *file)
 			goto input_buff_alloc_error;
 		}
 
-		audio->map_v_write = ion_map_kernel(client,
-			handle, ionflag);
+		audio->map_v_write = ion_map_kernel(client, handle);
 		if (IS_ERR(audio->map_v_write)) {
 			MM_ERR("could not map write buffers\n");
-				rc = -ENOMEM;
+			rc = -ENOMEM;
 			goto input_buff_map_error;
 		}
 		audio->out_data = audio->map_v_write;

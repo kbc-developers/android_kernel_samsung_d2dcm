@@ -585,7 +585,7 @@ int wiphy_register(struct wiphy *wiphy)
 	}
 
 	/* set up regulatory info */
-	wiphy_update_regulatory(wiphy, NL80211_REGDOM_SET_BY_CORE);
+	regulatory_update(wiphy, NL80211_REGDOM_SET_BY_CORE);
 
 	list_add_rcu(&rdev->list, &cfg80211_rdev_list);
 	cfg80211_rdev_list_generation++;
@@ -619,6 +619,9 @@ int wiphy_register(struct wiphy *wiphy)
 	if (res)
 		goto out_rm_dev;
 
+	rtnl_lock();
+	rdev->wiphy.registered = true;
+	rtnl_unlock();
 	return 0;
 
 out_rm_dev:
@@ -649,6 +652,10 @@ EXPORT_SYMBOL(wiphy_rfkill_stop_polling);
 void wiphy_unregister(struct wiphy *wiphy)
 {
 	struct cfg80211_registered_device *rdev = wiphy_to_dev(wiphy);
+
+	rtnl_lock();
+	rdev->wiphy.registered = false;
+	rtnl_unlock();
 
 	rfkill_unregister(rdev->rfkill);
 
@@ -925,7 +932,8 @@ static int cfg80211_netdev_notifier_call(struct notifier_block * nb,
 		 * Configure power management to the driver here so that its
 		 * correctly set also after interface type changes etc.
 		 */
-		if (wdev->iftype == NL80211_IFTYPE_STATION &&
+		if ((wdev->iftype == NL80211_IFTYPE_STATION ||
+		     wdev->iftype == NL80211_IFTYPE_P2P_CLIENT) &&
 		    rdev->ops->set_power_mgmt)
 			if (rdev->ops->set_power_mgmt(wdev->wiphy, dev,
 						      wdev->ps,

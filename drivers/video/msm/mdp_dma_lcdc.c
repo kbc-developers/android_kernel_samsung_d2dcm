@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2008-2009, 2012-2013 The Linux Foundation. All rights
- * reserved.
+ * Copyright (c) 2008-2009, 2012-2013 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -52,6 +51,24 @@ extern uint32 mdp_intr_mask;
 
 int first_pixel_start_x;
 int first_pixel_start_y;
+
+ssize_t mdp_dma_lcdc_show_event(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+
+	if (atomic_read(&vsync_cntrl.suspend) > 0 ||
+		atomic_read(&vsync_cntrl.vsync_resume) == 0)
+		return 0;
+
+	INIT_COMPLETION(vsync_cntrl.vsync_wait);
+
+	wait_for_completion(&vsync_cntrl.vsync_wait);
+	ret = snprintf(buf, PAGE_SIZE, "VSYNC=%llu",
+			ktime_to_ns(vsync_cntrl.vsync_time));
+	buf[strlen(buf) + 1] = '\0';
+	return ret;
+}
 
 int mdp_lcdc_on(struct platform_device *pdev)
 {
@@ -254,6 +271,12 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	ctrl_polarity =
 	    (data_en_polarity << 2) | (vsync_polarity << 1) | (hsync_polarity);
 
+	if (!(mfd->cont_splash_done)) {
+		mdp_pipe_ctrl(MDP_CMD_BLOCK,
+			MDP_BLOCK_POWER_OFF, FALSE);
+		MDP_OUTP(MDP_BASE + timer_base, 0);
+	}
+
 	MDP_OUTP(MDP_BASE + timer_base + 0x4, hsync_ctrl);
 	MDP_OUTP(MDP_BASE + timer_base + 0x8, vsync_period);
 	MDP_OUTP(MDP_BASE + timer_base + 0xc, vsync_pulse_width * hsync_period);
@@ -322,6 +345,9 @@ int mdp_lcdc_off(struct platform_device *pdev)
 
 	ret = panel_next_off(pdev);
 	up(&mfd->dma->mutex);
+	atomic_set(&vsync_cntrl.suspend, 1);
+	atomic_set(&vsync_cntrl.vsync_resume, 0);
+	complete_all(&vsync_cntrl.vsync_wait);
 
 	/* delay to make sure the last frame finishes */
 	msleep(16);
@@ -331,18 +357,34 @@ int mdp_lcdc_off(struct platform_device *pdev)
 
 void mdp_dma_lcdc_vsync_ctrl(int enable)
 {
+	unsigned long flag;
+	int disabled_clocks;
 	if (vsync_cntrl.vsync_irq_enabled == enable)
 		return;
 
-	vsync_cntrl.vsync_irq_enabled = enable;
+	spin_lock_irqsave(&mdp_spin_lock, flag);
+	if (!enable)
+		INIT_COMPLETION(vsync_cntrl.vsync_wait);
 
-	if (enable) {
+	vsync_cntrl.vsync_irq_enabled = enable;
+	if (!enable)
+		vsync_cntrl.disabled_clocks = 0;
+	disabled_clocks = vsync_cntrl.disabled_clocks;
+	spin_unlock_irqrestore(&mdp_spin_lock, flag);
+
+	if (enable && disabled_clocks) {
 		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
-		mdp3_vsync_irq_enable(LCDC_FRAME_START, MDP_VSYNC_TERM);
-	} else {
-		mdp3_vsync_irq_disable(LCDC_FRAME_START, MDP_VSYNC_TERM);
-		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+		spin_lock_irqsave(&mdp_spin_lock, flag);
+		outp32(MDP_INTR_CLEAR, LCDC_FRAME_START);
+		mdp_intr_mask |= LCDC_FRAME_START;
+		outp32(MDP_INTR_ENABLE, mdp_intr_mask);
+		mdp_enable_irq(MDP_VSYNC_TERM);
+		spin_unlock_irqrestore(&mdp_spin_lock, flag);
 	}
+
+	if (vsync_cntrl.vsync_irq_enabled &&
+		atomic_read(&vsync_cntrl.suspend) == 0)
+		atomic_set(&vsync_cntrl.vsync_resume, 1);
 }
 
 void mdp_lcdc_update(struct msm_fb_data_type *mfd)

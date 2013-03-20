@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -295,6 +295,11 @@ static u32 ddl_set_dec_property(struct ddl_client_context *ddl,
 		}
 	}
 	break;
+	case VCD_I_SET_TURBO_CLK:
+	{
+		vcd_status = VCD_S_SUCCESS;
+	}
+	break;
 	case VCD_I_BUFFER_FORMAT:
 	{
 		struct vcd_property_buffer_format *tile =
@@ -309,6 +314,61 @@ static u32 ddl_set_dec_property(struct ddl_client_context *ddl,
 				decoder->buf_format = *tile;
 				ddl_set_default_decoder_buffer_req(
 					decoder, true);
+			}
+			vcd_status = VCD_S_SUCCESS;
+		}
+	}
+	break;
+	case VCD_I_SET_EXT_METABUFFER:
+	{
+		int index, buffer_size;
+		u8 *phys_addr;
+		u8 *virt_addr;
+		struct vcd_property_meta_buffer *meta_buffer =
+			(struct vcd_property_meta_buffer *) property_value;
+		DDL_MSG_LOW("Entered VCD_I_SET_EXT_METABUFFER Virt: %p,"\
+					"Phys %p, fd: %d size: %d count: %d",
+					meta_buffer->kernel_virtual_addr,
+					meta_buffer->physical_addr,
+					meta_buffer->pmem_fd,
+					meta_buffer->size, meta_buffer->count);
+		if ((property_hdr->sz == sizeof(struct
+			vcd_property_meta_buffer)) &&
+			(DDLCLIENT_STATE_IS(ddl,
+			DDL_CLIENT_WAIT_FOR_INITCODEC) ||
+			DDLCLIENT_STATE_IS(ddl, DDL_CLIENT_WAIT_FOR_DPB) ||
+			DDLCLIENT_STATE_IS(ddl, DDL_CLIENT_OPEN))) {
+			phys_addr = meta_buffer->dev_addr;
+			virt_addr = meta_buffer->kernel_virtual_addr;
+			buffer_size = meta_buffer->size/meta_buffer->count;
+
+			for (index = 0; index < meta_buffer->count; index++) {
+				ddl->codec_data.decoder.hw_bufs.
+					meta_hdr[index].align_physical_addr
+					= phys_addr;
+				ddl->codec_data.decoder.hw_bufs.
+					meta_hdr[index].align_virtual_addr
+					= virt_addr;
+				ddl->codec_data.decoder.hw_bufs.
+					meta_hdr[index].buffer_size
+					= buffer_size;
+				ddl->codec_data.decoder.hw_bufs.
+					meta_hdr[index].physical_base_addr
+					= phys_addr;
+				ddl->codec_data.decoder.hw_bufs.
+					meta_hdr[index].virtual_base_addr
+					= virt_addr;
+
+				DDL_MSG_LOW("Meta Buffer: "\
+							"Assigned %d buffer for "
+							"virt: %p, phys %p for "
+							"meta_buffers "
+							"of size: %d\n",
+							index, virt_addr,
+							phys_addr, buffer_size);
+
+				phys_addr += buffer_size;
+				virt_addr += buffer_size;
 			}
 			vcd_status = VCD_S_SUCCESS;
 		}
@@ -370,6 +430,13 @@ static u32 ddl_set_dec_property(struct ddl_client_context *ddl,
 	case VCD_I_FREE_H264_MV_BUFFER:
 		{
 			memset(&decoder->hw_bufs.h264_mv, 0, sizeof(struct
+					ddl_buf_addr) * DDL_MAX_BUFFER_COUNT);
+			vcd_status = VCD_S_SUCCESS;
+		}
+		break;
+	case VCD_I_FREE_EXT_METABUFFER:
+		{
+			memset(&decoder->hw_bufs.meta_hdr, 0, sizeof(struct
 					ddl_buf_addr) * DDL_MAX_BUFFER_COUNT);
 			vcd_status = VCD_S_SUCCESS;
 		}
@@ -978,6 +1045,7 @@ static u32 ddl_set_enc_property(struct ddl_client_context *ddl,
 		u32 num_mb, num_slices;
 		struct vcd_property_hdr slice_property_hdr;
 		struct vcd_property_meta_data_enable slice_meta_data;
+		slice_meta_data.meta_data_enable_flag = 0;
 		DDL_MSG_HIGH("Set property VCD_I_SLICE_DELIVERY_MODE\n");
 		if (sizeof(u32) == property_hdr->sz &&
 			encoder->codec.codec == VCD_CODEC_H264 &&
@@ -1044,6 +1112,34 @@ static u32 ddl_set_enc_property(struct ddl_client_context *ddl,
 	case VCD_REQ_PERF_LEVEL:
 		vcd_status = VCD_S_SUCCESS;
 		break;
+	case VCD_I_ENABLE_DELIMITER_FLAG:
+	{
+		struct vcd_property_avc_delimiter_enable *delimiter_enable =
+			(struct vcd_property_avc_delimiter_enable *)
+				property_value;
+		if (sizeof(struct vcd_property_avc_delimiter_enable) ==
+			property_hdr->sz &&
+			encoder->codec.codec == VCD_CODEC_H264) {
+			encoder->avc_delimiter_enable =
+			delimiter_enable->avc_delimiter_enable_flag;
+			vcd_status = VCD_S_SUCCESS;
+		}
+		break;
+	}
+	case VCD_I_ENABLE_VUI_TIMING_INFO:
+	{
+		struct vcd_property_vui_timing_info_enable *vui_timing_enable =
+			(struct vcd_property_vui_timing_info_enable *)
+				property_value;
+		if (sizeof(struct vcd_property_vui_timing_info_enable) ==
+			property_hdr->sz &&
+			encoder->codec.codec == VCD_CODEC_H264) {
+			encoder->vui_timinginfo_enable =
+			vui_timing_enable->vui_timing_info;
+			vcd_status = VCD_S_SUCCESS;
+		}
+		break;
+	}
 	default:
 		DDL_MSG_ERROR("INVALID ID %d\n", (int)property_hdr->prop_id);
 		vcd_status = VCD_ERR_ILLEGAL_OP;
@@ -1215,6 +1311,13 @@ static u32 ddl_get_dec_property(struct ddl_client_context *ddl,
 	case VCD_I_DISABLE_DMX_SUPPORT:
 		if (sizeof(u32) == property_hdr->sz) {
 			*(u32 *)property_value = res_trk_get_disable_dmx();
+			vcd_status = VCD_S_SUCCESS;
+		}
+	break;
+	case VCD_I_ENABLE_SEC_METADATA:
+		if (sizeof(u32) == property_hdr->sz) {
+			*(u32 *)property_value =
+				res_trk_get_enable_sec_metadata();
 			vcd_status = VCD_S_SUCCESS;
 		}
 	break;
@@ -1527,6 +1630,24 @@ static u32 ddl_get_enc_property(struct ddl_client_context *ddl,
 			vcd_status = VCD_S_SUCCESS;
 		}
 		break;
+	case VCD_I_ENABLE_DELIMITER_FLAG:
+		if (sizeof(struct vcd_property_avc_delimiter_enable) ==
+			property_hdr->sz) {
+			((struct vcd_property_avc_delimiter_enable *)
+				property_value)->avc_delimiter_enable_flag =
+					encoder->avc_delimiter_enable;
+			vcd_status = VCD_S_SUCCESS;
+		}
+		break;
+	case VCD_I_ENABLE_VUI_TIMING_INFO:
+		if (sizeof(struct vcd_property_vui_timing_info_enable) ==
+			property_hdr->sz) {
+			((struct vcd_property_vui_timing_info_enable *)
+				property_value)->vui_timing_info =
+					encoder->vui_timinginfo_enable;
+			vcd_status = VCD_S_SUCCESS;
+		}
+		break;
 	default:
 		vcd_status = VCD_ERR_ILLEGAL_OP;
 		break;
@@ -1597,6 +1718,7 @@ static u32 ddl_set_enc_dynamic_property(struct ddl_client_context *ddl,
 			vcd_status = VCD_S_SUCCESS;
 		}
 	}
+	break;
 	case VCD_I_INTRA_REFRESH:
 	{
 		struct vcd_property_intra_refresh_mb_number
@@ -1687,6 +1809,8 @@ static void ddl_set_default_enc_property(struct ddl_client_context *ddl)
 	encoder->slice_delivery_info.enable = 0;
 	encoder->slice_delivery_info.num_slices = 0;
 	encoder->slice_delivery_info.num_slices_enc = 0;
+	encoder->avc_delimiter_enable = 0;
+	encoder->vui_timinginfo_enable = 0;
 }
 
 static void ddl_set_default_enc_profile(struct ddl_encoder_data *encoder)
@@ -1857,6 +1981,7 @@ u32 ddl_set_default_decoder_buffer_req(struct ddl_decoder_data *decoder,
 	struct vcd_buffer_requirement *input_buf_req;
 	struct vcd_buffer_requirement *output_buf_req;
 	u32  min_dpb, y_cb_cr_size;
+	u32  frame_height_actual = 0;
 
 	if (!decoder->codec.codec)
 		return false;
@@ -1864,7 +1989,7 @@ u32 ddl_set_default_decoder_buffer_req(struct ddl_decoder_data *decoder,
 		if (!decoder->cont_mode)
 			min_dpb = ddl_decoder_min_num_dpb(decoder);
 		else
-			min_dpb = 5;
+			min_dpb = res_trk_get_min_dpb_count();
 		frame_size = &decoder->client_frame_size;
 		output_buf_req = &decoder->client_output_buf_req;
 		input_buf_req = &decoder->client_input_buf_req;
@@ -1877,7 +2002,21 @@ u32 ddl_set_default_decoder_buffer_req(struct ddl_decoder_data *decoder,
 		output_buf_req = &decoder->actual_output_buf_req;
 		input_buf_req = &decoder->actual_input_buf_req;
 		min_dpb = decoder->min_dpb_num;
-		y_cb_cr_size = decoder->y_cb_cr_size;
+		if ((decoder->buf_format.buffer_format ==
+			VCD_BUFFER_FORMAT_TILE_4x2) &&
+			(frame_size->height < MDP_MIN_TILE_HEIGHT)) {
+			frame_height_actual = frame_size->height;
+			frame_size->height = MDP_MIN_TILE_HEIGHT;
+			ddl_calculate_stride(frame_size,
+				!decoder->progressive_only);
+			y_cb_cr_size = ddl_get_yuv_buffer_size(
+				frame_size,
+				&decoder->buf_format,
+				(!decoder->progressive_only),
+				decoder->hdr.decoding, NULL);
+			decoder->y_cb_cr_size = y_cb_cr_size;
+		} else
+			y_cb_cr_size = decoder->y_cb_cr_size;
 	}
 	memset(output_buf_req, 0,
 		sizeof(struct vcd_buffer_requirement));
@@ -1905,6 +2044,10 @@ u32 ddl_set_default_decoder_buffer_req(struct ddl_decoder_data *decoder,
 	input_buf_req->sz = (1024 * 1024 * 2);
 	input_buf_req->align = DDL_LINEAR_BUFFER_ALIGN_BYTES;
 	decoder->min_input_buf_req = *input_buf_req;
+	if (frame_height_actual) {
+		frame_size->height = frame_height_actual;
+		ddl_calculate_stride(frame_size, !decoder->progressive_only);
+	}
 	return true;
 }
 

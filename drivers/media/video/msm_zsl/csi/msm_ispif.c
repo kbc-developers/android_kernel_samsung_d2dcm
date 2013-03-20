@@ -11,6 +11,7 @@
  */
 
 #include <linux/delay.h>
+#include <linux/module.h>
 #include <linux/clk.h>
 #include <linux/io.h>
 /*[[ aswoogi_zsl*/
@@ -400,7 +401,6 @@ static int msm_ispif_abort_intf_transfer(uint8_t intf)
 #ifdef QC_TEST				/*aswoogi_zsl */
 static int msm_ispif_start_intf_transfer(uint8_t intfmask)
 {
-	uint32_t data;
 	uint8_t intf_cmd_mask = 0x55;
 	int rc = 0;
 
@@ -873,6 +873,7 @@ static long msm_ispif_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd,
 	default:
 		return -ENOIOCTLCMD;
 	}
+	return 0;
 }
 
 static struct v4l2_subdev_core_ops msm_ispif_subdev_core_ops = {

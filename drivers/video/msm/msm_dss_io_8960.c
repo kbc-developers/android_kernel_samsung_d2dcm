@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -46,8 +46,6 @@
 #define SW_RESET BIT(2)
 #define SW_RESET_PLL BIT(0)
 #define PWRDN_B BIT(7)
-
-void mipi_dsi_phy_rdy_poll(void);
 
 /* multimedia sub system clock control */
 char *mmss_cc_base = MSM_MMSS_CLK_CTL_BASE;
@@ -321,10 +319,6 @@ void mipi_dsi_phy_rdy_poll(void)
 		i++;
 		if (i > term_cnt) {
 			pr_err("DSI1 PHY NOT READY, exceeded polling TIMEOUT!\n");
-			/*adding Fatal error to check proper stack*/
-			#if defined(CONFIG_MACH_JAGUAR)
-			panic("mipi_dsi_phy_rdy_poll_timeout!!!\n");
-			#endif
 			break;
 		}
 		phy_pll_busy = MIPI_INP(MIPI_DSI_BASE + 0x280);
@@ -332,7 +326,10 @@ void mipi_dsi_phy_rdy_poll(void)
 }
 
 #define PREF_DIV_RATIO 27
+#define VCO_MINIMUM 600
 struct dsiphy_pll_divider_config pll_divider_config;
+u32 vco_level_100;
+u32 vco_min_allowed;
 
 int mipi_dsi_phy_pll_config(u32 clk_rate)
 {
@@ -374,10 +371,35 @@ int mipi_dsi_phy_pll_config(u32 clk_rate)
 	return 0;
 }
 
+void mipi_dsi_configure_fb_divider(u32 fps_level)
+{
+	u32 fb_div_req, fb_div_req_by_2;
+	u32 vco_required;
+
+	vco_required = vco_level_100 * fps_level/100;
+	if (vco_required < vco_min_allowed) {
+		printk(KERN_WARNING "Can not change fps. Min level allowed is \
+	%d \n", (vco_min_allowed * 100 / vco_level_100) + 1);
+		return;
+	}
+
+	fb_div_req = vco_required * PREF_DIV_RATIO / 27;
+	fb_div_req_by_2 = (fb_div_req / 2) - 1;
+
+	pll_divider_config.fb_divider = fb_div_req;
+
+	/* DSIPHY_PLL_CTRL_1 */
+	MIPI_OUTP(MIPI_DSI_BASE + 0x204, fb_div_req_by_2 & 0xff);
+	wmb();
+}
+
 int mipi_dsi_clk_div_config(uint8 bpp, uint8 lanes,
 			    uint32 *expected_dsi_pclk)
 {
 	u32 fb_divider, rate, vco;
+	u32 fb_div_min, fb_div_by_2_min,
+			 fb_div_by_2;
+	u32 vco_level_75;
 	u32 div_ratio = 0;
 	struct dsi_clk_mnd_table const *mnd_entry = mnd_table;
 	if (pll_divider_config.clk_rate == 0)
@@ -419,6 +441,17 @@ int mipi_dsi_clk_div_config(uint8 bpp, uint8 lanes,
 			pll_divider_config.bit_clk_divider * 8;
 	pll_divider_config.dsi_clk_divider =
 			(mnd_entry->dsiclk_div) * div_ratio;
+
+	vco_level_100 = vco;
+	fb_div_by_2 = (fb_divider / 2) - 1;
+	fb_div_by_2_min = (fb_div_by_2 / 256) * 256;
+	fb_div_min = (fb_div_by_2_min + 1) * 2;
+	vco_min_allowed = (fb_div_min * 27 / PREF_DIV_RATIO);
+	vco_level_75 = vco_level_100 * 75 / 100;
+	if (vco_min_allowed < VCO_MINIMUM)
+		vco_min_allowed = VCO_MINIMUM;
+	if (vco_min_allowed < vco_level_75)
+		vco_min_allowed = vco_level_75;
 
 	if (mnd_entry->dsiclk_d == 0) {
 		dsicore_clk.mnd_mode = 0;
@@ -578,9 +611,7 @@ void mipi_dsi_phy_init(int panel_ndx, struct msm_panel_info const *panel_info,
 		off += 4;
 	}
 
-	if (!panel_info)
-		pr_err("%s: panel_info not initialized\n", __func__);
-	else
+	if (panel_info)
 		mipi_dsi_phy_pll_config(panel_info->clk_rate);
 
 	/* pll ctrl 0 */
@@ -602,6 +633,12 @@ void cont_splash_clk_ctrl(int enable)
 {
 	static int cont_splash_clks_enabled;
 	if (enable && !cont_splash_clks_enabled) {
+			if (clk_set_rate(dsi_byte_div_clk, 1) < 0)	/* divided by 1 */
+				pr_err("%s: dsi_byte_div_clk - "
+					"clk_set_rate failed\n", __func__);
+			if (clk_set_rate(dsi_esc_clk, 2) < 0) /* divided by 2 */
+				pr_err("%s: dsi_esc_clk - "
+					"clk_set_rate failed\n", __func__);
 			clk_prepare_enable(dsi_byte_div_clk);
 			clk_prepare_enable(dsi_esc_clk);
 			cont_splash_clks_enabled = 1;
@@ -617,6 +654,13 @@ void mipi_dsi_prepare_clocks(void)
 	clk_prepare(amp_pclk);
 	clk_prepare(dsi_m_pclk);
 	clk_prepare(dsi_s_pclk);
+	if (clk_set_rate(dsi_byte_div_clk, 1) < 0)	/* divided by 1 */
+		pr_err("%s: dsi_byte_div_clk - "
+			"clk_set_rate failed\n", __func__);
+	if (clk_set_rate(dsi_esc_clk, 2) < 0) /* divided by 2 */
+
+		pr_err("%s: dsi_esc_clk - "			 /* clk ratio */
+			"clk_set_rate failed\n", __func__);
 	clk_prepare(dsi_byte_div_clk);
 	clk_prepare(dsi_esc_clk);
 }
@@ -666,13 +710,12 @@ void mipi_dsi_clk_enable(void)
 	MIPI_OUTP(MIPI_DSI_BASE + 0x0200, pll_ctrl | 0x01);
 	mipi_dsi_phy_rdy_poll();
 
-	if (clk_set_rate(dsi_byte_div_clk, 1) < 0)/* divided by 1 */
+	if (clk_set_rate(dsi_byte_div_clk, 1) < 0)	/* divided by 1 */
 		pr_err("%s: dsi_byte_div_clk - "
 			"clk_set_rate failed\n", __func__);
-	if (clk_set_rate(dsi_esc_clk, esc_byte_ratio) < 0) /* divided by esc */
+	if (clk_set_rate(dsi_esc_clk, 2) < 0) /* divided by 2 */
 		pr_err("%s: dsi_esc_clk - "			 /* clk ratio */
 			"clk_set_rate failed\n", __func__);
-
 	mipi_dsi_pclk_ctrl(&dsi_pclk, 1);
 	mipi_dsi_clk_ctrl(&dsicore_clk, 1);
 	clk_enable(dsi_byte_div_clk);
@@ -759,6 +802,7 @@ void hdmi_msm_reset_core(void)
 	hdmi_msm_clk(0);
 	udelay(5);
 	hdmi_msm_clk(1);
+
 	clk_reset(hdmi_msm_state->hdmi_app_clk, CLK_RESET_ASSERT);
 	udelay(20);
 	clk_reset(hdmi_msm_state->hdmi_app_clk, CLK_RESET_DEASSERT);

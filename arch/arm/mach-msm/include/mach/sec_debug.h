@@ -49,8 +49,11 @@ extern int sec_debug_is_enabled_for_ssr(void);
 #else
 static inline int sec_debug_init(void)
 {
+	return 0;
 }
-static inline int sec_debug_dump_stack(void) {}
+static inline int sec_debug_dump_stack(void) {
+	return 0;
+}
 static inline void sec_debug_check_crash_key(unsigned int code, int value) {}
 
 static inline void sec_getlog_supply_fbinfo(void *p_fb, u32 res_x, u32 res_y,

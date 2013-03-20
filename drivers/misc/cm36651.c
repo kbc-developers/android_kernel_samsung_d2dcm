@@ -35,6 +35,7 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/i2c/cm36651.h>
+#include <linux/module.h>
 #include <linux/regulator/consumer.h>
 
 /* Intelligent Cancelation*/

@@ -24,6 +24,8 @@
 #include <mach/msm8960-gpio.h>
 #include "board-8960.h"
 
+extern int system_rev;
+
 #define MSM_8960_GSBI3_QUP_I2C_BUS_ID 3
 
 #define GPIO_TOUCH_IRQ		11
@@ -70,7 +72,6 @@ void  melfas_vdd_on(bool onoff)
 	int ret = 0;
 	/* 3.3V */
 	static struct regulator *reg_l17;
-	static struct regulator *reg_l11;
 	/* 1.8V */
 #ifdef CONFIG_MACH_M2_VZW
 	if (system_rev < BOARD_REV02) {
@@ -232,10 +233,10 @@ int is_melfas_vdd_on(void)
 	int ret;
 	/* 3.3V */
 	static struct regulator *reg_l17;
-	static struct regulator *reg_l11;
 #if defined(CONFIG_MACH_ESPRESSO_VZW) || defined(CONFIG_MACH_ESPRESSO_ATT) \
 				|| defined(CONFIG_MACH_ESPRESSO10_VZW) \
 				|| defined(CONFIG_MACH_ESPRESSO_SPR)
+	static struct regulator *reg_l11;
 	if (system_rev < BOARD_REV03) {
 		if (!reg_l17) {
 			reg_l17 = regulator_get(NULL, "8921_l17");

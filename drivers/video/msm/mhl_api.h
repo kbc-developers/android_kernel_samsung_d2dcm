@@ -1,5 +1,5 @@
 
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,29 +14,7 @@
 #ifndef __MHL_API_H__
 #define __MHL_API_H__
 
-#ifndef __LINUX_USB_GADGET_FSERIAL_H__
-#define __LINUX_USB_GADGET_FSERIAL_H__
-
-#include <linux/platform_device.h>
-
-enum transport_type {
-	USB_GADGET_FSERIAL_TRANSPORT_TTY,
-	USB_GADGET_FSERIAL_TRANSPORT_SDIO,
-	USB_GADGET_FSERIAL_TRANSPORT_SMD,
-};
-
-#define GSERIAL_NO_PORTS 2
-struct usb_gadget_fserial_platform_data {
-	enum transport_type	transport[GSERIAL_NO_PORTS];
-	unsigned		no_ports;
-};
-
-struct usb_gadget_facm_pdata {
-	enum transport_type	transport[GSERIAL_NO_PORTS];
-	unsigned		no_ports;
-};
-
-#ifdef CONFIG_MHL
+#ifdef CONFIG_FB_MSM_HDMI_MHL_8334
 bool mhl_is_connected(void);
 #else
 static bool mhl_is_connected(void)
@@ -45,5 +23,4 @@ static bool mhl_is_connected(void)
 }
 #endif
 
-#endif /* __LINUX_USB_GADGET_FSERIAL_H__ */
 #endif /* __MHL_API_H__ */

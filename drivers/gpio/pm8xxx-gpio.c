@@ -1,7 +1,4 @@
-/*
- * Qualcomm PMIC8XXX GPIO driver
- *
- * Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,6 +12,7 @@
 
 #define pr_fmt(fmt)	"%s: " fmt, __func__
 
+#include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/gpio.h>
 #include <linux/mfd/pm8xxx/core.h>
@@ -84,9 +82,6 @@ static int pm_gpio_get(struct pm_gpio_chip *pm_gpio_chip, unsigned gpio)
 {
 	int	mode;
 
-	if (gpio >= pm_gpio_chip->gpio_chip.ngpio || pm_gpio_chip == NULL)
-		return -EINVAL;
-
 	/* Get gpio value from config bank 1 if output gpio.
 	   Get gpio value from IRQ RT status register for all other gpio modes.
 	 */
@@ -105,9 +100,6 @@ static int pm_gpio_set(struct pm_gpio_chip *pm_gpio_chip,
 	int	rc;
 	u8	bank1;
 	unsigned long flags;
-
-	if (pm_gpio_chip == NULL || gpio >= pm_gpio_chip->gpio_chip.ngpio)
-		return -EINVAL;
 
 	spin_lock_irqsave(&pm_gpio_chip->pm_lock, flags);
 	bank1 = PM_GPIO_WRITE
@@ -302,7 +294,7 @@ static int __devinit pm_gpio_probe(struct platform_device *pdev)
 	pm_gpio_chip->gpio_chip.set = pm_gpio_write;
 	pm_gpio_chip->gpio_chip.dbg_show = pm_gpio_dbg_show;
 	pm_gpio_chip->gpio_chip.ngpio = pdata->gpio_cdata.ngpios;
-	pm_gpio_chip->gpio_chip.can_sleep = 1;
+	pm_gpio_chip->gpio_chip.can_sleep = 0;
 	pm_gpio_chip->gpio_chip.dev = &pdev->dev;
 	pm_gpio_chip->gpio_chip.base = pdata->gpio_base;
 	pm_gpio_chip->irq_base = platform_get_irq(pdev, 0);

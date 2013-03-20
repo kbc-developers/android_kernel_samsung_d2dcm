@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,9 +13,9 @@
 
 #ifndef _WRITEBACK_UTIL_H_
 #define _WRITEBACK_UTIL_H_
-
+#ifndef DEBUG
 #define DEBUG
-
+#endif
 #ifdef DEBUG
 	#define WRITEBACK_MSG_INFO(fmt...) pr_info(fmt)
 	#define WRITEBACK_MSG_WARN(fmt...) pr_warning(fmt)

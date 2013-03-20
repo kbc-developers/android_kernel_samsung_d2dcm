@@ -12,6 +12,8 @@
  */
 
 #include <linux/workqueue.h>
+#include <linux/wakelock.h>
+#include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/types.h>
 #include <linux/list.h>
@@ -152,10 +154,12 @@ static int msm_server_control(struct msm_cam_server_dev *server_dev,
 	isp_event->evt_id = g_server_dev.server_evt_id;
 
 	v4l2_evt.type = V4L2_EVENT_PRIVATE_START + MSM_CAM_RESP_V4L2;
+	v4l2_evt.id = 0;
 	/* setup event object to transfer the command; */
 	*((uint32_t *)v4l2_evt.u.data) = (uint32_t)isp_event;
 	isp_event->resptype = MSM_CAM_RESP_V4L2;
 	isp_event->isp_data.ctrl = *out;
+
 	if (out->length > 0 && out->value != NULL) {
 		ctrlcmd_data = kzalloc(out->length, GFP_KERNEL);
 		if (!ctrlcmd_data) {
@@ -1285,12 +1289,14 @@ static int msm_camera_v4l2_subscribe_event(struct v4l2_fh *fh,
 		(struct msm_cam_v4l2_dev_inst *)container_of(fh,
 		struct msm_cam_v4l2_dev_inst, eventHandle);
 
-	D("%s:fh = 0x%x, type = 0x%x\n", __func__, (u32)fh, sub->type);
+	sub->id = 0;
+
+	D("%s:fh = 0x%x, type = 0x%x, id=%d\n", __func__, (u32)fh, sub->type, sub->id);
 	if (pcam_inst->my_index != 0)
 		return -EINVAL;
 	if (sub->type == V4L2_EVENT_ALL)
 		sub->type = V4L2_EVENT_PRIVATE_START+MSM_CAM_APP_NOTIFY_EVENT;
-	rc = v4l2_event_subscribe(fh, sub);
+	rc = v4l2_event_subscribe(fh, sub, 30);
 	if (rc < 0)
 		D("%s: failed for evtType = 0x%x, rc = %d\n",
 						__func__, sub->type, rc);
@@ -1302,6 +1308,8 @@ static int msm_camera_v4l2_unsubscribe_event(struct v4l2_fh *fh,
 {
 	int rc = 0;
 	struct msm_cam_v4l2_dev_inst *pcam_inst;
+
+	sub->id=0;
 	pcam_inst =
 		(struct msm_cam_v4l2_dev_inst *)container_of(fh,
 		struct msm_cam_v4l2_dev_inst, eventHandle);
@@ -1320,13 +1328,14 @@ static int msm_server_v4l2_subscribe_event(struct v4l2_fh *fh,
 {
 	int rc = 0;
 
+	sub->id = 0;
 	D("%s: fh = 0x%x, type = 0x%x", __func__, (u32)fh, sub->type);
 	if (sub->type == V4L2_EVENT_ALL) {
 		/*sub->type = MSM_ISP_EVENT_START;*/
 		sub->type = V4L2_EVENT_PRIVATE_START + MSM_CAM_RESP_CTRL;
 		D("sub->type start = 0x%x\n", sub->type);
 		do {
-			rc = v4l2_event_subscribe(fh, sub);
+			rc = v4l2_event_subscribe(fh, sub, 30);
 			if (rc < 0) {
 				D("%s: failed for evtType = 0x%x, rc = %d\n",
 						__func__, sub->type, rc);
@@ -1343,7 +1352,7 @@ static int msm_server_v4l2_subscribe_event(struct v4l2_fh *fh,
 			V4L2_EVENT_PRIVATE_START + MSM_CAM_RESP_MAX);
 	} else {
 		D("sub->type not V4L2_EVENT_ALL = 0x%x\n", sub->type);
-		rc = v4l2_event_subscribe(fh, sub);
+		rc = v4l2_event_subscribe(fh, sub, 30);
 		if (rc < 0)
 			D("%s: failed for evtType = 0x%x, rc = %d\n",
 						__func__, sub->type, rc);
@@ -1357,7 +1366,7 @@ static int msm_server_v4l2_unsubscribe_event(struct v4l2_fh *fh,
 			struct v4l2_event_subscription *sub)
 {
 	int rc = 0;
-
+	sub->id = 0;
 	D("%s: fh = 0x%x\n", __func__, (u32)fh);
 	rc = v4l2_event_unsubscribe(fh, sub);
 	D("%s: rc = %d\n", __func__, rc);
@@ -1751,7 +1760,7 @@ static unsigned int msm_poll(struct file *f, struct poll_table_struct *wait)
 		return -EINVAL;
 	}
 	if (pcam_inst->my_index == 0) {
-		poll_wait(f, &(pcam_inst->eventHandle.events->wait), wait);
+		poll_wait(f, &(pcam_inst->eventHandle.wait), wait);
 		if (v4l2_event_pending(&pcam_inst->eventHandle))
 			rc |= POLLPRI;
 	} else {
@@ -1773,13 +1782,14 @@ static unsigned int msm_poll_server(struct file *fp,
 
 	D("%s\n", __func__);
 	poll_wait(fp,
-		 &g_server_dev.server_command_queue.eventHandle.events->wait,
+		 &g_server_dev.server_command_queue.eventHandle.wait,
 		 wait);
 	if (v4l2_event_pending(&g_server_dev.server_command_queue.eventHandle))
 		rc |= POLLPRI;
 
 	return rc;
 }
+
 static long msm_ioctl_server(struct file *fp, unsigned int cmd,
 	unsigned long arg)
 {
@@ -1791,7 +1801,6 @@ static long msm_ioctl_server(struct file *fp, unsigned int cmd,
 	int i;
 
 	D("%s: cmd %d\n", __func__, _IOC_NR(cmd));
-
 	switch (cmd) {
 	case MSM_CAM_IOCTL_GET_CAMERA_INFO:
 		if (copy_from_user(&temp_cam_info, (void __user *)arg,
@@ -1873,7 +1882,6 @@ static long msm_ioctl_server(struct file *fp, unsigned int cmd,
 		void __user *u_ctrl_value = NULL, *user_ptr = NULL;
 		struct msm_isp_event_ctrl u_isp_event;
 		struct msm_isp_event_ctrl *k_isp_event;
-
 		/* First, copy the event structure from userspace */
 		D("%s: VIDIOC_DQEVENT\n", __func__);
 		if (copy_from_user(&ev, (void __user *)arg,
@@ -1893,17 +1901,17 @@ static long msm_ioctl_server(struct file *fp, unsigned int cmd,
 
 		/* Save the pointer of the user allocated command buffer*/
 		u_ctrl_value = u_isp_event.isp_data.ctrl.value;
-
 		/* Dequeue the event queued into the v4l2 queue*/
+		ev.id = 0;
 		rc = v4l2_event_dequeue(
 			&g_server_dev.server_command_queue.eventHandle,
 			&ev, fp->f_flags & O_NONBLOCK);
+
 		if (rc < 0) {
 			pr_err("no pending events?");
 			rc = -EFAULT;
 			break;
 		}
-
 		/* Use k_isp_event to point to the event_ctrl structure
 		 * embedded inside v4l2_event.u.data */
 		k_isp_event = (struct msm_isp_event_ctrl *)
@@ -1986,6 +1994,7 @@ static long msm_ioctl_server(struct file *fp, unsigned int cmd,
 		break;
 
 	default:
+		pr_info("%s: trouble recognizing ioctl, break", __func__);
 		break;
 	}
 	return rc;
@@ -2020,9 +2029,10 @@ static unsigned int msm_poll_config(struct file *fp,
 	D("%s\n", __func__);
 
 	poll_wait(fp,
-	&config->config_stat_event_queue.eventHandle.events->wait, wait);
+	&config->config_stat_event_queue.eventHandle.wait, wait);
 	if (v4l2_event_pending(&config->config_stat_event_queue.eventHandle))
 		rc |= POLLPRI;
+
 	return rc;
 }
 
@@ -2046,12 +2056,12 @@ static int msm_close_server(struct inode *inode, struct file *fp)
 				g_server_dev.pcam_active->pvdev, &v4l2_ev);
 		}
 	sub.type = V4L2_EVENT_ALL;
+	sub.id = 0;
 	msm_server_v4l2_unsubscribe_event(
 		&g_server_dev.server_command_queue.eventHandle, &sub);
 	}
 	return 0;
 }
-
 
 static long msm_v4l2_evt_notify(struct msm_cam_media_controller *mctl,
 		unsigned int cmd, unsigned long evt)
@@ -2069,6 +2079,8 @@ static long msm_v4l2_evt_notify(struct msm_cam_media_controller *mctl,
 		ERR_COPY_FROM_USER();
 		return -EFAULT;
 	}
+
+	v4l2_ev.id = 0;
 
 	pcam = mctl->sync.pcam_sync;
 	ktime_get_ts(&v4l2_ev.timestamp);
@@ -2135,7 +2147,6 @@ static long msm_ioctl_config(struct file *fp, unsigned int cmd,
 		void __user *u_msg_value = NULL, *user_ptr = NULL;
 		struct msm_isp_event_ctrl u_isp_event;
 		struct msm_isp_event_ctrl *k_isp_event;
-
 		/* First, copy the v4l2 event structure from userspace */
 		D("%s: VIDIOC_DQEVENT\n", __func__);
 		if (copy_from_user(&ev, (void __user *)arg,
@@ -2152,8 +2163,8 @@ static long msm_ioctl_config(struct file *fp, unsigned int cmd,
 		}
 		/* Save the pointer of the user allocated command buffer*/
 		u_msg_value = u_isp_event.isp_data.isp_msg.data;
-
 		/* Dequeue the event queued into the v4l2 queue*/
+		ev.id = 0;
 		rc = v4l2_event_dequeue(
 			&config_cam->config_stat_event_queue.eventHandle,
 			&ev, fp->f_flags & O_NONBLOCK);
@@ -2352,19 +2363,19 @@ static int msm_setup_v4l2_event_queue(struct v4l2_fh *eventHandle,
 	spin_lock_init(&pvdev->fh_lock);
 	INIT_LIST_HEAD(&pvdev->fh_list);
 
-	rc = v4l2_fh_init(eventHandle, pvdev);
-	if (rc < 0)
-		return rc;
-	if (eventHandle->events == NULL) {
-		rc = v4l2_event_init(eventHandle);
-		if (rc < 0)
-			return rc;
-	}
+	v4l2_fh_init(eventHandle, pvdev);
+//	if (rc < 0)
+//		return rc;
+//	if (eventHandle->events == NULL) {
+//		rc = v4l2_event_init(eventHandle);
+//		if (rc < 0)
+//			return rc;
+//	}
 
 	/* queue of max size 30 */
-	rc = v4l2_event_alloc(eventHandle, 30);
-	if (rc < 0)
-		return rc;
+//	rc = v4l2_event_alloc(eventHandle, 30);
+//	if (rc < 0)
+//		return rc;
 
 	v4l2_fh_add(eventHandle);
 	return rc;
@@ -2792,7 +2803,6 @@ static int __init msm_camera_init(void)
 	/*for now just create a config 0 node
 	  put logic here later to know how many configs to create*/
 	g_server_dev.config_info.num_config_nodes = 1;
-
 	rc = msm_isp_init_module(g_server_dev.config_info.num_config_nodes);
 	if (rc < 0) {
 		pr_err("Failed to initialize isp\n");

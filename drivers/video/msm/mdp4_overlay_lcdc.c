@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -185,6 +185,11 @@ int mdp4_lcdc_pipe_commit(int cndx, int wait)
 	undx =  vctrl->update_ndx;
 	vp = &vctrl->vlist[undx];
 	pipe = vctrl->base_pipe;
+	if (pipe == NULL) {
+		pr_err("%s: NO base pipe\n", __func__);
+		mutex_unlock(&vctrl->update_lock);
+		return 0;
+	}
 	mixer = pipe->mixer_num;
 
 	mdp_update_pm(vctrl->mfd, vctrl->vsync_time);
@@ -420,10 +425,7 @@ ssize_t mdp4_lcdc_show_event(struct device *dev,
 		msecs_to_jiffies(VSYNC_PERIOD * 4));
 	if (ret <= 0) {
 		vctrl->wait_vsync_cnt = 0;
-		vsync_tick = ktime_to_ns(ktime_get());
-		ret = snprintf(buf, PAGE_SIZE, "VSYNC=%llu", vsync_tick);
-		buf[strlen(buf) + 1] = '\0';
-		return ret;
+		vctrl->vsync_time = ktime_get();
 	}
 
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
@@ -526,6 +528,8 @@ int mdp4_lcdc_on(struct platform_device *pdev)
 	if (mfd->key != MFD_KEY)
 		return -EINVAL;
 
+	mutex_lock(&mfd->dma->ov_mutex);
+
 	vctrl->mfd = mfd;
 	vctrl->dev = mfd->fbi->dev;
 	vctrl->vsync_irq_enabled = 0;
@@ -564,6 +568,7 @@ int mdp4_lcdc_on(struct platform_device *pdev)
 	} else {
 		pipe = vctrl->base_pipe;
 	}
+
 
 	pipe->src_height = fbi->var.yres;
 	pipe->src_width = fbi->var.xres;
@@ -614,7 +619,12 @@ int mdp4_lcdc_on(struct platform_device *pdev)
 	lcdc_bpp = mfd->panel_info.bpp;
 
 	hsync_period =
-	    hsync_pulse_width + h_back_porch + lcdc_width + h_front_porch;
+	    hsync_pulse_width + h_back_porch + h_front_porch;
+	if ((mfd->panel_info.type == LVDS_PANEL) &&
+		(mfd->panel_info.lvds.channel_mode == LVDS_DUAL_CHANNEL_MODE))
+		hsync_period += lcdc_width / 2;
+	else
+		hsync_period += lcdc_width;
 	hsync_ctrl = (hsync_period << 16) | hsync_pulse_width;
 	hsync_start_x = hsync_pulse_width + h_back_porch;
 	hsync_end_x = hsync_period - h_front_porch - 1;
@@ -649,8 +659,13 @@ int mdp4_lcdc_on(struct platform_device *pdev)
 
 
 #ifdef CONFIG_FB_MSM_MDP40
-	hsync_polarity = 1;
-	vsync_polarity = 1;
+	if (mfd->panel_info.lcdc.is_sync_active_high) {
+		hsync_polarity = 0;
+		vsync_polarity = 0;
+	} else {
+		hsync_polarity = 1;
+		vsync_polarity = 1;
+	}
 	lcdc_underflow_clr |= 0x80000000;	/* enable recovery */
 #else
 	hsync_polarity = 0;
@@ -679,6 +694,7 @@ int mdp4_lcdc_on(struct platform_device *pdev)
 
 	mdp_histogram_ctrl_all(TRUE);
 	mdp4_overlay_lcdc_start();
+	mutex_unlock(&mfd->dma->ov_mutex);
 
 	return ret;
 }
@@ -708,6 +724,8 @@ int mdp4_lcdc_off(struct platform_device *pdev)
 	int undx, need_wait = 0;
 
 	mfd = (struct msm_fb_data_type *)platform_get_drvdata(pdev);
+
+	mutex_lock(&mfd->dma->ov_mutex);
 	vctrl = &vsync_ctrl_db[cndx];
 	pipe = vctrl->base_pipe;
 
@@ -769,6 +787,8 @@ int mdp4_lcdc_off(struct platform_device *pdev)
 	/* MDP clock disable */
 	mdp_clk_ctrl(0);
 	mdp_pipe_ctrl(MDP_OVERLAY0_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+
+	mutex_unlock(&mfd->dma->ov_mutex);
 
 	return ret;
 }

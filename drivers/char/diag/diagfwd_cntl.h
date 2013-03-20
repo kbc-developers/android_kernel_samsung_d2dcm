@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -77,13 +77,18 @@ struct diag_ctrl_msg_mask {
 	/* Copy msg mask here */
 } __packed;
 
+struct diag_ctrl_feature_mask {
+	uint32_t ctrl_pkt_id;
+	uint32_t ctrl_pkt_data_len;
+	uint32_t feature_mask_len;
+	/* Copy feature mask here */
+} __packed;
+
 void diagfwd_cntl_init(void);
 void diagfwd_cntl_exit(void);
 void diag_read_smd_cntl_work_fn(struct work_struct *);
-void diag_read_smd_qdsp_cntl_work_fn(struct work_struct *);
-void diag_read_smd_wcnss_cntl_work_fn(struct work_struct *);
-void diag_smd_cntl_notify(void *ctxt, unsigned event);
-void diag_smd_qdsp_cntl_notify(void *ctxt, unsigned event);
-void diag_smd_wcnss_cntl_notify(void *ctxt, unsigned event);
+void diag_clean_reg_fn(struct work_struct *work);
+int diag_process_smd_cntl_read_data(struct diag_smd_info *smd_info, void *buf,
+								int total_recd);
 
 #endif

@@ -400,7 +400,7 @@ static DECLARE_WAIT_QUEUE_HEAD(random_write_wait);
 static struct fasync_struct *fasync;
 
 #if 0
-static int debug;
+static bool debug;
 module_param(debug, bool, 0644);
 #define DEBUG_ENT(fmt, arg...) do { \
 	if (debug) \
@@ -1057,7 +1057,7 @@ void get_random_bytes_arch(void *buf, int nbytes)
 
 		if (!arch_get_random_long(&v))
 			break;
-
+		
 		memcpy(p, &v, chunk);
 		p += chunk;
 		nbytes -= chunk;

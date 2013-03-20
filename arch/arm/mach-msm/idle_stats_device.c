@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,6 +18,7 @@
 #include <linux/poll.h>
 #include <linux/uaccess.h>
 #include <linux/idle_stats_device.h>
+#include <linux/module.h>
 
 DEFINE_MUTEX(device_list_lock);
 LIST_HEAD(device_list);
@@ -103,9 +104,10 @@ static void msm_idle_stats_add_sample(struct msm_idle_stats_device *device,
 {
 	hrtimer_cancel(&device->busy_timer);
 	hrtimer_set_expires(&device->busy_timer, us_to_ktime(0));
-	if (device->stats->nr_collected >= device->max_samples)
-		return;
-
+	if (device->stats->nr_collected >= MSM_IDLE_STATS_NR_MAX_INTERVALS) {
+		pr_warning("idle_stats_device: Overwriting samples\n");
+		device->stats->nr_collected = 0;
+	}
 	device->stats->pulse_chain[device->stats->nr_collected] = *pulse;
 	device->stats->nr_collected++;
 
@@ -230,6 +232,7 @@ EXPORT_SYMBOL(msm_idle_stats_idle_start);
 void msm_idle_stats_idle_end(struct msm_idle_stats_device *device,
 				struct msm_idle_pulse *pulse)
 {
+	int tmp;
 	u32 idle_time = 0;
 	spin_lock(&device->lock);
 	if (ktime_to_us(device->idle_start) != 0) {
@@ -254,7 +257,18 @@ void msm_idle_stats_idle_end(struct msm_idle_stats_device *device,
 				 ktime_to_us(busy_timer)))
 				busy_timer = device->remaining_time;
 		    start_busy_timer(device, busy_timer);
-	    }
+		    /* If previous busy interval exceeds the current submit,
+		     * raise a busy timer expired event intentionally.
+		     */
+		    tmp = device->stats->nr_collected - 1;
+		    if (tmp > 0) {
+			if ((device->stats->pulse_chain[tmp - 1].busy_start_time
+			+ device->stats->pulse_chain[tmp - 1].busy_interval) >
+			  device->stats->pulse_chain[tmp].busy_start_time)
+				msm_idle_stats_update_event(device,
+				   MSM_IDLE_STATS_EVENT_BUSY_TIMER_EXPIRED);
+		    }
+		}
 	}
 	spin_unlock(&device->lock);
 }

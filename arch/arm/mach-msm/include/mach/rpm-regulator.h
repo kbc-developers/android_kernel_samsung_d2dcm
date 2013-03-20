@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,7 +20,8 @@
 #include <mach/rpm-regulator-8660.h>
 #include <mach/rpm-regulator-8960.h>
 #include <mach/rpm-regulator-9615.h>
-#include <mach/rpm-regulator-copper.h>
+#include <mach/rpm-regulator-8974.h>
+#include <mach/rpm-regulator-8930.h>
 
 /**
  * enum rpm_vreg_version - supported RPM regulator versions
@@ -29,7 +30,10 @@ enum rpm_vreg_version {
 	RPM_VREG_VERSION_8660,
 	RPM_VREG_VERSION_8960,
 	RPM_VREG_VERSION_9615,
-	RPM_VREG_VERSION_MAX = RPM_VREG_VERSION_9615,
+	RPM_VREG_VERSION_8930,
+	RPM_VREG_VERSION_8930_PM8917,
+	RPM_VREG_VERSION_8960_PM8917,
+	RPM_VREG_VERSION_MAX = RPM_VREG_VERSION_8960_PM8917,
 };
 
 #define RPM_VREG_PIN_CTRL_NONE		0x00
@@ -66,12 +70,38 @@ enum rpm_vreg_freq {
 };
 
 /**
+ * enum rpm_vreg_voltage_corner - possible voltage corner values
+ *
+ * These should be used in regulator_set_voltage and rpm_vreg_set_voltage calls
+ * for corner type regulators as if they had units of uV.
+ */
+enum rpm_vreg_voltage_corner {
+	RPM_VREG_CORNER_NONE = 1,
+	RPM_VREG_CORNER_LOW,
+	RPM_VREG_CORNER_NOMINAL,
+	RPM_VREG_CORNER_HIGH,
+};
+
+/**
+ * enum rpm_vreg_voter - RPM regulator voter IDs for private APIs
+ */
+enum rpm_vreg_voter {
+	RPM_VREG_VOTER_REG_FRAMEWORK,	/* for internal use only */
+	RPM_VREG_VOTER1,		/* for use by the acpu-clock driver */
+	RPM_VREG_VOTER2,		/* for use by the acpu-clock driver */
+	RPM_VREG_VOTER3,		/* for use by other drivers */
+	RPM_VREG_VOTER4,		/* for use by the acpu-clock driver */
+	RPM_VREG_VOTER5,		/* for use by the acpu-clock driver */
+	RPM_VREG_VOTER6,		/* for use by the acpu-clock driver */
+	RPM_VREG_VOTER_COUNT,
+};
+
+/**
  * struct rpm_regulator_init_data - RPM regulator initialization data
  * @init_data:		regulator constraints
  * @id:			regulator id; from enum rpm_vreg_id
  * @sleep_selectable:	flag which indicates that regulator should be accessable
- *			by external private API and that spinlocks should be
- *			used instead of mutex locks
+ *			by external private API
  * @system_uA:		current drawn from regulator not accounted for by any
  *			regulator framework consumer
  * @enable_time:	time in us taken to enable a regulator to the maximum
@@ -85,6 +115,9 @@ enum rpm_vreg_freq {
  * @pin_fn:		action to perform when pin control pin(s) is/are active
  * @force_mode:		used to specify a force mode which overrides the votes
  *			of other RPM masters.
+ * @sleep_set_force_mode: force mode to use in sleep-set requests
+ * @power_mode:		mode to use as HPM (typically PWM or hysteretic) when
+ *			utilizing Auto mode selection
  * @default_uV:		initial voltage to set the regulator to if enable is
  *			called before set_voltage (e.g. when boot_on or
  *			always_on is set).
@@ -105,6 +138,7 @@ struct rpm_regulator_init_data {
 	unsigned			pin_ctrl;
 	int				pin_fn;
 	int				force_mode;
+	int				sleep_set_force_mode;
 	int				power_mode;
 	int				default_uV;
 	unsigned			peak_uA;
@@ -113,28 +147,28 @@ struct rpm_regulator_init_data {
 };
 
 /**
- * struct rpm_regulator_platform_data - RPM regulator platform data
+ * struct rpm_regulator_consumer_mapping - mapping used by private consumers
  */
-struct rpm_regulator_platform_data {
-	struct rpm_regulator_init_data	*init_data;
-	int				num_regulators;
-	enum rpm_vreg_version		version;
-	int				vreg_id_vdd_mem;
-	int				vreg_id_vdd_dig;
+struct rpm_regulator_consumer_mapping {
+	const char		*dev_name;
+	const char		*supply;
+	int			vreg_id;
+	enum rpm_vreg_voter	voter;
+	int			sleep_also;
 };
 
 /**
- * enum rpm_vreg_voter - RPM regulator voter IDs for private APIs
+ * struct rpm_regulator_platform_data - RPM regulator platform data
  */
-enum rpm_vreg_voter {
-	RPM_VREG_VOTER_REG_FRAMEWORK,	/* for internal use only */
-	RPM_VREG_VOTER1,		/* for use by the acpu-clock driver */
-	RPM_VREG_VOTER2,		/* for use by the acpu-clock driver */
-	RPM_VREG_VOTER3,		/* for use by other drivers */
-	RPM_VREG_VOTER4,		/* for use by the acpu-clock driver */
-	RPM_VREG_VOTER5,		/* for use by the acpu-clock driver */
-	RPM_VREG_VOTER6,		/* for use by the acpu-clock driver */
-	RPM_VREG_VOTER_COUNT,
+struct rpm_regulator_platform_data {
+	struct rpm_regulator_init_data		*init_data;
+	int					num_regulators;
+	enum rpm_vreg_version			version;
+	int					vreg_id_vdd_mem;
+	int					vreg_id_vdd_dig;
+	bool					requires_tcxo_workaround;
+	struct rpm_regulator_consumer_mapping	*consumer_map;
+	int					consumer_map_len;
 };
 
 #ifdef CONFIG_MSM_RPM_REGULATOR
@@ -149,10 +183,8 @@ enum rpm_vreg_voter {
  * Returns 0 on success or errno.
  *
  * This function is used to vote for the voltage of a regulator without
- * using the regulator framework.  It is needed by consumers which hold spin
- * locks or have interrupts disabled because the regulator framework can sleep.
- * It is also needed by consumers which wish to only vote for active set
- * regulator voltage.
+ * using the regulator framework.  It is needed for consumers which wish to only
+ * vote for active set regulator voltage.
  *
  * If sleep_also == 0, then a sleep-set value of 0V will be voted for.
  *

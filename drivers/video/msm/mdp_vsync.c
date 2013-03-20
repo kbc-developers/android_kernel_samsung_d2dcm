@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2009, 2012 Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2009, 2012 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -284,7 +284,7 @@ void mdp_vsync_cfg_regs(struct msm_fb_data_type *mfd,
 	 * external vsync source pulse width and
 	 * polarity flip
 	 */
-	MDP_OUTP(MDP_BASE + MDP_PRIM_VSYNC_OUT_CTRL, BIT(0)|BIT(30));
+	MDP_OUTP(MDP_BASE + MDP_PRIM_VSYNC_OUT_CTRL, BIT(0));
 #ifdef CONFIG_FB_MSM_MDP40
 	if (mdp_hw_revision < MDP4_REVISION_V2_1) {
 		MDP_OUTP(MDP_BASE +	MDP_SEC_VSYNC_OUT_CTRL, BIT(0));
