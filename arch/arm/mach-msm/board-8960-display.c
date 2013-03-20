@@ -114,6 +114,8 @@ static struct platform_device samsung_mipi_esd_refresh_device = {
 /* prim = 540 x 960 x 4(bpp) x 3(pages) */
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL)
 #define MSM_FB_PRIM_BUF_SIZE (480 * 800 * 4 * 3)
+#elif defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL)
+#define MSM_FB_PRIM_BUF_SIZE (1024 * 600 * 4 * 3)
 #elif defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL)
 #define MSM_FB_PRIM_BUF_SIZE (1280 * 800 * 4 * 3)
 #elif defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT_PANEL)
@@ -127,6 +129,8 @@ static struct platform_device samsung_mipi_esd_refresh_device = {
 /* prim = 540 x 960 x 4(bpp) x 2(pages) */
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL)
 #define MSM_FB_PRIM_BUF_SIZE (480 * 800 * 4 * 2)
+#elif defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL)
+#define MSM_FB_PRIM_BUF_SIZE (1024 * 600 * 4 * 2)
 #elif defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL)
 #define MSM_FB_PRIM_BUF_SIZE (1280 * 800 * 4 * 2)
 #elif defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT_PANEL)
@@ -142,6 +146,9 @@ static struct platform_device samsung_mipi_esd_refresh_device = {
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL)
 /* 480 x 800 x 3 x 2 */
 #define MIPI_DSI_WRITEBACK_SIZE (480 * 800 * 3 * 2)
+#elif defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL)
+/* 1024 x 600 x 3 x 2 */
+#define MIPI_DSI_WRITEBACK_SIZE (1024 * 600 * 3 * 2)
 #elif defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL)
 /* 1280 x 800 x 3 x 2 */
 #define MIPI_DSI_WRITEBACK_SIZE (1280 * 800 * 3 * 2)
@@ -166,7 +173,7 @@ static struct platform_device samsung_mipi_esd_refresh_device = {
 #define MSM_FB_EXT_BUF_SIZE 0
 #endif /* CONFIG_FB_MSM_HDMI_MSM_PANEL */
 
-#ifdef CONFIG_FB_MSM_OVERLAY0_WRITEBACK
+#ifdef CONFIG_FB_MSM_WRITEBACK_MSM_PANEL
 /* width x height x 3 bpp x 2 frame buffer */
 #define MSM_FB_WRITEBACK_SIZE 0x3FC000
 #define MSM_FB_WRITEBACK_OFFSET  \
@@ -181,7 +188,19 @@ static struct platform_device samsung_mipi_esd_refresh_device = {
 				MSM_FB_WRITEBACK_SIZE, 4096)
 
 #ifdef CONFIG_FB_MSM_OVERLAY0_WRITEBACK
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL)
+#define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((480 * 800 * 3 * 2), 4096)
+#elif defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL)
+#define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((1024 * 608 * 3 * 2), 4096)
+#elif defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL)
+#define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((1280 * 800 * 3 * 2), 4096)
+#elif defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT_PANEL)
+#define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((544 * 960 * 3 * 2), 4096)
+#elif defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT_PANEL)
+#define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((1280 * 736 * 3 * 2), 4096)
+#else
 #define MSM_FB_OVERLAY0_WRITEBACK_SIZE roundup((1920 * 1200 * 3 * 2), 4096)
+#endif
 #else
 #define MSM_FB_OVERLAY0_WRITEBACK_SIZE (0)
 #endif  /* CONFIG_FB_MSM_OVERLAY0_WRITEBACK */
@@ -226,7 +245,9 @@ static void set_mdp_clocks_for_wuxga(void);
 static int msm_fb_detect_panel(const char *name)
 {
 	if (machine_is_msm8960_liquid() || machine_is_ESPRESSO_VZW()
-		|| machine_is_ESPRESSO_ATT() || machine_is_ESPRESSO10_VZW()) {
+		|| machine_is_ESPRESSO_ATT() || machine_is_ESPRESSO10_VZW()
+		|| machine_is_ESPRESSO_SPR() || machine_is_ESPRESSO10_ATT()
+		|| machine_is_ESPRESSO10_SPR()) {
 		if (!strncmp(name, MIPI_VIDEO_CHIMEI_WXGA_PANEL_NAME,
 				strnlen(MIPI_VIDEO_CHIMEI_WXGA_PANEL_NAME,
 					PANEL_NAME_MAX_LEN)))
@@ -496,7 +517,10 @@ static int mipi_dsi_espresso_panel_power(int on)
 				1200000, 1200000)
 		/* VCC_IO */
 		if (((machine_is_ESPRESSO_VZW() && (system_rev >= BOARD_REV04)))
-			|| (machine_is_ESPRESSO10_VZW()))
+			|| machine_is_ESPRESSO10_VZW()
+			|| machine_is_ESPRESSO10_SPR()
+			|| machine_is_ESPRESSO10_ATT()
+			|| machine_is_ESPRESSO_SPR())
 			LVDS_REGULATOR_ENABLE(RPM_VREG_ID_PM8921_LVS6, 1, 1)
 		else
 			LVDS_REGULATOR_ENABLE(RPM_VREG_ID_PM8921_LVS5, 1, 1)
@@ -522,7 +546,10 @@ static int mipi_dsi_espresso_panel_power(int on)
 		/* Disable LCD Power */
 		LVDS_REGULATOR_DISABLE(RPM_VREG_ID_PM8921_L16)
 		if (((machine_is_ESPRESSO_VZW() && (system_rev >= BOARD_REV04)))
-				|| (machine_is_ESPRESSO10_VZW()))
+				|| machine_is_ESPRESSO10_SPR()
+				|| machine_is_ESPRESSO10_VZW()
+				|| machine_is_ESPRESSO10_ATT()
+				|| machine_is_ESPRESSO_SPR())
 			LVDS_REGULATOR_DISABLE(RPM_VREG_ID_PM8921_LVS6)
 		else
 			LVDS_REGULATOR_DISABLE(RPM_VREG_ID_PM8921_LVS5)
@@ -665,11 +692,19 @@ static void active_reset_ldi(void)
 #if defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL)\
 	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL)\
 	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL)
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL)
+	gpio_direction_output(gpio43, 0);
+	msleep(20);
+	gpio_direction_output(gpio43, 1);
+	msleep(20);
+#else
 	mdelay(10);
 	gpio_direction_output(gpio43, 0);
 	mdelay(30);
 	gpio_direction_output(gpio43, 1);
 	mdelay(100);
+#endif
 #else
 	udelay(500);
 	gpio_direction_output(gpio43, 0);
@@ -761,14 +796,13 @@ void set_esd_gpio_config(void)
 		pr_err("request CMC_ESD failed, rc=%d\n", rc);
 }
 #elif defined(CONFIG_MACH_JAGUAR) || \
-		defined(CONFIG_MACH_AEGIS2) || \
-		defined(CONFIG_MACH_APEXQ)
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL)
 void set_esd_gpio_config(void)
 {
 	int rc;
 	struct pm_gpio sec_mipi_vgh_esd_det_gpio_cfg = {
 		.direction			= PM_GPIO_DIR_IN,
-		.pull				= PM_GPIO_PULL_NO,
+		.pull				= PM_GPIO_PULL_UP_30,
 		.vin_sel			= PM_GPIO_VIN_L17,
 		.function			= PM_GPIO_FUNC_NORMAL,
 		.inv_int_pol		= 0,
@@ -778,7 +812,7 @@ void set_esd_gpio_config(void)
 	if (rc)
 		pr_err("request OLED_ESD failed, rc=%d\n", rc);
 }
-#elif defined(CONFIG_MACH_GOGH)
+#elif defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL)
 void set_esd_gpio_config(void)
 {
 	int rc;
@@ -858,9 +892,10 @@ static int  mipi_pmic_gpios_pmconfig(int state)
 static int mipi_dsi_cdp_panel_power(int on)
 {
 	static struct regulator *reg_l8, *reg_l2;
-#if (defined(CONFIG_MACH_JAGUAR) || defined(CONFIG_MACH_JASPER) \
-	|| defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_GOGH)) \
-	|| defined(CONFIG_MACH_AEGIS2) || defined(CONFIG_MACH_COMANCHE) \
+#if defined(CONFIG_MACH_JAGUAR) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
 	|| defined(CONFIG_MACH_EXPRESS)
 	static struct regulator *reg_l23;
 #endif
@@ -874,7 +909,8 @@ static int mipi_dsi_cdp_panel_power(int on)
 		.direction = PM_GPIO_DIR_OUT,
 		.output_buffer = PM_GPIO_OUT_BUF_CMOS,
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) ||\
-	defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)
+	defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) ||\
+	defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT)
 		.output_value = 1,
 #else
 		.output_value = 0,
@@ -901,9 +937,10 @@ static int mipi_dsi_cdp_panel_power(int on)
 					PTR_ERR(reg_l8));
 			return -ENODEV;
 		}
-#if (defined(CONFIG_MACH_JAGUAR) || defined(CONFIG_MACH_JASPER) \
-	|| defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_GOGH)) \
-	|| defined(CONFIG_MACH_AEGIS2) || defined(CONFIG_MACH_COMANCHE) \
+#if defined(CONFIG_MACH_JAGUAR) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
 	|| defined(CONFIG_MACH_EXPRESS)
 		reg_l23 = regulator_get(&msm_mipi_dsi1_device.dev,
 				"dsi_vddio");
@@ -918,7 +955,9 @@ static int mipi_dsi_cdp_panel_power(int on)
 #elif !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) \
 	&& !defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL) \
 	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)
+	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) \
+	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT)
+
 		rc = gpio_request(GPIO_LCD_22V_EN, "lcd_22v_en");
 #endif
 		if (rc) {
@@ -932,7 +971,8 @@ static int mipi_dsi_cdp_panel_power(int on)
 #elif !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT)\
 	&& !defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL)\
 	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)
+	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) \
+	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT)
 		gpio_tlmm_config(GPIO_CFG(GPIO_LCD_22V_EN,  0, GPIO_CFG_OUTPUT,
 					GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
 				GPIO_CFG_ENABLE);
@@ -958,9 +998,10 @@ static int mipi_dsi_cdp_panel_power(int on)
 			return -EINVAL;
 		}
 #endif
-#if (defined(CONFIG_MACH_JAGUAR) || defined(CONFIG_MACH_JASPER) \
-	|| defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_GOGH)) \
-	|| defined(CONFIG_MACH_AEGIS2) || defined(CONFIG_MACH_COMANCHE) \
+#if defined(CONFIG_MACH_JAGUAR) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
 	|| defined(CONFIG_MACH_EXPRESS)
 		rc = regulator_set_voltage(reg_l23, 1800000, 1800000);
 		if (rc) {
@@ -983,9 +1024,10 @@ static int mipi_dsi_cdp_panel_power(int on)
 			pr_err("set_optimum_mode l8 failed, rc=%d\n", rc);
 			return -EINVAL;
 		}
-#if (defined(CONFIG_MACH_JAGUAR) || defined(CONFIG_MACH_JASPER) \
-	|| defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_GOGH)) \
-	|| defined(CONFIG_MACH_AEGIS2) || defined(CONFIG_MACH_COMANCHE) \
+#if defined(CONFIG_MACH_JAGUAR) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
 	|| defined(CONFIG_MACH_EXPRESS)
 		rc = regulator_set_optimum_mode(reg_l23, 100000);
 		if (rc < 0) {
@@ -1016,9 +1058,10 @@ static int mipi_dsi_cdp_panel_power(int on)
 			return -EINVAL;
 		}
 
-#if (defined(CONFIG_MACH_JAGUAR) || defined(CONFIG_MACH_JASPER) \
-	|| defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_GOGH)) \
-	|| defined(CONFIG_MACH_AEGIS2) || defined(CONFIG_MACH_COMANCHE) \
+#if defined(CONFIG_MACH_JAGUAR) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
 	|| defined(CONFIG_MACH_EXPRESS)
 		rc = regulator_enable(reg_l23);
 		if (rc) {
@@ -1031,7 +1074,8 @@ static int mipi_dsi_cdp_panel_power(int on)
 #elif !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT)\
 	&& !defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL) \
 	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)
+	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) \
+	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT)
 		gpio_direction_output(GPIO_LCD_22V_EN, 1);
 #endif
 #endif
@@ -1043,7 +1087,8 @@ static int mipi_dsi_cdp_panel_power(int on)
 		}
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT)\
-	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)
+	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)\
+	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT)
 		udelay(100);
 #endif
 
@@ -1053,7 +1098,9 @@ static int mipi_dsi_cdp_panel_power(int on)
 #if defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
-	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)
+	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT)
+
 		udelay(10);
 		active_reset_ldi();
 #endif
@@ -1143,9 +1190,10 @@ static int mipi_dsi_cdp_panel_power(int on)
 			pr_err("set_optimum_mode l8 failed, rc=%d\n", rc);
 			return -EINVAL;
 		}
-#if (defined(CONFIG_MACH_JAGUAR) || defined(CONFIG_MACH_JASPER) \
-	|| defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_GOGH)) \
-	|| defined(CONFIG_MACH_AEGIS2) || defined(CONFIG_MACH_COMANCHE) \
+#if defined(CONFIG_MACH_JAGUAR) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
 	|| defined(CONFIG_MACH_EXPRESS)
 		rc = regulator_set_optimum_mode(reg_l23, 100000);
 		if (rc < 0) {
@@ -1164,9 +1212,10 @@ static int mipi_dsi_cdp_panel_power(int on)
 			pr_err("enable l2 failed, rc=%d\n", rc);
 			return -ENODEV;
 		}
-#if (defined(CONFIG_MACH_JAGUAR) || defined(CONFIG_MACH_JASPER) \
-	|| defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_GOGH)) \
-	|| defined(CONFIG_MACH_AEGIS2) || defined(CONFIG_MACH_COMANCHE) \
+#if defined(CONFIG_MACH_JAGUAR) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
 	|| defined(CONFIG_MACH_EXPRESS)
 		rc = regulator_enable(reg_l23);
 		if (rc) {
@@ -1179,11 +1228,17 @@ static int mipi_dsi_cdp_panel_power(int on)
 #elif !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT)\
 	&& !defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL) \
 	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)
+	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) \
+	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT)
+
 		gpio_direction_output(GPIO_LCD_22V_EN, 1);
 #endif
 #endif
+
+#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL)\
+		&& !defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT)
 		udelay(500);
+#endif
 		rc = regulator_enable(reg_l8);
 		if (rc) {
 			pr_err("enable l8 failed, rc=%d\n", rc);
@@ -1194,8 +1249,11 @@ static int mipi_dsi_cdp_panel_power(int on)
 		if (samsung_has_cmc624())
 			cmc_power(on);
  #endif
+
+ #if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL)
 		/* Wait 25ms */
 		msleep(25);
+ #endif
 		/* Active Reset */
 #ifdef CONFIG_SAMSUNG_CMC624
 		if (samsung_has_cmc624()) {
@@ -1206,15 +1264,11 @@ static int mipi_dsi_cdp_panel_power(int on)
 			active_reset_ldi();
 		}
 #else
-#if defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT)
-		mdelay(125);
-#endif
 		active_reset_ldi();
-#if defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT)
-		mdelay(30);
 #endif
-#endif
+#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL)
 		udelay(500);
+#endif
 	} else {
 
 #ifdef CONFIG_SAMSUNG_CMC624
@@ -1224,21 +1278,30 @@ static int mipi_dsi_cdp_panel_power(int on)
 		}
 		mipi_pmic_gpios_pmconfig(1);/*change CMC gpio cfg*/
 #endif
+
+#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
 		gpio_set_value_cansleep(gpio43, 0);
+#endif
+
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)
+
 		msleep(120);
 #endif
+
 		rc = regulator_disable(reg_l8);
 		if (rc) {
 			pr_err("disable l8 failed, rc=%d\n", rc);
 			return -ENODEV;
 		}
-#if (defined(CONFIG_MACH_JAGUAR) || defined(CONFIG_MACH_JASPER) \
-	|| defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_GOGH)) \
-	|| defined(CONFIG_MACH_AEGIS2) || defined(CONFIG_MACH_COMANCHE) \
+
+#if defined(CONFIG_MACH_JAGUAR) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
 	|| defined(CONFIG_MACH_EXPRESS)
+
 		rc = regulator_disable(reg_l23);
 		if (rc) {
 			pr_err("disable l23 failed, rc=%d\n", rc);
@@ -1250,7 +1313,9 @@ static int mipi_dsi_cdp_panel_power(int on)
 #elif !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) \
 	&& !defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL) \
 	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)
+	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) \
+	&& !defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT)
+
 		gpio_direction_output(GPIO_LCD_22V_EN, 0);
 #endif
 #endif
@@ -1260,15 +1325,15 @@ static int mipi_dsi_cdp_panel_power(int on)
 			return -ENODEV;
 		}
 
-
 		rc = regulator_set_optimum_mode(reg_l8, 100);
 		if (rc < 0) {
 			pr_err("set_optimum_mode l8 failed, rc=%d\n", rc);
 			return -EINVAL;
 		}
-#if (defined(CONFIG_MACH_JAGUAR) || defined(CONFIG_MACH_JASPER) \
-	|| defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_GOGH)) \
-	|| defined(CONFIG_MACH_AEGIS2) || defined(CONFIG_MACH_COMANCHE) \
+#if defined(CONFIG_MACH_JAGUAR) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
 	|| defined(CONFIG_MACH_EXPRESS)
 		rc = regulator_set_optimum_mode(reg_l23, 100);
 		if (rc < 0) {
@@ -1281,7 +1346,12 @@ static int mipi_dsi_cdp_panel_power(int on)
 			pr_err("set_optimum_mode l2 failed, rc=%d\n", rc);
 			return -EINVAL;
 		}
+
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
+		gpio_set_value_cansleep(gpio43, 0);
+#endif
 	}
+
 	return 0;
 }
 
@@ -1296,8 +1366,11 @@ static int mipi_dsi_panel_power(int on)
 #if defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL) \
 	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL)
 	else if (machine_is_ESPRESSO_VZW()
+			|| machine_is_ESPRESSO_SPR()
 			|| machine_is_ESPRESSO_ATT()
-			|| machine_is_ESPRESSO10_VZW())
+			|| machine_is_ESPRESSO10_SPR()
+			|| machine_is_ESPRESSO10_VZW()
+			|| machine_is_ESPRESSO10_ATT())
 		ret = mipi_dsi_espresso_dsi_power(on);
 #endif
 	else
@@ -1348,8 +1421,13 @@ static struct msm_bus_vectors rotator_720p_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_ROTATOR,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
+		.ab  = (1280 * 800 * 2 * 2 * 30),
+		.ib  = (1280 * 800 * 2 * 2 * 30 * 1.5),
+#else
 		.ab  = (1280 * 736 * 2 * 2 * 30),
 		.ib  = (1280 * 736 * 2 * 2 * 30 * 1.5),
+#endif
 	},
 };
 
@@ -1966,9 +2044,12 @@ void __init msm8960_init_fb(void)
 	}
 
 	if (machine_is_msm8960_liquid() \
-			|| machine_is_ESPRESSO_VZW() \
-			|| machine_is_ESPRESSO_ATT() \
-			|| machine_is_ESPRESSO10_VZW())
+			|| machine_is_ESPRESSO_VZW()
+			|| machine_is_ESPRESSO_SPR()
+			|| machine_is_ESPRESSO_ATT()
+			|| machine_is_ESPRESSO10_SPR()
+			|| machine_is_ESPRESSO10_VZW()
+			|| machine_is_ESPRESSO10_ATT())
 		platform_device_register(&mipi_dsi2lvds_bridge_device);
 	else
 		platform_device_register(&mipi_dsi_samsung_oled_panel_device);
@@ -1985,8 +2066,7 @@ void __init msm8960_init_fb(void)
 		PM8921_GPIO_IRQ(PM8921_IRQ_BASE, PMIC_GPIO_CMC_ESD_DET),
 	platform_device_register(&samsung_mipi_esd_refresh_device);
 #elif defined(CONFIG_MACH_JAGUAR) || \
-		defined(CONFIG_MACH_AEGIS2) || \
-		defined(CONFIG_MACH_APEXQ)
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT_PANEL)
 	set_esd_gpio_config();
 	esd_pdata.esd_gpio_irq =
 	PM8921_GPIO_IRQ(PM8921_IRQ_BASE, PMIC_GPIO_VGH_ESD_DET),

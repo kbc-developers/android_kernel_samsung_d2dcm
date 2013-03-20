@@ -291,7 +291,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 };
 
 
-#define MSM_PMEM_ADSP_SIZE         0x7800000 /* 120 Mbytes */
+#define MSM_PMEM_ADSP_SIZE         0x5000000 /* 80 Mbytes */
 #define MSM_PMEM_AUDIO_SIZE        0x160000 /* 1.375 Mbytes */
 #define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
@@ -302,7 +302,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 #define MSM_ION_SF_SIZE		0x3500000 /* 53MB */
 #define MSM_ION_MM_FW_SIZE	0x200000 /* (2MB) */
 #define MSM_ION_MM_SIZE		MSM_PMEM_ADSP_SIZE
-#define MSM_ION_QSECOM_SIZE	0x600000 /* (6MB) */
+#define MSM_ION_QSECOM_SIZE	0x100000 /* (1MB) */
 #define MSM_ION_MFC_SIZE	SZ_8K
 #define MSM_ION_AUDIO_SIZE	0x1000 /* 4KB */
 #define MSM_ION_HEAP_NUM	8
@@ -1485,7 +1485,12 @@ static void irda_device_init(void)
 	gpio_tlmm_config(GPIO_CFG(GPIO_IRDA_I2C_SCL, 0, GPIO_CFG_INPUT,
 		GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 
-	gpio_request(GPIO_IRDA_WAKE, "irda_wake");
+	ret = gpio_request(GPIO_IRDA_WAKE, "irda_wake");
+	if (ret) {
+		printk(KERN_ERR "%s: gpio_request fail[%d], ret = %d\n",
+				__func__, GPIO_IRDA_WAKE, ret);
+		return;
+	}
 	gpio_direction_output(GPIO_IRDA_WAKE, 0);
 
 	return;
@@ -2683,11 +2688,15 @@ static int msm_hsusb_otg_en(bool on)
 
 	pr_info("%s, enable %d\n", __func__, on);
 
+	if (enable)
+		msm_otg_set_id_state(enable);
+
 	gpio_set_value_cansleep(
 		PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_OTG_EN), enable);
 	return 0;
 }
 
+static void msm_acc_power(u8 token, bool active);
 static int msm_hsusb_vbus_power(bool on)
 {
 	int enable = 0;
@@ -2695,8 +2704,10 @@ static int msm_hsusb_vbus_power(bool on)
 	enable = on;
 
 	pr_info("%s, attached %d\n", __func__, on);
-
-	gpio_set_value(GPIO_ACCESSORY_EN, enable);
+	if (on)
+		msm_acc_power(1, true);
+	else
+		msm_acc_power(1, false);
 	return 0;
 }
 
@@ -2715,15 +2726,15 @@ static void msm_acc_power(u8 token, bool active)
 	if (active) {
 		acc_en_token |= (1 << token);
 		enable = true;
-		msm_hsusb_vbus_power(1);
+		gpio_set_value(GPIO_ACCESSORY_EN, 1);
 	} else {
 		if (0 == token) {
-			msm_hsusb_vbus_power(0);
+			gpio_set_value(GPIO_ACCESSORY_EN, 0);
 			enable = false;
 		} else {
 			acc_en_token &= ~(1 << token);
 			if (0 == acc_en_token) {
-				msm_hsusb_vbus_power(0);
+				gpio_set_value(GPIO_ACCESSORY_EN, 0);
 				enable = false;
 			}
 		}
@@ -2731,6 +2742,49 @@ static void msm_acc_power(u8 token, bool active)
 	pr_info("%s token : (%d,%d) %s\n", __func__,
 		token, active, enable ? "on" : "off");
 }
+
+#ifdef CONFIG_CAMERON_HEALTH
+static void msm_cameron_health_attach(bool active)
+{
+	union power_supply_propval value;
+	int i, ret = 0;
+	struct power_supply *psy;
+
+	pr_info("%s, attached %d\n", __func__, active);
+
+	if (active) {
+		msm_otg_set_cameronhealth_state(1);
+		is_cameron_health_connected = true;
+
+		if (current_cable_type != POWER_SUPPLY_TYPE_BATTERY &&
+			current_cable_type != POWER_SUPPLY_TYPE_MISC) {
+			value.intval = POWER_SUPPLY_TYPE_MISC;
+
+			for (i = 0; i < 10; i++) {
+				psy = power_supply_get_by_name("battery");
+				if (psy)
+					break;
+			}
+			if (i == 10) {
+				pr_err("%s: fail to get battery ps\n",
+					__func__);
+				return;
+			}
+
+			ret = psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE,
+				&value);
+			if (ret) {
+				pr_err("%s: fail to set power_suppy"
+					" ONLINE property(%d)\n",
+					__func__, ret);
+			}
+		}
+	} else {
+		msm_otg_set_cameronhealth_state(0);
+		is_cameron_health_connected = false;
+	}
+}
+#endif
 
 #ifdef CONFIG_SEC_KEYBOARD_DOCK
 static struct sec_keyboard_callbacks *keyboard_callbacks;
@@ -2768,11 +2822,11 @@ static void acc_int_init(void)
 {
 	gpio_tlmm_config(GPIO_CFG(GPIO_ACCESSORY_INT,
 		GPIOMUX_FUNC_GPIO, GPIO_CFG_INPUT,
-		GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
+		GPIO_CFG_PULL_UP, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
 
 	gpio_tlmm_config(GPIO_CFG(GPIO_DOCK_INT,
 		GPIOMUX_FUNC_GPIO, GPIO_CFG_INPUT,
-		GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
+		GPIO_CFG_PULL_UP, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
 }
 
 int64_t acc_get_adc_value(void)
@@ -2790,6 +2844,9 @@ static int get_dock_state(void)
 
 struct acc_con_platform_data acc_con_pdata = {
 	.otg_en = msm_hsusb_otg_en,
+#ifdef CONFIG_CAMERON_HEALTH
+	.cameron_health_en = msm_cameron_health_attach,
+#endif
 	.acc_power = msm_acc_power,
 	.get_dock_state = get_dock_state,
 	.accessory_irq_gpio = GPIO_ACCESSORY_INT,
@@ -2977,7 +3034,7 @@ static void __init msm_otg_power_init(void)
 		gpio_free(GPIO_ACCESSORY_EN);
 	}
 	msm_hsusb_otg_en(0);
-	msm_hsusb_vbus_power(0);
+	msm_acc_power(0, false);
 }
 #endif
 
@@ -4130,29 +4187,16 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(ON, GDHS, MAX, ACTIVE),
-		false,
-		8500, 51, 1122000, 8500,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, MAX, ACTIVE),
 		false,
 		9000, 51, 1130300, 9000,
 	},
+
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, ACTIVE, RET_HIGH),
 		false,
 		10000, 51, 1130300, 10000,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(OFF, GDHS, MAX, ACTIVE),
-		false,
-		12000, 14, 2205900, 12000,
 	},
 
 	{

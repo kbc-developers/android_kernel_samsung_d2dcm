@@ -63,6 +63,7 @@ obj-$(CONFIG_PMIC8XXX_UPL) += pm8xxx-upl.o
 obj-$(CONFIG_MSM_MEMORY_LOW_POWER_MODE_SUSPEND_DEEP_POWER_DOWN) \
 				+= msm_migrate_pages.o
 obj-$(CONFIG_PMIC8058_XOADC)	+= pmic8058-xoadc.o
+obj-$(CONFIG_MFD_MAX77693)	+= max77693-muic.o
 obj-$(CONFIG_QSEECOM)		+= tzcom.o
 obj-$(CONFIG_QSEECOM) += qseecom.o
 obj-$(CONFIG_QFP_FUSE)		+= qfp_fuse.o
@@ -81,3 +82,4 @@ obj-$(CONFIG_SENSORS_CM36651)		+= cm36651.o
 obj-$(CONFIG_QSEECOM) += tzic.o
 obj-$(CONFIG_ADC_STMPE811)		+= stmpe811.o
 obj-$(CONFIG_SAMSUNG_JACK)		+= sec_jack.o
+obj-$(CONFIG_OPTICAL_BH1721) += bh1721.o

@@ -43,6 +43,15 @@
 #endif
 #include "mipi_dsi.h"
 
+#ifndef LOCKUP_TEST
+#define LOCKUP_TEST
+#endif
+
+#ifdef LOCKUP_TEST
+int mdp_lut_hw_update_entry;
+int mdp_lut_hw_update_total;
+#endif
+
 uint32 mdp4_extn_disp;
 
 static struct clk *mdp_clk;
@@ -83,6 +92,9 @@ MDP_BLOCK_TYPE mdp_debug[MDP_MAX_BLOCK];
 atomic_t mdp_block_power_cnt[MDP_MAX_BLOCK];
 
 spinlock_t mdp_spin_lock;
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+spinlock_t mixer_reset_lock;
+#endif
 struct workqueue_struct *mdp_dma_wq;	/*mdp dma wq */
 struct workqueue_struct *mdp_vsync_wq;	/*mdp vsync wq */
 
@@ -498,7 +510,14 @@ static int mdp_lut_update_nonlcdc(struct fb_info *info, struct fb_cmap *cmap)
 	int ret;
 
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+#ifdef LOCKUP_TEST
+	mdp_lut_hw_update_entry++;
+	mdp_lut_hw_update_total++;
+#endif
 	ret = mdp_lut_hw_update(cmap);
+#ifdef LOCKUP_TEST
+	mdp_lut_hw_update_entry--;
+#endif
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 
 	if (ret)
@@ -1391,7 +1410,9 @@ void mdp_pipe_ctrl(MDP_BLOCK_TYPE block, MDP_BLOCK_POWER_STATE state,
 	 * could turn off the clocks while the interrupt is updating the
 	 * power to ON
 	 */
+#ifndef MDP_UNDERFLOW_RESET_CTRL_CMD
 	WARN_ON(isr == TRUE && state == MDP_BLOCK_POWER_ON);
+#endif
 
 	spin_lock_irqsave(&mdp_spin_lock, flag);
 	if (MDP_BLOCK_POWER_ON == state) {
@@ -1720,6 +1741,9 @@ static void mdp_drv_init(void)
 
 	/* initialize spin lock and workqueue */
 	spin_lock_init(&mdp_spin_lock);
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	spin_lock_init(&mixer_reset_lock);
+#endif
 	mdp_dma_wq = create_singlethread_workqueue("mdp_dma_wq");
 	mdp_vsync_wq = create_singlethread_workqueue("mdp_vsync_wq");
 	mdp_hist_wq = create_singlethread_workqueue("mdp_hist_wq");
@@ -1858,6 +1882,7 @@ static int mdp_off(struct platform_device *pdev)
 
 	if (mdp_rev >= MDP_REV_41 && mfd->panel.type == MIPI_CMD_PANEL)
 		mdp_dsi_cmd_overlay_suspend();
+	pr_info("exiting %s\n", __func__);
 	return ret;
 }
 
@@ -1867,6 +1892,7 @@ static int mdp_on(struct platform_device *pdev)
 
 #ifdef CONFIG_FB_MSM_MDP40
 	struct msm_fb_data_type *mfd;
+	pr_info("entering %s\n", __func__);
 	mdp4_overlay_ctrl_db_reset();
 
 	mfd = platform_get_drvdata(pdev);
@@ -1892,6 +1918,7 @@ static int mdp_on(struct platform_device *pdev)
 #endif
 
 	mdp_histogram_ctrl_all(TRUE);
+	pr_info("exiting %s\n", __func__);
 
 	return ret;
 }
@@ -2517,11 +2544,11 @@ void mdp_footswitch_ctrl(boolean on)
 	}
 
 	if (on && !mdp_footswitch_on) {
-		pr_debug("Enable MDP FS\n");
+		pr_err("Enable MDP FS\n");
 		regulator_enable(footswitch);
 		mdp_footswitch_on = 1;
 	} else if (!on && mdp_footswitch_on) {
-		pr_debug("Disable MDP FS\n");
+		pr_err("Disable MDP FS\n");
 		regulator_disable(footswitch);
 		mdp_footswitch_on = 0;
 	}

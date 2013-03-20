@@ -34,13 +34,22 @@
 
 #define MODULE_NAME "sec_jack:"
 #define MAX_ZONE_LIMIT		10
+#if defined(CONFIG_MACH_AEGIS2)
+#define SEND_KEY_CHECK_TIME_MS	65
+#elif defined(CONFIG_MACH_K2_KDI)
+#define SEND_KEY_CHECK_TIME_MS	70
+#else
 #define SEND_KEY_CHECK_TIME_MS	60
+#endif
 #define DET_CHECK_TIME_MS	100
 #define WAKE_LOCK_TIME		(HZ * 5)
 #define WAKE_LOCK_TIME_IN_SENDKEY (HZ * 1)
 #define SUPPORT_PBA
 
 static bool recheck_jack;
+#ifdef CONFIG_MACH_JAGUAR
+static bool sendkey_irq_progress;
+#endif
 
 struct sec_jack_info {
 	struct sec_jack_platform_data *pdata;
@@ -77,7 +86,7 @@ static void set_send_key_state(struct sec_jack_info *hi, int state)
 				input_sync(hi->input);
 				switch_set_state(&switch_sendend, state);
 				hi->send_key_pressed = state;
-				pr_info(MODULE_NAME "%s: keycode=%d, is pressed\n",
+				pr_debug(MODULE_NAME "%s: keycode=%d, is pressed\n",
 					__func__, btn_zones[i].code);
 				return;
 			}
@@ -121,6 +130,9 @@ static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
 		}
 		if (hi->send_key_pressed) {
 			set_send_key_state(hi, 0);
+#ifdef CONFIG_MACH_JAGUAR
+			sendkey_irq_progress = false;
+#endif
 			pr_info(MODULE_NAME "%s : BTN set released by jack switch to %d\n",
 					__func__, jack_type);
 		}
@@ -170,7 +182,11 @@ static void determine_jack_type(struct sec_jack_info *hi)
 					pr_debug(MODULE_NAME "determine_jack_type %d, %d, %d\n",
 						zones[i].adc_high, count[i],
 						zones[i].check_count);
+#ifndef CONFIG_MACH_JAGUAR
 					if (recheck_jack == true && i == 3) {
+#else
+					if (recheck_jack == true && i == 5) {
+#endif
 						pr_debug(MODULE_NAME "something wrong connectoin!\n");
 						handle_jack_not_inserted(hi);
 						recheck_jack = false;
@@ -205,12 +221,28 @@ static ssize_t  key_state_onoff_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct sec_jack_info *hi = dev_get_drvdata(dev);
+#ifdef CONFIG_MACH_JAGUAR
+	struct sec_jack_platform_data *pdata = hi->pdata;
+#endif
 	int value = 0;
-
+#ifdef CONFIG_MACH_JAGUAR
+	int send_key_state = 0;
+#endif
+#ifndef CONFIG_MACH_JAGUAR
 	if (hi->send_key_pressed != true)
 		value = 0;
 	else
 		value = 1;
+#else
+	send_key_state = pdata->get_send_key_state();
+	pr_info(MODULE_NAME "%s : cur_jack_type=%d, send_key_state=%d.\n",
+			__func__, hi->cur_jack_type, send_key_state);
+	if ((hi->cur_jack_type != SEC_HEADSET_4POLE) ||
+			(send_key_state != true))
+		value = 0;
+	else
+		value = 1;
+#endif
 	return sprintf(buf, "%d\n", value);
 }
 
@@ -336,6 +368,12 @@ static void sec_jack_send_key_work_func(struct work_struct *work)
 
 	/* report state change of the send_end_key */
 	if (hi->send_key_pressed != send_key_state) {
+#ifdef CONFIG_MACH_JAGUAR
+		if (send_key_state)
+			sendkey_irq_progress = true;
+		else
+			sendkey_irq_progress = false;
+#endif
 		set_send_key_state(hi, send_key_state);
 		pr_info(MODULE_NAME "%s : BTN is %s.\n",
 				__func__,
@@ -370,6 +408,17 @@ static void sec_jack_det_work_func(struct work_struct *work)
 	/* threaded irq can sleep */
 	wake_lock_timeout(&hi->det_wake_lock, WAKE_LOCK_TIME);
 
+#ifdef CONFIG_MACH_JAGUAR
+	if ((hi->cur_jack_type == SEC_HEADSET_4POLE) && sendkey_irq_progress) {
+		pr_info(MODULE_NAME "%s / 120ms Delay\n", __func__);
+		usleep_range(120000, 120000);
+
+	} else {
+		pr_info(MODULE_NAME "%s / No Delay\n", __func__);
+		sendkey_irq_progress = false;
+	}
+#endif
+
 	/* debounce headset jack.  don't try to determine the type of
 	 * headset until the detect state is true for a while.
 	 */
@@ -383,6 +432,11 @@ static void sec_jack_det_work_func(struct work_struct *work)
 		time_left_ms -= 10;
 	}
 
+#if defined(CONFIG_SAMSUNG_JACK_GNDLDET)
+	/* G plus L Detection */
+	if (!hi->pdata->get_l_jack_state())
+		return;
+#endif
 	/* set mic bias to enable adc */
 	pdata->set_micbias_state(true);
 
@@ -424,7 +478,11 @@ static int sec_jack_probe(struct platform_device *pdev)
 	if (!pdata->get_adc_value || !pdata->get_det_jack_state	||
 			!pdata->get_send_key_state || !pdata->zones ||
 			!pdata->set_micbias_state ||
-			pdata->num_zones > MAX_ZONE_LIMIT) {
+			pdata->num_zones > MAX_ZONE_LIMIT
+#if defined(CONFIG_SAMSUNG_JACK_GNDLDET)
+			|| !pdata->get_l_jack_state
+#endif
+		) {
 		pr_err("%s : need to check pdata\n", __func__);
 		return -ENODEV;
 	}
@@ -518,6 +576,24 @@ static int sec_jack_probe(struct platform_device *pdev)
 		goto err_enable_irq_wake;
 	}
 
+#ifdef CONFIG_SAMSUNG_JACK_GNDLDET_KOR
+	ret = request_threaded_irq(pdata->g_det_int, NULL,
+			sec_jack_det_irq_handler,
+			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |
+			IRQF_ONESHOT, "sec_headset_g_detect", hi);
+
+	if (ret) {
+		pr_err("%s : Failed to request_irq.\n", __func__);
+		goto err_request_detect_irq;
+	}
+
+	/* to handle insert/removal when we're sleeping in a call */
+	ret = enable_irq_wake(pdata->g_det_int);
+	if (ret) {
+		pr_err("%s : Failed to enable_irq_wake.\n", __func__);
+		goto err_enable_irq_wake;
+	}
+#endif
 	INIT_WORK(&hi->sendkey_work, sec_jack_send_key_work_func);
 
 	ret = request_threaded_irq(pdata->send_int, NULL,
@@ -547,15 +623,20 @@ static int sec_jack_probe(struct platform_device *pdev)
 
 err_request_send_key_irq:
 	disable_irq_wake(pdata->det_int);
+#ifdef CONFIG_SAMSUNG_JACK_GNDLDET_KOR
+	disable_irq_wake(pdata->g_det_int);
+#endif
 err_enable_irq_wake:
 	free_irq(pdata->det_int, hi);
+#ifdef CONFIG_SAMSUNG_JACK_GNDLDET_KOR
+	free_irq(pdata->g_det_int, hi);
+#endif
 err_request_detect_irq:
 	wake_lock_destroy(&hi->det_wake_lock);
 	switch_dev_unregister(&switch_jack_detection);
 	switch_dev_unregister(&switch_sendend);
 err_switch_dev_register:
 	input_unregister_device(hi->input);
-	goto err_request_input_dev;
 err_register_input_dev:
 	input_free_device(hi->input);
 err_request_input_dev:
@@ -578,6 +659,11 @@ static int sec_jack_remove(struct platform_device *pdev)
 	free_irq(hi->pdata->send_int, hi);
 	disable_irq_wake(hi->pdata->det_int);
 	free_irq(hi->pdata->det_int, hi);
+#ifdef CONFIG_SAMSUNG_JACK_GNDLDET_KOR
+	disable_irq_wake(hi->pdata->g_det_int);
+	free_irq(hi->pdata->g_det_int, hi);
+#endif
+
 	wake_lock_destroy(&hi->det_wake_lock);
 	switch_dev_unregister(&switch_jack_detection);
 	switch_dev_unregister(&switch_sendend);

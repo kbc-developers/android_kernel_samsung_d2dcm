@@ -179,7 +179,7 @@ static int msm_csid_init(struct v4l2_subdev *sd, uint32_t *csid_version)
 	rc = msm_cam_clk_enable(&csid_dev->pdev->dev, csid_clk_info,
 		csid_dev->csid_clk, ARRAY_SIZE(csid_clk_info), 1);
 	if (rc < 0) {
-		pr_err("%s: regulator enable failed\n", __func__);
+		pr_err("%s: clock enable failed\n", __func__);
 		goto vreg_config_failed;
 	}
 
@@ -188,13 +188,11 @@ static int msm_csid_init(struct v4l2_subdev *sd, uint32_t *csid_version)
 	*csid_version = csid_dev->hw_version;
 
 #if DBG_CSID
-	enable_irq(csid_dev->irq->start);
+	rc = request_irq(csid_dev->irq->start, msm_csid_irq,
+		IRQF_TRIGGER_RISING, "csid", csid_dev);
 #endif
-	return 0;
+	return rc;
 
-clk_enable_failed:
-	msm_camera_enable_vreg(&csid_dev->pdev->dev, csid_vreg_info,
-		ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
 vreg_enable_failed:
 	msm_camera_config_vreg(&csid_dev->pdev->dev, csid_vreg_info,
 		ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
@@ -205,21 +203,28 @@ vreg_config_failed:
 
 static int msm_csid_release(struct v4l2_subdev *sd)
 {
+	int rc = 0;
 	struct csid_device *csid_dev;
 	csid_dev = v4l2_get_subdevdata(sd);
 
 #if DBG_CSID
-	disable_irq(csid_dev->irq->start);
+	free_irq(csid_dev->irq->start, csid_dev);
 #endif
 
-	msm_cam_clk_enable(&csid_dev->pdev->dev, csid_clk_info,
+	rc = msm_cam_clk_enable(&csid_dev->pdev->dev, csid_clk_info,
 		csid_dev->csid_clk, ARRAY_SIZE(csid_clk_info), 0);
+	if (rc < 0)
+		pr_err("%s: clock disable failed\n", __func__);
 
-	msm_camera_enable_vreg(&csid_dev->pdev->dev, csid_vreg_info,
+	rc = msm_camera_enable_vreg(&csid_dev->pdev->dev, csid_vreg_info,
 		ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
+	if (rc < 0)
+		pr_err("%s: regulator disable failed\n", __func__);
 
-	msm_camera_config_vreg(&csid_dev->pdev->dev, csid_vreg_info,
+	rc = msm_camera_config_vreg(&csid_dev->pdev->dev, csid_vreg_info,
 		ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
+	if (rc < 0)
+		pr_err("%s: regulator off failed\n", __func__);
 
 	iounmap(csid_dev->base);
 	return 0;
@@ -298,24 +303,13 @@ static int __devinit csid_probe(struct platform_device *pdev)
 		goto csid_no_resource;
 	}
 
-	rc = request_irq(new_csid_dev->irq->start, msm_csid_irq,
-		IRQF_TRIGGER_RISING, "csid", new_csid_dev);
-	if (rc < 0) {
-		release_mem_region(new_csid_dev->mem->start,
-			resource_size(new_csid_dev->mem));
-		pr_err("%s: irq request fail\n", __func__);
-		rc = -EBUSY;
-		goto csid_no_resource;
-	}
-	disable_irq(new_csid_dev->irq->start);
-
 	new_csid_dev->pdev = pdev;
 	return 0;
 
 csid_no_resource:
 	mutex_destroy(&new_csid_dev->mutex);
 	kfree(new_csid_dev);
-	return 0;
+	return rc;
 }
 
 static struct platform_driver csid_driver = {

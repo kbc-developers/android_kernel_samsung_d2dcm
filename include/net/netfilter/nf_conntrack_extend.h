@@ -71,8 +71,10 @@ static inline void nf_ct_ext_destroy(struct nf_conn *ct)
  */
 static inline void nf_ct_ext_free(struct nf_conn *ct)
 {
-	if (ct->ext)
+	if (ct->ext) {
 		kfree(ct->ext);
+		ct->ext = NULL;
+	}
 }
 
 /* Add this type, returns pointer to data or NULL. */

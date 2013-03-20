@@ -131,7 +131,7 @@ int ion_iommu_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 {
 	struct ion_iommu_priv_data *data = buffer->priv_virt;
 	int i;
-
+	
 	if (!data)
 		return -EINVAL;
 
@@ -146,7 +146,7 @@ int ion_iommu_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 			 * clean up the vma space properly.
 			 */
 			return -EINVAL;
-
+	
 	return 0;
 }
 

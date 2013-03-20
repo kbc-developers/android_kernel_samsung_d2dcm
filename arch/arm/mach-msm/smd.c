@@ -260,6 +260,7 @@ static irqreturn_t smsm_irq_handler(int irq, void *data);
 static void smd_fake_irq_handler(unsigned long arg);
 static void smsm_cb_snapshot(void);
 
+static struct workqueue_struct *smsm_cb_wq;
 static void notify_smsm_cb_clients_worker(struct work_struct *work);
 static DECLARE_WORK(smsm_cb_work, notify_smsm_cb_clients_worker);
 static DEFINE_MUTEX(smsm_lock);
@@ -2024,6 +2025,13 @@ static int smsm_cb_init(void)
 		return -ENOMEM;
 	}
 
+	smsm_cb_wq = create_singlethread_workqueue("smsm_cb_wq");
+	if (!smsm_cb_wq) {
+		pr_err("%s: smsm_cb_wq creation failed\n", __func__);
+		kfree(smsm_states);
+		return -EFAULT;
+	}
+
 	mutex_lock(&smsm_lock);
 	for (n = 0; n < SMSM_NUM_ENTRIES; n++) {
 		state_info = &smsm_states[n];
@@ -2173,7 +2181,7 @@ static void smsm_cb_snapshot(void)
 	}
 	++smsm_snapshot_count;
 	spin_unlock_irqrestore(&smsm_snapshot_count_lock, flags);
-	schedule_work(&smsm_cb_work);
+	queue_work(smsm_cb_wq, &smsm_cb_work);
 }
 
 static irqreturn_t smsm_irq_handler(int irq, void *data)

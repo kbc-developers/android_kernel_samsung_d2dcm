@@ -32,13 +32,24 @@
 #include "mdp4.h"
 #include "mipi_dsi.h"
 
+
+
 static struct mdp4_overlay_pipe *dsi_pipe;
 static struct msm_fb_data_type *dsi_mfd;
 static int busy_wait_cnt;
 static int dsi_state;
 static unsigned long  tout_expired;
 
+#ifdef MDP_HANG_DEBUG
+static int mipi_dsi_cmd_mode_on;
+#endif
+
+#ifdef MDP_HANG_DEBUG
+#define TOUT_PERIOD	(2*HZ)	/* 4 second */
+#else
 #define TOUT_PERIOD	HZ	/* 1 second */
+#endif
+
 #define MS_100		(HZ/10)	/* 100 ms */
 
 static int vsync_start_y_adjust = 4;
@@ -61,12 +72,24 @@ int mdp4_overlay_dsi_state_get(void)
 
 static void dsi_clock_tout(unsigned long data)
 {
+#ifdef MDP_HANG_DEBUG
+	if (mipi_dsi_cmd_mode_on) {
+		if (dsi_clock_timer.function) {
+			tout_expired = jiffies + TOUT_PERIOD;
+			mod_timer(&dsi_clock_timer, tout_expired);
+		}
+
+		return;
+	}
+#endif
+	spin_lock(&dsi_clk_lock);
 	if (mipi_dsi_clk_on) {
 		if (dsi_state == ST_DSI_PLAYING) {
 			mipi_dsi_turn_off_clks();
 			mdp4_overlay_dsi_state_set(ST_DSI_CLK_OFF);
 		}
 	}
+	spin_unlock(&dsi_clk_lock);
 }
 
 static __u32 msm_fb_line_length(__u32 fb_index, __u32 xres, int bpp)
@@ -82,6 +105,11 @@ static __u32 msm_fb_line_length(__u32 fb_index, __u32 xres, int bpp)
 		return ALIGN(xres, 32) * bpp;
 	else
 		return xres * bpp;
+}
+
+void mdp4_dsi_cmd_del_timer(void)
+{
+	del_timer_sync(&dsi_clock_timer);
 }
 
 void mdp4_mipi_vsync_enable(struct msm_fb_data_type *mfd,
@@ -223,6 +251,35 @@ void mdp4_overlay_update_dsi_cmd(struct msm_fb_data_type *mfd)
 	wmb();
 }
 
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+void mdp4_dsi_cmd_dmap_reconfig(void)
+{
+	/*
+	 * called from mixer_reset -- IRQ context
+	 * within spin_lock(&mdp_reset_irq) protection
+	 */
+
+	if (dsi_pipe)
+		mdp4_overlay_dmap_xy(dsi_pipe);
+	if (dsi_mfd) {
+		mdp4_overlay_dmap_cfg(dsi_mfd, 0);
+		spin_lock(&mdp_spin_lock);
+		if (dsi_mfd->dma->busy == TRUE) {
+			/* force to false to allow next kickoff */
+			busy_wait_cnt = 0;
+			dsi_mfd->dma->busy = FALSE;
+			complete(&dsi_mfd->dma->comp);
+			mdp_disable_irq_nosync(MDP_OVERLAY0_TERM);
+		}
+		if (dsi_mfd->dma->dmap_busy == TRUE) {
+			dsi_mfd->dma->dmap_busy = FALSE;
+			complete(&dsi_mfd->dma->dmap_comp);
+			mdp_disable_irq_nosync(MDP_DMA2_TERM);
+		}
+		spin_unlock(&mdp_spin_lock);
+	}
+}
+#endif
 /* 3D side by side */
 void mdp4_dsi_cmd_3d_sbys(struct msm_fb_data_type *mfd,
 				struct msmfb_overlay_3d *r3d)
@@ -539,9 +596,21 @@ void mdp4_dsi_blt_dmap_busy_wait(struct msm_fb_data_type *mfd)
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
 	if (need_wait) {
+#ifdef MDP_HANG_DEBUG
+		if (!wait_for_completion_timeout(&mfd->dma->dmap_comp,
+		msecs_to_jiffies(VSYNC_PERIOD*30))) {
+			/* Does not receive interrupt from MDP,
+				Something wrong */
+
+			dump_mdp_registers();
+			panic("mdp interrupt missing");
+		}
+
+#else
 		/* wait until DMA finishes the current job */
 		wait_for_completion_timeout(&mfd->dma->dmap_comp,
 			msecs_to_jiffies(VSYNC_PERIOD*2));
+#endif
 	}
 }
 
@@ -551,37 +620,162 @@ void mdp4_dsi_blt_dmap_busy_wait(struct msm_fb_data_type *mfd)
  * while it is in idle state.
  * ov_mutex need to be acquired before call this function.
  */
+
+#ifdef MDP_HANG_DEBUG
+
+inline void printkout(int offset, int cnt)
+{
+	int i = 0;
+
+	for (i = 0; i < cnt; i++) {
+		pr_err("offset 0x%x = 0x%x\n",
+		(offset + (i*4)), inpdw(MDP_BASE + (offset + (i*4))));
+	}
+}
+
+inline void printkout_mipi(int offset, int cnt)
+{
+	int i = 0;
+
+	for (i = 0; i < cnt; i++) {
+		pr_err("offset 0x%x = 0x%x\n",
+		(offset + (i*4)), inpdw(MIPI_DSI_BASE + (offset + (i*4))));
+	}
+}
+
+void save_reg_dump()
+{
+	uint32 cnt = 0;
+
+	for (cnt  = 0; cnt < MDP_GENENRL_DUMP_NUM; cnt++) {
+		mdp4_stat.mdp_reg_dump_general[cnt]
+			= inpdw(MDP_BASE + MDP_GENERAL_DUMP_START + (cnt*4));
+	}
+
+	for (cnt  = 0; cnt < MDP_SYNC_DUMP_NUM; cnt++) {
+		mdp4_stat.mdp_reg_dump_sync[cnt]
+			= inpdw(MDP_BASE + MDP_SYNC_DUMP_START + (cnt*4));
+	}
+
+	for (cnt  = 0; cnt < MDP_OV_PROC_DUMP_NUM; cnt++) {
+		mdp4_stat.mdp_reg_dump_ov_pro[cnt]
+			= inpdw(MDP_BASE + MDP_OV_PROC_DUMP_START + (cnt*4));
+	}
+
+	for (cnt  = 0; cnt < MDP_DMA_P_DUMP_NUM; cnt++) {
+		mdp4_stat.mdp_reg_dump_prim_disp[cnt]
+			= inpdw(MDP_BASE + MDP_DMA_P_DUMP_START + (cnt*4));
+	}
+
+	mdp4_stat.mdp_reg_dump_prim_disp2[0] = inpdw(MDP_BASE + 0x91000);
+	mdp4_stat.mdp_reg_dump_prim_disp2[1] = inpdw(MDP_BASE + 0x91004);
+	mdp4_stat.mdp_reg_dump_prim_disp2[2] = inpdw(MDP_BASE + 0x92000);
+
+	for (cnt  = 0; cnt < MIPI_DSI1_DUMP_NUM; cnt++) {
+		mdp4_stat.mipi_dsi1_reg_dump[cnt]
+			= inpdw(MIPI_DSI_BASE + MIPI_DSI1_DUMP_START + (cnt*4));
+	}
+}
+
+void dump_mdp_registers()
+{
+
+
+	pr_info("=====================================\n");
+	pr_info(" [cmd_lockup]     MDP register dump\n");
+	printkout(0x90000, 10);
+	printkout(0x90070, 1);
+	printkout(0x91000, 2);
+	printkout(0x10100, 1);
+	printkout(0x18000, 1);
+	printkout(0x10000, 20);
+	printkout(0x10104, 1);
+	printkout(0x10124, 1);
+	printkout(0x10144, 1);
+	printkout(0x20000, 4);
+	printkout(0x20040, 4);
+	printkout(0x20050, 5);
+	printkout(0x21000, 2);
+	printkout(0x0018, 1);
+	printkout(0x0034, 2);
+	printkout(0x0050, 2);
+	printkout(0x0100, 9);
+	printkout(0x0124, 2);
+	printkout(0x0134, 2);
+	printkout(0x0140, 1);
+	printkout(0x014c, 1);
+	printkout(0x0154, 1);
+	printkout(0x0200, 1);
+	printkout(0x0210, 1);
+	printkout(0x021c, 1);
+	printkout(0x04B0, 3);
+	printkout(0x04c4, 2);
+	printkout(0x30000, 4);
+	printkout(0x30040, 4);
+	printkout(0x30050, 5);
+	printkout(0x31000, 2);
+	printkout(0x40000, 4);
+	printkout(0x40040, 4);
+	printkout(0x40050, 5);
+	printkout(0x41000, 2);
+	printkout(0x50000, 4);
+	printkout(0x50040, 4);
+	printkout(0x50050, 5);
+	printkout(0x51000, 2);
+	printkout(0xB0000, 5);
+	printkout(0x18004, 2);
+	printkout(0x18018, 1);
+	printkout(0x18104, 1);
+	printkout_mipi(0x0, 125);
+	pr_info("=====================================\n");
+	save_reg_dump();
+
+}
+#endif
 void mdp4_dsi_cmd_dma_busy_wait(struct msm_fb_data_type *mfd)
 {
 	unsigned long flag;
 	int need_wait = 0;
-
-
+	int wait_cnt = 0;
+#ifdef MDP_HANG_DEBUG
+	mipi_dsi_cmd_mode_on = 1;
+#endif
 
 	if (dsi_clock_timer.function) {
+#ifndef MDP_HANG_DEBUG
 		if (time_after(jiffies, tout_expired)) {
+#endif
 			tout_expired = jiffies + TOUT_PERIOD;
 			mod_timer(&dsi_clock_timer, tout_expired);
+#ifndef MDP_HANG_DEBUG
 			tout_expired -= MS_100;
 		}
+#endif
 	}
 
 	pr_debug("%s: start pid=%d dsi_clk_on=%d\n",
 			__func__, current->pid, mipi_dsi_clk_on);
 
 	/* satrt dsi clock if necessary */
+	spin_lock_bh(&dsi_clk_lock);
 	if (mipi_dsi_clk_on == 0) {
-		local_bh_disable();
 		mipi_dsi_turn_on_clks();
-		local_bh_enable();
 	}
-
+	spin_unlock_bh(&dsi_clk_lock);
+/*
+*QCT_PATCH-sbyun to avoid confilt
+*between on going video image and new overlay image,
+*add some delay when mdp of dma is in busy status
+*/
 	spin_lock_irqsave(&mdp_spin_lock, flag);
 	if (mfd->dma->busy == TRUE) {
 		if (busy_wait_cnt == 0)
 			INIT_COMPLETION(mfd->dma->comp);
 		busy_wait_cnt++;
 		need_wait++;
+#if defined(DEBUG_MDP_LOCKUP)
+		mdp4_stat.dma_wait_start_time = jiffies;
+#endif
 	}
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
@@ -589,8 +783,25 @@ void mdp4_dsi_cmd_dma_busy_wait(struct msm_fb_data_type *mfd)
 		/* wait until DMA finishes the current job */
 		pr_debug("%s: pending pid=%d dsi_clk_on=%d\n",
 				__func__, current->pid, mipi_dsi_clk_on);
+#ifdef MDP_HANG_DEBUG
+		if (!wait_for_completion_timeout(&mfd->dma->comp,
+		msecs_to_jiffies(VSYNC_PERIOD*30))) {
+			/* Does not receive interrupt from MDP,
+				Something wrong */
+
+			dump_mdp_registers();
+			panic("mdp interrupt missing");
+		}
+
+#else
 		wait_for_completion(&mfd->dma->comp);
+#endif
+
 	}
+
+#ifdef MDP_HANG_DEBUG
+	mipi_dsi_cmd_mode_on = 0;
+#endif
 	pr_debug("%s: done pid=%d dsi_clk_on=%d\n",
 			 __func__, current->pid, mipi_dsi_clk_on);
 }
@@ -641,29 +852,42 @@ void mdp4_dsi_cmd_kickoff_ui(struct msm_fb_data_type *mfd,
 void mdp4_dsi_cmd_overlay_kickoff(struct msm_fb_data_type *mfd,
 				struct mdp4_overlay_pipe *pipe)
 {
-	unsigned long flag;
+	unsigned long flag, rflag;
 
 #ifdef FACTORY_TEST
 	if (!is_lcd_connected)
 		return;
 #endif
+/*
+*QCT_PATCH-sbyun to avoid confilt
+*between on going video image and new overlay image,
+*add some delay when mdp of dma is in busy status
+*/
 	/* change mdp clk */
 	mdp4_set_perf_level();
 
 	mipi_dsi_mdp_busy_wait(mfd);
-
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	spin_lock_irqsave(&mixer_reset_lock, rflag);
+#endif
 	if (dsi_pipe->blt_addr == 0)
 		mipi_dsi_cmd_mdp_start();
 
 	mdp4_overlay_dsi_state_set(ST_DSI_PLAYING);
 
 	spin_lock_irqsave(&mdp_spin_lock, flag);
+
 	mdp_enable_irq(MDP_OVERLAY0_TERM);
 	mfd->dma->busy = TRUE;
+
 	if (dsi_pipe->blt_addr)
 		mfd->dma->dmap_busy = TRUE;
+
 	/* start OVERLAY pipe */
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	spin_unlock_irqrestore(&mixer_reset_lock, rflag);
+#endif
 	mdp_pipe_kickoff(MDP_OVERLAY0_TERM, mfd);
 	mdp4_stat.kickoff_ov0++;
 }

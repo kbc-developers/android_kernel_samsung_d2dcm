@@ -121,6 +121,26 @@ static int msm_ctrl_cmd_done(void __user *arg)
 	return 0;
 }
 
+static void msm_cam_stop_hardware(struct msm_cam_v4l2_device *pcam)
+{
+	struct msm_cam_media_controller *pmctl;
+	int rc = 0;
+	pr_err("%s: stopping hardware upon error\n", __func__);
+	if (pcam == NULL)
+		return;
+	pmctl = &pcam->mctl;
+	if (pmctl && pmctl->mctl_release) {
+		pr_err("%s: stopping hardware upon error\n", __func__);
+		/*do not send any commands to hardware
+		after reaching this point*/
+		pmctl->mctl_cmd = NULL;
+		rc = pmctl->mctl_release(pmctl);
+		if (rc < 0)
+			pr_err("mctl_release fails %d\n", rc);
+		pmctl->mctl_release = NULL;
+	}
+}
+
 /* send control command to config and wait for results*/
 static int msm_server_control(struct msm_cam_server_dev *server_dev,
 				struct msm_ctrl_cmd *out)
@@ -131,6 +151,7 @@ static int msm_server_control(struct msm_cam_server_dev *server_dev,
 	struct msm_ctrl_cmd *ctrlcmd;
 	struct msm_device_queue *queue =  &server_dev->ctrl_q;
 
+	struct msm_cam_v4l2_device *pcam = server_dev->pcam_active;
 	struct v4l2_event v4l2_evt;
 	struct msm_isp_event_ctrl *isp_event;
 	isp_event = kzalloc(sizeof(struct msm_isp_event_ctrl), GFP_KERNEL);
@@ -169,6 +190,7 @@ static int msm_server_control(struct msm_cam_server_dev *server_dev,
 			}
 			kfree(isp_event);
 			pr_err("%s: wait_event error %d\n", __func__, rc);
+			msm_cam_stop_hardware(pcam);
 			return rc;
 		}
 	}
@@ -1627,6 +1649,7 @@ static int msm_close(struct file *f)
 	}
 
 	mutex_lock(&pcam->vid_lock);
+
 	pcam_inst->streamon = 0;
 	pcam->use_count--;
 	pcam->dev_inst_map[pcam_inst->image_mode] = NULL;
@@ -1980,6 +2003,7 @@ static int msm_close_server(struct inode *inode, struct file *fp)
 			struct v4l2_event v4l2_ev;
 			mutex_lock(&g_server_dev.server_lock);
 
+			msm_cam_stop_hardware(g_server_dev.pcam_active);
 			v4l2_ev.type = V4L2_EVENT_PRIVATE_START
 				+ MSM_CAM_APP_NOTIFY_ERROR_EVENT;
 			ktime_get_ts(&v4l2_ev.timestamp);
@@ -2724,6 +2748,8 @@ static int __init msm_camera_init(void)
 
 		msm_class = class_create(THIS_MODULE, "msm_camera");
 		if (IS_ERR(msm_class)) {
+			unregister_chrdev_region(msm_devno,
+				g_server_dev.config_info.num_config_nodes+1);
 			rc = PTR_ERR(msm_class);
 			pr_err("%s: create device class failed: %d\n",
 			__func__, rc);
@@ -2734,6 +2760,9 @@ static int __init msm_camera_init(void)
 	D("creating server and config nodes\n");
 	rc = msm_setup_server_dev(0, "video_msm");
 	if (rc < 0) {
+		unregister_chrdev_region(msm_devno,
+			g_server_dev.config_info.num_config_nodes+1);
+		class_destroy(msm_class);
 		pr_err("%s: failed to create server dev: %d\n", __func__,
 		rc);
 		return rc;
@@ -2742,6 +2771,9 @@ static int __init msm_camera_init(void)
 	for (i = 0; i < g_server_dev.config_info.num_config_nodes; i++) {
 		rc = msm_setup_config_dev(i, "config");
 		if (rc < 0) {
+			unregister_chrdev_region(msm_devno,
+				g_server_dev.config_info.num_config_nodes+1);
+			class_destroy(msm_class);
 			pr_err("%s:failed to create config dev: %d\n",
 			 __func__, rc);
 			return rc;

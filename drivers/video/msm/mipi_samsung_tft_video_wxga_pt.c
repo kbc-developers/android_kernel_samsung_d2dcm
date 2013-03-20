@@ -16,6 +16,11 @@
 #include "mipi_tc358764_dsi2lvds.h"
 
 static struct msm_panel_info pinfo;
+
+static struct dsi2lvds_panel_data dsi2lvds_pd = {
+	.panel_name = "SMD_LTL101AL06\n",
+};
+
 static struct mipi_dsi_phy_ctrl dsi_video_mode_phy_db = {
 	/* DSIPHY_REGULATOR_CTRL */
 	.regulator = {0x03, 0x0a, 0x04, 0x00, 0x20}, /* common 8960 */
@@ -31,7 +36,11 @@ static struct mipi_dsi_phy_ctrl dsi_video_mode_phy_db = {
 	/* DSIPHY_PLL_CTRL */
 	.pll = { 0x00, /* common 8960 */
 	/* VCO */
-	0x40, 0x01, 0x19, /* panel specific */
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
+	0x0E, 0x30, 0xC0, /* panel specific */
+#else
+	0x40, 0x01, 0x19,
+#endif
 	0x00, 0x50, 0x48, 0x63,
 	0x77, 0x88, 0x99, /* Auto update by dsi-mipi driver */
 	0x00, 0x14, 0x03, 0x00, 0x02, /* common 8960 */
@@ -56,21 +65,42 @@ static int __init mipi_video_samsung_tft_wxga_pt_init(void)
 	pinfo.fb_num = 2; /* using two frame buffers */
 
 	/* bitclk */
+#if defined(CONFIG_MIPI_CLK_451)
+	pinfo.clk_rate = 451200000;
+#elif defined(CONFIG_MIPI_CLK_414)
+	pinfo.clk_rate = 414000000;
+#else
 	pinfo.clk_rate = 333350000;
-
+#endif
 	/*
 	 * this panel is operated by DE,
 	 * vsycn and hsync are ignored
 	 */
+#if defined(CONFIG_MIPI_CLK_451) /* espresso10 att */
+	pinfo.lcdc.h_front_porch = 48;	/* thfp */
+	pinfo.lcdc.h_back_porch = 48;	/* thb */
+	pinfo.lcdc.h_pulse_width = 2;	/* thpw */
 
-	pinfo.lcdc.h_front_porch = 50;/* thfp */
+	pinfo.lcdc.v_front_porch = 64;	/* tvfp */
+	pinfo.lcdc.v_back_porch = 32;	/* tvb */
+	pinfo.lcdc.v_pulse_width = 2;	/* tvpw */
+#elif defined(CONFIG_MIPI_CLK_414) /* espresso10 vzw & spr */
+	pinfo.lcdc.h_front_porch = 32;	/* thfp */
+	pinfo.lcdc.h_back_porch = 32;	/* thb */
+	pinfo.lcdc.h_pulse_width = 2;	/* thpw */
+
+	pinfo.lcdc.v_front_porch = 24;	/* tvfp */
+	pinfo.lcdc.v_back_porch = 24;	/* tvb */
+	pinfo.lcdc.v_pulse_width = 2;	/* tvpw */
+#else /* esrepsso7 */
+	pinfo.lcdc.h_front_porch = 50;	/* thfp */
 	pinfo.lcdc.h_back_porch = 50;	/* thb */
 	pinfo.lcdc.h_pulse_width = 570;	/* thpw */
 
 	pinfo.lcdc.v_front_porch = 8;	/* tvfp */
 	pinfo.lcdc.v_back_porch = 7;	/* tvb */
 	pinfo.lcdc.v_pulse_width = 30;	/* tvpw */
-
+#endif
 	pinfo.lcdc.border_clr = 0;		/* black */
 	pinfo.lcdc.underflow_clr = 0xff;	/* blue */
 
@@ -134,7 +164,7 @@ static int __init mipi_video_samsung_tft_wxga_pt_init(void)
 
 
 	ret = mipi_tc358764_dsi2lvds_register(&pinfo, MIPI_DSI_PRIM,
-						MIPI_DSI_PANEL_QHD_PT);
+				MIPI_DSI_PANEL_QHD_PT, &dsi2lvds_pd);
 	if (ret)
 		pr_err("%s: failed to register device!\n", __func__);
 

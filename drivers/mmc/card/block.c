@@ -47,7 +47,7 @@
 #include "queue.h"
 
 MODULE_ALIAS("mmc:block");
-#if defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_K2_KDI)
 #define MMC_ENABLE_CPRM
 #endif
 
@@ -434,7 +434,7 @@ static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 		cprm_ake_retry_flag = 1;
 		ret = 0;
 		break;
-		
+
 	case MMC_IOCTL_GET_SECTOR_COUNT: {
 			int size = 0;
 
@@ -465,14 +465,14 @@ static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 					, i, req->arg);
 				temp_arg[i] = req->arg;
 				i++;
-				if(i >= 16){
+				if (i >= 16) {
 					printk(KERN_DEBUG"reset acmd43 i = %d\n",
 						i);
 					i = 0;
 				}
 			}
 
-			
+
 			if (cmd == ACMD45 && cprm_ake_retry_flag == 1) {
 				cprm_ake_retry_flag = 0;
 				printk(KERN_DEBUG"ACMD45.. I'll call ACMD43 and ACMD44 first\n");
@@ -499,9 +499,9 @@ static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 						i);
 					return -EINVAL;
 				}
-				
+
 			}
-				
+
 			return stub_sendcmd(card, req->cmd,
 				req->arg, req->len, req->buff);
 		}

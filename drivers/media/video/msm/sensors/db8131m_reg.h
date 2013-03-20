@@ -24,8 +24,8 @@
 /* date     : 12/03/23                                      */
 /* date     : 12/03/06                                      */
 /* Model    : Aegis2                                        */
-/* 주의사항 : 0xDD96 셋팅값을 만나면 0xDD96을 I2C write 하지 말고 */
-/*            150ms delay 후 다음 셋팅값을 I2C write해 주면 됨    */
+/* 퓨 : 0xDD96 챨  0xDD96 I2C write   */
+/*            150ms delay   챨 I2C write 寧     */
 /* =================================================================*/
 
 static const u16 db8131m_common[] = {
@@ -739,6 +739,7 @@ static const u16 db8131m_common[] = {
 0x1041,
 
 /* Self-Cam END of Initial*/
+0xE7D2,
 };
 
 /* Set-data based on SKT VT standard ,when using 3G network */
@@ -792,7 +793,7 @@ static const u32 db8131m_vt_wifi_common[] = {
 };
 
 /*===========================================*/
-/* CAMERA_PREVIEW - 촬영 후 프리뷰 복귀시 셋팅 */
+/* CAMERA_PREVIEW - 篤   枯  */
 /*============================================*/
 
 static const u16 db8131m_preview[] = {
@@ -1562,15 +1563,33 @@ static const u16 db8131m_pattern_off[] = {
 0x0200,		/*TPG Disable*/
 };
 
+static const u16 db8131m_flip_off[] = {
+0xFF87,
+0xd500,
+};
 
 static const u16 db8131m_vflip[] = {
-0xFF87,		/*Page mode */
-0xd508,		/*VFlip*/
+0xFF87,
+0xd508,
 };
 
 static const u16 db8131m_hflip[] = {
-0xFF87,		/*Page mode */
-0xd504,		/*HFlip*/
+0xFF87,
+0xd504,
 };
 
+static const u16 db8131m_flip_off_No15fps[] = {
+0xFF87,
+0xd502,
+};
+
+static const u16 db8131m_vflip_No15fps[] = {
+0xFF87,
+0xd50A,
+};
+
+static const u16 db8131m_hflip_No15fps[] = {
+0xFF87,
+0xd506,
+};
 #endif /* __DB8131M_REG_H */

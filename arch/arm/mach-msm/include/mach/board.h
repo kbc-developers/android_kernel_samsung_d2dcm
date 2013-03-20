@@ -199,7 +199,7 @@ struct msm_camera_sensor_platform_info {
 	struct camera_vreg_t *cam_vreg;
 	int num_vreg;
 	int32_t (*ext_power_ctrl) (int enable);
-#if defined(CONFIG_S5C73M3) || defined(CONFIG_S5K6A3YX) /* D2 */
+#if defined(CONFIG_S5C73M3) && defined(CONFIG_S5K6A3YX) /* D2 */
 	void(*sensor_power_on) (int, int);
 #else
 	void(*sensor_power_on) (int);
@@ -226,7 +226,7 @@ struct msm_gpio_set_tbl {
 	uint32_t delay;
 };
 
-#if defined(CONFIG_S5C73M3) || defined(CONFIG_S5K6A3YX) /* D2 */
+#if defined(CONFIG_S5C73M3) && defined(CONFIG_S5K6A3YX) /* D2 */
 struct msm_camera_gpio_conf {
 	void *cam_gpiomux_conf_tbl;
 	uint8_t cam_gpiomux_conf_tbl_size;
@@ -271,7 +271,7 @@ struct msm_camera_sensor_info {
 	struct msm_camera_csi_params csi_params;
 	struct msm_camera_sensor_strobe_flash_data *strobe_flash_data;
 	char *eeprom_data;
-#if defined(CONFIG_S5C73M3) || defined(CONFIG_S5K6A3YX) /* D2 */
+#if defined(CONFIG_S5C73M3) && defined(CONFIG_S5K6A3YX) /* D2 */
 	struct msm_camera_gpio_conf *gpio_conf;
 #endif
 	enum msm_camera_type camera_type;

@@ -1702,6 +1702,7 @@ static ssize_t accel_reactive_alert_store(struct device *dev,
 			pr_err("%s: i2c write INT reg failed\n", __func__);
 	}
 
+	mldl_cfg->inv_mpu_state->use_accel_reactive = onoff;
 	mldl_cfg->inv_mpu_state->accel_reactive = onoff;
 	return count;
 }
@@ -1771,6 +1772,10 @@ static ssize_t ak8975_adc(struct device *dev,
 	struct ext_slave_platform_data **pdata_slave = mldl_cfg->pdata_slave;
 	int ii;
 
+	if (pdata_slave[EXT_SLAVE_TYPE_COMPASS] == NULL)
+		return snprintf(strbuf, PAGE_SIZE, "%s, %d, %d, %d\n",
+			"NG", 0, 0, 0);
+
 	for (ii = 0; ii < EXT_SLAVE_NUM_TYPES; ii++) {
 		if (!pdata_slave[ii])
 			slave_adapter[ii] = NULL;
@@ -1839,6 +1844,10 @@ static ssize_t ak8975_check_cntl(struct device *dev,
 
 	int ii, err;
 	u8 data;
+
+	if (pdata_slave[EXT_SLAVE_TYPE_COMPASS] == NULL)
+		return snprintf(buf, PAGE_SIZE, "%s\n", "NG");
+
 	for (ii = 0; ii < EXT_SLAVE_NUM_TYPES; ii++) {
 		if (!pdata_slave[ii])
 			slave_adapter[ii] = NULL;
@@ -1962,7 +1971,11 @@ static ssize_t ak8975c_get_status(struct device *dev,
 	struct ext_slave_platform_data **pdata_slave = mldl_cfg->pdata_slave;
 	int success;
 
-	struct ak8975_private_data *private_data =
+	struct ak8975_private_data *private_data;
+	if (pdata_slave[EXT_SLAVE_TYPE_COMPASS] == NULL)
+		return snprintf(buf, PAGE_SIZE, "%s\n", "NG");
+
+	private_data =
 		(struct ak8975_private_data *)
 		pdata_slave[EXT_SLAVE_TYPE_COMPASS]->private_data;
 	if ((private_data->init.asa[0] == 0) |
@@ -2069,12 +2082,19 @@ static ssize_t ak8975c_get_selftest(struct device *dev,
 
 	struct i2c_adapter *slave_adapter[EXT_SLAVE_NUM_TYPES];
 	struct ext_slave_platform_data **pdata_slave = mldl_cfg->pdata_slave;
-	struct ak8975_private_data *private_data =
-		(struct ak8975_private_data *)
-		pdata_slave[EXT_SLAVE_TYPE_COMPASS]->private_data;
+	struct ak8975_private_data *private_data;
+
 	int ii, success;
 	int sf[3] = {0,};
 	int retry = 3;
+
+	if (pdata_slave[EXT_SLAVE_TYPE_COMPASS] == NULL)
+		return snprintf(buf, PAGE_SIZE, "%d, %d, %d, %d\n",
+		0, 0, 0, 0);
+
+	private_data =
+		(struct ak8975_private_data *)
+		pdata_slave[EXT_SLAVE_TYPE_COMPASS]->private_data;
 
 	for (ii = 0; ii < EXT_SLAVE_NUM_TYPES; ii++) {
 		if (!pdata_slave[ii])

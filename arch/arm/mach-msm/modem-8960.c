@@ -317,7 +317,7 @@ static int __init modem_8960_init(void)
 	if (ret < 0) {
 		pr_err("%s: Unable to reg with subsystem restart. (%d)\n",
 				__func__, ret);
-		goto out;
+		goto free_irq_Q6SW;
 	}
 
 	modemfw_ramdump_dev = create_ramdump_device("modem_fw");

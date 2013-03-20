@@ -710,7 +710,6 @@ static void msmfb_early_resume(struct early_suspend *h)
 
 static int unset_bl_level, bl_updated;
 static int bl_level_old;
-
 void msm_fb_set_backlight(struct msm_fb_data_type *mfd, __u32 bkl_lvl)
 {
 	struct msm_fb_panel_data *pdata;
@@ -746,6 +745,7 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 
 	if (!op_enable)
 		return -EPERM;
+	pr_info("entering %s blank_mode %d\n", __func__, blank_mode);
 
 	pdata = (struct msm_fb_panel_data *)mfd->pdev->dev.platform_data;
 	if ((!pdata) || (!pdata->on) || (!pdata->off)) {
@@ -788,11 +788,20 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 			mfd->panel_power_on = FALSE;
 			bl_updated = 0;
 
-			msleep(16);
+			usleep(16000);
 			ret = pdata->off(mfd->pdev);
 			if (ret)
 				mfd->panel_power_on = curr_pwr_state;
-
+#if defined(CONFIG_MACH_ESPRESSO_VZW) || defined(CONFIG_MACH_ESPRESSO10_ATT) \
+|| defined(CONFIG_MACH_ESPRESSO10_SPR) || defined(CONFIG_MACH_ESPRESSO10_VZW) \
+|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
+#ifdef CONFIG_MIPI_SAMSUNG_ESD_REFRESH
+			if (get_esd_refresh_stat() == false)
+#endif
+				if (!poweroff_charging)
+					memset((void *)info->screen_base, 0x00,
+						info->fix.smem_len);
+#endif
 			mfd->op_enable = TRUE;
 		} else {
 			if (pdata->power_ctrl)
@@ -800,6 +809,7 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 		}
 		break;
 	}
+	pr_info("exiting %s blank_mode %d\n", __func__, blank_mode);
 
 	return ret;
 }
@@ -1551,7 +1561,7 @@ static int msm_fb_open(struct fb_info *info, int user)
 
 	if (!mfd->ref_cnt) {
 		mdp_set_dma_pan_info(info, NULL, TRUE);
-
+		
 		if (mfd->panel_info.type != DTV_PANEL) {
 			if (msm_fb_blank_sub(FB_BLANK_UNBLANK, info,
 							mfd->op_enable)) {
@@ -1683,6 +1693,9 @@ static int msm_fb_pan_display(struct fb_var_screeninfo *var,
 		if ((pdata) && (pdata->set_backlight)) {
 			down(&mfd->sem);
 			mfd->bl_level = unset_bl_level;
+#if	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
+			bl_updated = 1;
+#endif
 			pdata->set_backlight(mfd);
 			bl_level_old = unset_bl_level;
 			up(&mfd->sem);
@@ -2795,7 +2808,11 @@ static int msmfb_overlay_play(struct fb_info *info, unsigned long *argp)
 		if ((pdata) && (pdata->set_backlight)) {
 			down(&mfd->sem);
 			mfd->bl_level = unset_bl_level;
-#if !defined(CONFIG_MACH_GOGH)/*Backlight is set in mipi_novatek_disp_on*/
+#if	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
+			bl_updated = 1;
+#endif
+#if !defined(CONFIG_MACH_GOGH) && !defined(CONFIG_MACH_INFINITE)
+	/*Backlight is set in mipi_novatek_disp_on*/
 			pdata->set_backlight(mfd);
 #endif
 			bl_level_old = unset_bl_level;
@@ -3081,10 +3098,20 @@ static int msmfb_notify_update(struct fb_info *info, unsigned long *argp)
 
 	if (notify == NOTIFY_UPDATE_START) {
 		INIT_COMPLETION(mfd->msmfb_update_notify);
+#if	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
+		wait_for_completion_interruptible_timeout(
+			&mfd->msmfb_update_notify, 4*HZ);
+#else
 		wait_for_completion_interruptible(&mfd->msmfb_update_notify);
+#endif
 	} else {
 		INIT_COMPLETION(mfd->msmfb_no_update_notify);
+#if	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
+		wait_for_completion_interruptible_timeout(
+			&mfd->msmfb_no_update_notify, 4*HZ);
+#else
 		wait_for_completion_interruptible(&mfd->msmfb_no_update_notify);
+#endif
 	}
 	return 0;
 }

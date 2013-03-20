@@ -72,7 +72,11 @@ else ifdef CONFIG_MACH_M2_VZW
 snd-soc-msm8960-objs := msm8960-d2.o
 else ifdef CONFIG_MACH_M2_DCM
 snd-soc-msm8960-objs := msm8960-d2.o
+else ifdef CONFIG_MACH_K2_KDI
+snd-soc-msm8960-objs := msm8960-d2.o
 else ifdef CONFIG_MACH_GOGH
+snd-soc-msm8960-objs := msm8960-d2.o
+else ifdef CONFIG_MACH_INFINITE
 snd-soc-msm8960-objs := msm8960-d2.o
 else ifdef CONFIG_MACH_JASPER
 snd-soc-msm8960-objs := msm8960-d2.o
@@ -81,6 +85,10 @@ snd-soc-msm8960-objs := msm8960-d2.o
 else ifdef CONFIG_MACH_COMANCHE
 snd-soc-msm8960-objs := msm8960-d2.o
 else ifdef CONFIG_MACH_EXPRESS
+snd-soc-msm8960-objs := msm8960-d2.o
+else ifdef CONFIG_MACH_STRETTO
+snd-soc-msm8960-objs := msm8960-d2.o
+else ifdef CONFIG_MACH_SUPERIORLTE_SKT
 snd-soc-msm8960-objs := msm8960-d2.o
 else ifdef CONFIG_MACH_JAGUAR
 snd-soc-msm8960-objs := msm8960-jaguar.o

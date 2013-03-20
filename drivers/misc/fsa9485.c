@@ -135,8 +135,9 @@
 #define	ADC_CARDOCK		0x1d
 #define	ADC_OPEN		0x1f
 
-int uart_connecting = 0;
+int uart_connecting;
 EXPORT_SYMBOL(uart_connecting);
+
 int detached_status;
 EXPORT_SYMBOL(detached_status);
 
@@ -154,6 +155,7 @@ struct fsa9485_usbsw {
 	struct delayed_work	init_work;
 	struct mutex		mutex;
 	int				adc;
+	int				deskdock;
 };
 
 enum {
@@ -205,7 +207,38 @@ static void EnableFSA9480Interrupts(void)
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
 
 }
+#if defined(CONFIG_MACH_AEGIS2)
+void fsa9485_checkandhookaudiodockfornoise(int value)
+{
+	struct i2c_client *client = local_usbsw->client;
+	struct fsa9485_platform_data *pdata = local_usbsw->pdata;
+	int ret = 0;
 
+	if (isDeskdockconnected) {
+		ret = i2c_smbus_write_byte_data(client,
+			FSA9485_REG_MANSW1, value);
+
+		if (ret < 0)
+			dev_err(&client->dev, "%s: err %d\n",
+						__func__, ret);
+
+		ret = i2c_smbus_read_byte_data(client,
+						FSA9485_REG_CTRL);
+
+		if (ret < 0)
+			dev_err(&client->dev, "%s: err %d\n",
+						__func__, ret);
+
+		ret = i2c_smbus_write_byte_data(client,
+					FSA9485_REG_CTRL,
+					ret & ~CON_MANUAL_SW & ~CON_RAW_DATA);
+		if (ret < 0)
+			dev_err(&client->dev,
+					"%s: err %d\n", __func__, ret);
+		} else
+			pr_info("Dock is not connect\n");
+}
+#endif
 void FSA9485_CheckAndHookAudioDock(int value)
 {
 	struct i2c_client *client = local_usbsw->client;
@@ -638,32 +671,8 @@ static int fsa9485_detect_dev(struct fsa9485_usbsw *usbsw)
 	if (val1 || val2) {
 		/* USB */
 		if (val1 & DEV_USB || val2 & DEV_T2_USB_MASK) {
-			dev_info(&client->dev, "usb connect path\n");
+			dev_info(&client->dev, "usb connect\n");
 
-			ret = i2c_smbus_write_byte_data(client,
-					FSA9485_REG_MANSW1, SW_AUDIO);
-			if (ret < 0)
-				dev_err(&client->dev,
-						"%s: err %d\n", __func__, ret);
-			ret = i2c_smbus_read_byte_data(client,
-					FSA9485_REG_CTRL);
-			if (ret < 0)
-				dev_err(&client->dev,
-						"%s: err %d\n", __func__, ret);
-			ret = i2c_smbus_write_byte_data(client,
-					FSA9485_REG_CTRL, ret & ~CON_MANUAL_SW);
-
-			msleep(10);
-
-			ret = i2c_smbus_write_byte_data(client,
-					FSA9485_REG_MANSW1, SW_AUTO);
-			if (ret < 0)
-				dev_err(&client->dev,
-						"%s: err %d\n", __func__, ret);
-
-			ret = i2c_smbus_write_byte_data(client,
-					FSA9485_REG_CTRL, 0x1E);
-			
 			if (pdata->usb_cb)
 				pdata->usb_cb(FSA9485_ATTACHED);
 			if (usbsw->mansw) {
@@ -732,9 +741,10 @@ static int fsa9485_detect_dev(struct fsa9485_usbsw *usbsw)
 				pdata->jig_cb(FSA9485_ATTACHED);
 		/* Desk Dock */
 		} else if (val2 & DEV_AV) {
-			if ((adc & 0x1F) == 0x1A) {
+			if ((adc & 0x1F) == ADC_DESKDOCK) {
 				pr_info("FSA Deskdock Attach\n");
 				FSA9485_CheckAndHookAudioDock(1);
+				usbsw->deskdock = 1;
 #if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
 				isDeskdockconnected = 1;
 #endif
@@ -756,7 +766,7 @@ static int fsa9485_detect_dev(struct fsa9485_usbsw *usbsw)
 				}
 				EnableFSA9480Interrupts();
 #else
-				FSA9485_CheckAndHookAudioDock(1);
+				pr_info("FSA mhl attach, but not support MHL feature!\n");
 #endif
 			}
 		/* Car Dock */
@@ -856,7 +866,12 @@ static int fsa9485_detect_dev(struct fsa9485_usbsw *usbsw)
 #endif
 			isDeskdockconnected = 0;
 #else
-			FSA9485_CheckAndHookAudioDock(0);
+			if (usbsw->deskdock) {
+				FSA9485_CheckAndHookAudioDock(0);
+				usbsw->deskdock = 0;
+			} else {
+				pr_info("FSA detach mhl cable, but not support MHL feature\n");
+			}
 #endif
 		/* Car Dock */
 		} else if (usbsw->dev2 & DEV_JIG_UART_ON) {
@@ -1174,6 +1189,9 @@ static int __devinit fsa9485_probe(struct i2c_client *client,
 	if (ret) {
 		dev_err(&client->dev,
 			"input_register_device %s: err %d\n", __func__, ret);
+		input_free_device(input);
+		kfree(usbsw);
+		return ret;
 	}
 
 	usbsw->client = client;
@@ -1191,6 +1209,8 @@ static int __devinit fsa9485_probe(struct i2c_client *client,
 		usbsw->pdata->cfg_gpio();
 
 	fsa9485_reg_init(usbsw);
+
+	uart_connecting = 0;
 
 	ret = sysfs_create_group(&client->dev.kobj, &fsa9485_group);
 	if (ret) {
@@ -1254,6 +1274,7 @@ fail2:
 	if (client->irq)
 		free_irq(client->irq, usbsw);
 fail1:
+	input_unregister_device(input);
 	mutex_destroy(&usbsw->mutex);
 	i2c_set_clientdata(client, NULL);
 	kfree(usbsw);

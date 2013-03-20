@@ -28,7 +28,9 @@
 #include <linux/wakelock.h>
 #include <asm/irq.h>
 
-
+#ifdef CONFIG_VIDEO_MHL_TAB_V2
+#include "mhl_tab_v2/sii9234_driver.h"
+#endif
 #define SUBJECT "ACCESSORY"
 
 #define ACC_CONDEV_DBG(format, ...) \
@@ -41,6 +43,9 @@ enum accessory_type {
 	ACCESSORY_NONE = 0,
 	ACCESSORY_OTG,
 	ACCESSORY_LINEOUT,
+#ifdef CONFIG_CAMERON_HEALTH
+	ACCESSORY_CAMERON,
+#endif
 	ACCESSORY_CARMOUNT,
 	ACCESSORY_UNKNOWN,
 };
@@ -56,6 +61,7 @@ enum uevent_dock_type {
 	UEVENT_DOCK_DESK,
 	UEVENT_DOCK_CAR,
 	UEVENT_DOCK_KEYBOARD = 9,
+	UEVENT_DOCK_CONNECTED = 255,
 };
 
 struct acc_con_info {
@@ -72,6 +78,7 @@ struct acc_con_info {
 	int accessory_irq;
 	int dock_irq;
 	int mhl_irq;
+	int adc_val;
 };
 
 static int check_using_stmpe811_adc(void)
@@ -102,12 +109,23 @@ static int connector_detect_change(void)
 			else if (adc_min > adc_buff[i])
 				adc_min = adc_buff[i];
 		}
-		msleep(20);
+		mdelay(1);
 	}
 	adc = (adc_sum - adc_max - adc_min)/3;
 	ACC_CONDEV_DBG("ACCESSORY_ID : ADC value = %d\n", adc);
 	return (int)adc;
 }
+
+#define MAX_ADC_USBOTG		2841
+#define MIN_ADC_USBOTG		2623
+#define MAX_ADC_CAMERON		2557
+#define MIN_ADC_CAMERON		2361
+#define MAX_ADC_LINEOUT2	2324
+#define MIN_ADC_LINEOUT2	2146
+#define MAX_ADC_CARMOUNT	1784
+#define MIN_ADC_CARMOUNT	1647
+#define MAX_ADC_LINEOUT		1281
+#define MIN_ADC_LINEOUT		1100
 
 void acc_notified(struct acc_con_info *acc, int acc_adc)
 {
@@ -125,16 +143,21 @@ void acc_notified(struct acc_con_info *acc, int acc_adc)
 
 	if (acc_adc != false) {
 		if (check_using_stmpe811_adc()) {
-			if ((1207 < acc_adc) && (1256 > acc_adc)) {
+			if ((MIN_ADC_LINEOUT < acc_adc) && (MAX_ADC_LINEOUT > acc_adc)) {
 				env_ptr = "ACCESSORY=lineout";
 				current_accessory = ACCESSORY_LINEOUT;
-			} else if ((1680 < acc_adc) && (1749 > acc_adc)) {
+			} else if ((MIN_ADC_CARMOUNT < acc_adc) && (MAX_ADC_CARMOUNT > acc_adc)) {
 				env_ptr = "ACCESSORY=carmount";
 				acc->current_accessory = ACCESSORY_CARMOUNT;
-			} else if ((2189 < acc_adc) && (2278 > acc_adc)) {
+			} else if ((MIN_ADC_LINEOUT2 < acc_adc) && (MAX_ADC_LINEOUT2 > acc_adc)) {
 				env_ptr = "ACCESSORY=lineout";
 				current_accessory = ACCESSORY_LINEOUT;
-			} else if ((2676 < acc_adc) && (2785 > acc_adc)) {
+#ifdef CONFIG_CAMERON_HEALTH
+			} else if ((MIN_ADC_CAMERON < acc_adc) && (MAX_ADC_CAMERON > acc_adc)) {
+				env_ptr = "ACCESSORY=cameron";
+				current_accessory = ACCESSORY_CAMERON;
+#endif
+			} else if ((MIN_ADC_USBOTG < acc_adc) && (MAX_ADC_USBOTG > acc_adc)) {
 				env_ptr = "ACCESSORY=OTG";
 				current_accessory = ACCESSORY_OTG;
 			} else {
@@ -176,6 +199,10 @@ void acc_notified(struct acc_con_info *acc, int acc_adc)
 				envp[0] = "ACCESSORY=lineout";
 			else if (acc->current_accessory == ACCESSORY_CARMOUNT)
 				envp[0] = "ACCESSORY=carmount";
+#ifdef CONFIG_CAMERON_HEALTH
+			else if (acc->current_accessory == ACCESSORY_CAMERON)
+				envp[0] = "ACCESSORY=cameron";
+#endif
 			else
 				envp[0] = "ACCESSORY=unknown";
 
@@ -210,10 +237,22 @@ void acc_notified(struct acc_con_info *acc, int acc_adc)
 			if (acc->pdata->otg_en)
 				acc->pdata->otg_en(1);
 			msleep(30);
-		} else if (acc->current_accessory == ACCESSORY_LINEOUT) {
+		} else if (acc->current_accessory == ACCESSORY_LINEOUT)
 			switch_set_state(&acc->ear_jack_switch, 1);
-		}
+#ifdef CONFIG_CAMERON_HEALTH
+		else if (acc->current_accessory == ACCESSORY_CAMERON) {
+			/* To do, when the cameron health device is connected */
 
+			/* force acc power off to ensure otg detection */
+			if (acc->pdata->acc_power)
+				acc->pdata->acc_power(0, false);
+			msleep(20);
+
+			if (acc->pdata->cameron_health_en)
+				acc->pdata->cameron_health_en(1);
+			msleep(30);
+		}
+#endif
 		kobject_uevent_env(&acc->acc_dev->kobj, KOBJ_CHANGE, envp);
 		ACC_CONDEV_DBG("%s : %s", env_ptr, stat_ptr);
 	} else {
@@ -225,6 +264,10 @@ void acc_notified(struct acc_con_info *acc, int acc_adc)
 				UEVENT_DOCK_NONE);
 		} else if (acc->current_accessory == ACCESSORY_CARMOUNT) {
 			env_ptr = "ACCESSORY=carmount";
+#ifdef CONFIG_CAMERON_HEALTH
+		} else if (acc->current_accessory == ACCESSORY_CAMERON) {
+			env_ptr = "ACCESSORY=cameron";
+#endif
 		} else {
 			env_ptr = "ACCESSORY=unknown";
 		}
@@ -237,7 +280,10 @@ void acc_notified(struct acc_con_info *acc, int acc_adc)
 		if ((acc->current_accessory == ACCESSORY_OTG) &&
 			acc->pdata->otg_en)
 			acc->pdata->otg_en(0);
-
+#ifdef CONFIG_CAMERON_HEALTH
+		else if (acc->current_accessory == ACCESSORY_CAMERON)
+			acc->pdata->cameron_health_en(0);
+#endif
 		acc->current_accessory = ACCESSORY_NONE;
 		ACC_CONDEV_DBG("%s : %s", env_ptr, stat_ptr);
 	}
@@ -270,6 +316,20 @@ static void acc_dock_check(struct acc_con_info *acc, bool connected)
 	ACC_CONDEV_DBG("%s : %s", env_ptr, stat_ptr);
 }
 
+#if defined(CONFIG_VIDEO_MHL_TAB_V2)
+static void check_acc_mhl(struct acc_con_info *acc)
+{
+	if (gpio_get_value(acc->pdata->accessory_irq_gpio)) {
+		/*call MHL deinit */
+		mhl_onoff_ex(false);
+	} else {
+		mutex_lock(&acc->lock);
+		mhl_onoff_ex(true);
+		mutex_unlock(&acc->lock);
+	}
+}
+#endif
+
 static void check_acc_dock(struct acc_con_info *acc)
 {
 	if (gpio_get_value(acc->pdata->accessory_irq_gpio)) {
@@ -281,9 +341,12 @@ static void check_acc_dock(struct acc_con_info *acc)
 		acc->pdata->check_keyboard(false);
 #endif
 		acc_dock_check(acc, false);
+		acc->adc_val = 0;
 	} else {
 		ACC_CONDEV_DBG("docking station attached!!!");
 
+		switch_set_state(&acc->dock_switch, UEVENT_DOCK_CONNECTED);
+		msleep(200);
 		wake_lock(&acc->wake_lock);
 
 #ifdef CONFIG_SEC_KEYBOARD_DOCK
@@ -310,10 +373,19 @@ static void check_acc_dock(struct acc_con_info *acc)
 static irqreturn_t acc_con_interrupt(int irq, void *ptr)
 {
 	struct acc_con_info *acc = ptr;
+	int adc_val = 0;
 
 	ACC_CONDEV_DBG("");
+	adc_val = connector_detect_change();
 
-	check_acc_dock(acc);
+	if ((acc->adc_val != adc_val) ||
+		(acc->current_dock != DOCK_KEYBOARD)) {
+		check_acc_dock(acc);
+		acc->adc_val = adc_val;
+	}
+#if defined(CONFIG_VIDEO_MHL_TAB_V2)
+	check_acc_mhl(acc);
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -346,9 +418,11 @@ static irqreturn_t acc_ID_interrupt(int irq, void *dev_id)
 	if (acc_ID_val == 0) {
 		ACC_CONDEV_DBG("Accessory detached");
 		acc_notified(acc, false);
-	} else
+	} else {
+		wake_lock(&acc->wake_lock);
 		schedule_delayed_work(&acc->acc_id_dwork,
 			msecs_to_jiffies(DETECTION_DELAY_MS));
+	}
 	return IRQ_HANDLED;
 }
 
@@ -364,6 +438,10 @@ static int acc_con_interrupt_init(struct acc_con_info *acc)
 	}
 	gpio_direction_input(acc->pdata->accessory_irq_gpio);
 	acc->accessory_irq = gpio_to_irq(acc->pdata->accessory_irq_gpio);
+
+	if ( !gpio_get_value(acc->pdata->accessory_irq_gpio) )
+		acc_con_interrupt(acc->accessory_irq, acc);
+
 	ret = request_threaded_irq(acc->accessory_irq, NULL, acc_con_interrupt,
 			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
 			"accessory_detect", acc);
@@ -423,9 +501,11 @@ static void acc_delay_work(struct work_struct *work)
 	if (!gpio_get_value_cansleep(acc->pdata->accessory_irq_gpio))
 		check_acc_dock(acc);
 
-	if (acc->pdata->get_dock_state())
+	if (acc->pdata->get_dock_state()) {
+		wake_lock(&acc->wake_lock);
 		schedule_delayed_work(&acc->acc_id_dwork,
 			msecs_to_jiffies(DETECTION_DELAY_MS));
+	}
 
 	return ;
 
@@ -443,6 +523,7 @@ static void acc_id_delay_work(struct work_struct *work)
 	int  adc_val = 0;
 	if (!acc->pdata->get_dock_state()) {
 		ACC_CONDEV_DBG("ACCESSORY detached\n");
+		wake_unlock(&acc->wake_lock);
 		return;
 	} else {
 		ACC_CONDEV_DBG("Accessory attached");
@@ -450,6 +531,7 @@ static void acc_id_delay_work(struct work_struct *work)
 		ACC_CONDEV_DBG("adc_val : %d", adc_val);
 		acc_notified(acc, adc_val);
 	}
+	wake_unlock(&acc->wake_lock);
 }
 
 static int acc_con_probe(struct platform_device *pdev)
@@ -472,6 +554,7 @@ static int acc_con_probe(struct platform_device *pdev)
 	acc->pdata = pdata;
 	acc->current_dock = DOCK_NONE;
 	acc->current_accessory = ACCESSORY_NONE;
+	acc->adc_val = 0;
 
 	mutex_init(&acc->lock);
 
@@ -493,7 +576,7 @@ static int acc_con_probe(struct platform_device *pdev)
 
 	wake_lock_init(&acc->wake_lock, WAKE_LOCK_SUSPEND, "30pin_con");
 	INIT_DELAYED_WORK(&acc->acc_dwork, acc_delay_work);
-	schedule_delayed_work(&acc->acc_dwork, msecs_to_jiffies(10000));
+	schedule_delayed_work(&acc->acc_dwork, msecs_to_jiffies(24000));
 	INIT_DELAYED_WORK(&acc->acc_id_dwork, acc_id_delay_work);
 
 	return 0;

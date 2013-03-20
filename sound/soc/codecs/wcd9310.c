@@ -3034,6 +3034,10 @@ static void tabla_codec_enable_bandgap(struct snd_soc_codec *codec,
 		(choice == TABLA_BANDGAP_AUDIO_MODE)) {
 		tabla_codec_enable_audio_mode_bandgap(codec);
 	} else if (choice == TABLA_BANDGAP_MBHC_MODE) {
+		/* bandgap mode becomes fast,
+		 * mclk should be off or clk buff source souldn't be VBG
+		 * Let's turn off mclk always */
+		WARN_ON(snd_soc_read(codec, TABLA_A_CLK_BUFF_EN2) & (1 << 2));
 		snd_soc_update_bits(codec, TABLA_A_BIAS_CENTRAL_BG_CTL, 0x2,
 			0x2);
 		snd_soc_update_bits(codec, TABLA_A_BIAS_CENTRAL_BG_CTL, 0x80,
@@ -3066,6 +3070,7 @@ static int tabla_codec_enable_config_mode(struct snd_soc_codec *codec,
 	pr_debug("%s: enable = %d\n", __func__, enable);
 	if (enable) {
 		snd_soc_update_bits(codec, TABLA_A_CONFIG_MODE_FREQ, 0x10, 0);
+		/* bandgap mode to fast */
 		snd_soc_write(codec, TABLA_A_BIAS_CONFIG_MODE_BG_CTL, 0x17);
 		usleep_range(5, 5);
 		snd_soc_update_bits(codec, TABLA_A_CONFIG_MODE_FREQ, 0x80,
@@ -3074,13 +3079,14 @@ static int tabla_codec_enable_config_mode(struct snd_soc_codec *codec,
 			0x80);
 		usleep_range(10, 10);
 		snd_soc_update_bits(codec, TABLA_A_CONFIG_MODE_TEST, 0x80, 0);
-		usleep_range(20, 20);
+		usleep_range(10000, 10000);
 		snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN1, 0x08, 0x08);
 	} else {
 		snd_soc_update_bits(codec, TABLA_A_BIAS_CONFIG_MODE_BG_CTL, 0x1,
 			0);
 		snd_soc_update_bits(codec, TABLA_A_CONFIG_MODE_FREQ, 0x80, 0);
-		snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN1, 0x08, 0x00);
+		/* clk source to ext clk and clk buff ref to VBG */
+		snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN1, 0x0C, 0x04);
 	}
 	tabla->config_mode_active = enable ? true : false;
 
@@ -3094,23 +3100,26 @@ static int tabla_codec_enable_clock_block(struct snd_soc_codec *codec,
 
 	pr_debug("%s: config_mode = %d\n", __func__, config_mode);
 
+	/* transit to RCO requires mclk off */
+	WARN_ON(snd_soc_read(codec, TABLA_A_CLK_BUFF_EN2) & (1 << 2));
 	if (config_mode) {
+		/* enable RCO and switch to it */
 		tabla_codec_enable_config_mode(codec, 1);
-		snd_soc_write(codec, TABLA_A_CLK_BUFF_EN2, 0x00);
 		snd_soc_write(codec, TABLA_A_CLK_BUFF_EN2, 0x02);
-		snd_soc_write(codec, TABLA_A_CLK_BUFF_EN1, 0x0D);
 		usleep_range(1000, 1000);
-	} else
+	} else {
+		/* switch to MCLK */
 		snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN1, 0x08, 0x00);
 
-	if (!config_mode && tabla->mbhc_polling_active) {
-		snd_soc_write(codec, TABLA_A_CLK_BUFF_EN2, 0x02);
-		tabla_codec_enable_config_mode(codec, 0);
-
+		if (tabla->mbhc_polling_active) {
+			snd_soc_write(codec, TABLA_A_CLK_BUFF_EN2, 0x02);
+			tabla_codec_enable_config_mode(codec, 0);
+		}
 	}
 
-	snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN1, 0x05, 0x05);
+	snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN1, 0x01, 0x01);
 	snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN2, 0x02, 0x00);
+	/* on MCLK */
 	snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN2, 0x04, 0x04);
 	snd_soc_update_bits(codec, TABLA_A_CDC_CLK_MCLK_CTL, 0x01, 0x01);
 	usleep_range(50, 50);
@@ -3122,9 +3131,10 @@ static void tabla_codec_disable_clock_block(struct snd_soc_codec *codec)
 	struct tabla_priv *tabla = snd_soc_codec_get_drvdata(codec);
 	pr_debug("%s\n", __func__);
 	snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN2, 0x04, 0x00);
-	ndelay(160);
+	usleep_range(50, 50);
 	snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN2, 0x02, 0x02);
 	snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN1, 0x05, 0x00);
+	usleep_range(50, 50);
 	tabla->clock_active = false;
 }
 
@@ -3211,14 +3221,16 @@ int tabla_mclk_enable(struct snd_soc_codec *codec, int mclk_enable)
 	if (mclk_enable) {
 		tabla->mclk_enabled = true;
 
-		if (tabla->mbhc_polling_active && (tabla->mclk_enabled)) {
+		if (tabla->mbhc_polling_active) {
 			tabla_codec_pause_hs_polling(codec);
+			tabla_codec_disable_clock_block(codec);
 			tabla_codec_enable_bandgap(codec,
 					TABLA_BANDGAP_AUDIO_MODE);
 			tabla_codec_enable_clock_block(codec, 0);
 			tabla_codec_calibrate_hs_polling(codec);
 			tabla_codec_start_hs_polling(codec);
 		} else {
+			tabla_codec_disable_clock_block(codec);
 			tabla_codec_enable_bandgap(codec,
 					TABLA_BANDGAP_AUDIO_MODE);
 			tabla_codec_enable_clock_block(codec, 0);
@@ -3233,15 +3245,14 @@ int tabla_mclk_enable(struct snd_soc_codec *codec, int mclk_enable)
 		tabla->mclk_enabled = false;
 
 		if (tabla->mbhc_polling_active) {
-			if (!tabla->mclk_enabled) {
-				tabla_codec_pause_hs_polling(codec);
-				tabla_codec_enable_bandgap(codec,
-					TABLA_BANDGAP_MBHC_MODE);
-				tabla_enable_rx_bias(codec, 1);
-				tabla_codec_enable_clock_block(codec, 1);
-				tabla_codec_calibrate_hs_polling(codec);
-				tabla_codec_start_hs_polling(codec);
-			}
+			tabla_codec_pause_hs_polling(codec);
+			tabla_codec_disable_clock_block(codec);
+			tabla_codec_enable_bandgap(codec,
+						   TABLA_BANDGAP_MBHC_MODE);
+			tabla_enable_rx_bias(codec, 1);
+			tabla_codec_enable_clock_block(codec, 1);
+			tabla_codec_calibrate_hs_polling(codec);
+			tabla_codec_start_hs_polling(codec);
 			snd_soc_update_bits(codec, TABLA_A_CLK_BUFF_EN1,
 					0x05, 0x01);
 		} else {
@@ -3309,7 +3320,8 @@ static int tabla_hw_params(struct snd_pcm_substream *substream,
 	u16 tx_fs_reg, rx_fs_reg;
 	u8 tx_fs_rate, rx_fs_rate, rx_state, tx_state;
 
-	pr_debug("%s: DAI-ID %x\n", __func__, dai->id);
+	pr_info("%s: DAI-ID %x rate : %d\n", __func__,
+				dai->id, params_rate(params));
 
 	switch (params_rate(params)) {
 	case 8000:
@@ -3571,6 +3583,7 @@ static short tabla_codec_setup_hs_polling(struct snd_soc_codec *codec)
 	tabla->mbhc_polling_active = true;
 
 	if (!tabla->mclk_enabled) {
+		tabla_codec_disable_clock_block(codec);
 		tabla_codec_enable_bandgap(codec, TABLA_BANDGAP_MBHC_MODE);
 		tabla_enable_rx_bias(codec, 1);
 		tabla_codec_enable_clock_block(codec, 1);
@@ -5276,7 +5289,11 @@ static int tabla_handle_pdata(struct tabla_priv *tabla)
 		(pdata->micbias.bias3_cfilt_sel << 5));
 	snd_soc_update_bits(codec, tabla->reg_addr.micb_4_ctl, 0x60,
 			    (pdata->micbias.bias4_cfilt_sel << 5));
-
+#if defined(CONFIG_MACH_AEGIS2)
+	snd_soc_update_bits(codec, TABLA_A_MICB_1_CTL, 0x01, 1);
+	snd_soc_update_bits(codec, TABLA_A_MICB_2_CTL, 0x01, 1);
+	snd_soc_update_bits(codec, TABLA_A_MICB_3_CTL, 0x01, 1);
+#endif
 	for (i = 0; i < 6; j++, i += 2) {
 		if (flag & (0x01 << i)) {
 			value = (leg_mode & (0x01 << i)) ? 0x10 : 0x00;

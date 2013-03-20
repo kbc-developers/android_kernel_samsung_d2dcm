@@ -295,7 +295,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 };
 
 
-#define MSM_PMEM_ADSP_SIZE         0x7800000 /* 120 Mbytes */
+#define MSM_PMEM_ADSP_SIZE         0x4E00000 /* 78 Mbytes */
 #define MSM_PMEM_AUDIO_SIZE        0x160000 /* 1.375 Mbytes */
 #define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
@@ -306,7 +306,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 #define MSM_ION_SF_SIZE		0x2200000 /* 34MB */
 #define MSM_ION_MM_FW_SIZE	0x200000 /* (2MB) */
 #define MSM_ION_MM_SIZE		MSM_PMEM_ADSP_SIZE
-#define MSM_ION_QSECOM_SIZE	0x600000 /* (6MB) */
+#define MSM_ION_QSECOM_SIZE	0x100000 /* (1MB) */
 #define MSM_ION_MFC_SIZE	SZ_8K
 #define MSM_ION_AUDIO_SIZE	0x1000 /* 4KB */
 #define MSM_ION_HEAP_NUM	8
@@ -649,17 +649,17 @@ static void __init adjust_mem_for_liquid(void)
 			msm_ion_sf_size = MSM_HDMI_PRIM_ION_SF_SIZE;
 
 		if (machine_is_msm8960_liquid() || hdmi_is_primary) {
-		for (i = 0; i < ion_pdata.nr; i++) {
-					if (ion_pdata.heaps[i].id == ION_SF_HEAP_ID) {
-						ion_pdata.heaps[i].size =
-							msm_ion_sf_size;
-						pr_debug("msm_ion_sf_size 0x%x\n",
-							msm_ion_sf_size);
+			for (i = 0; i < ion_pdata.nr; i++) {
+				if (ion_pdata.heaps[i].id == ION_SF_HEAP_ID) {
+					ion_pdata.heaps[i].size =
+						msm_ion_sf_size;
+					pr_debug("msm_ion_sf_size 0x%x\n",
+						msm_ion_sf_size);
 				break;
+				}
 			}
 		}
 	}
-}
 }
 
 static void __init reserve_mem_for_ion(enum ion_memory_types mem_type,
@@ -1338,6 +1338,54 @@ static void fsa9485_dock_cb(int attached)
 	}
 }
 
+static void fsa9485_usb_cdp_cb(bool attached)
+{
+	union power_supply_propval value;
+	int i, ret = 0;
+	struct power_supply *psy;
+
+	pr_info("fsa9485_usb_cdp_cb attached %d\n", attached);
+
+	set_cable_status =
+		attached ? CABLE_TYPE_CDP : CABLE_TYPE_NONE;
+
+	if (system_rev >= 0x1) {
+		if (attached) {
+			pr_info("%s set vbus state\n", __func__);
+			msm_otg_set_vbus_state(attached);
+		}
+	}
+
+	for (i = 0; i < 10; i++) {
+		psy = power_supply_get_by_name("battery");
+		if (psy)
+			break;
+	}
+	if (i == 10) {
+		pr_err("%s: fail to get battery ps\n", __func__);
+		return;
+	}
+
+	switch (set_cable_status) {
+	case CABLE_TYPE_CDP:
+		value.intval = POWER_SUPPLY_TYPE_USB_CDP;
+		break;
+	case CABLE_TYPE_NONE:
+		value.intval = POWER_SUPPLY_TYPE_BATTERY;
+		break;
+	default:
+		pr_err("invalid status:%d\n", attached);
+		return;
+	}
+
+	ret = psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE,
+		&value);
+	if (ret) {
+		pr_err("%s: fail to set power_suppy ONLINE property(%d)\n",
+			__func__, ret);
+	}
+}
+
 static int fsa9485_dock_init(void)
 {
 	int ret;
@@ -1396,6 +1444,7 @@ static struct fsa9485_platform_data fsa9485_pdata = {
 	.jig_cb = fsa9485_jig_cb,
 	.dock_cb = fsa9485_dock_cb,
 	.dock_init = fsa9485_dock_init,
+	.usb_cdp_cb = fsa9485_usb_cdp_cb,
 };
 
 static struct i2c_board_info micro_usb_i2c_devices_info[] __initdata = {
@@ -1420,7 +1469,18 @@ static void msm8960_mhl_gpio_init(void)
 		return;
 	}
 
+	ret = gpio_request(GPIO_MHL_RST, "mhl_rst");
+	if (ret < 0) {
+		pr_err("mhl_sel gpio_request is failed\n");
+		return;
+	}
+
 	ret = gpio_request(GPIO_MHL_EN, "mhl_en");
+	if (ret < 0) {
+		pr_err("mhl_en gpio_request is failed\n");
+		return;
+	}
+	ret = gpio_request(GPIO_MHL_WAKE_UP, "mhl_wakeup");
 	if (ret < 0) {
 		pr_err("mhl_en gpio_request is failed\n");
 		return;
@@ -1441,6 +1501,8 @@ static void mhl_gpio_config(void)
 	gpio_tlmm_config(GPIO_CFG(GPIO_MHL_EN, 0, GPIO_CFG_OUTPUT,
 				GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
 	gpio_tlmm_config(GPIO_CFG(GPIO_MHL_RST, 0, GPIO_CFG_OUTPUT,
+				GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
+	gpio_tlmm_config(GPIO_CFG(GPIO_MHL_WAKE_UP, 0, GPIO_CFG_OUTPUT,
 				GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
 }
 
@@ -1700,18 +1762,20 @@ static struct taos_platform_data taos_pdata = {
 	.power	= taos_power_on,
 	.led_on	=	taos_led_onoff,
 	.als_int = PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_PROX_INT),
-	.prox_thresh_hi = 620,
-	.prox_thresh_low = 500,
+	.prox_thresh_hi = 640,
+	.prox_thresh_low = 490,
+	.prox_th_hi_cal = 460,
+	.prox_th_low_cal = 350,
 	.als_time = 0xED,
 	.intr_filter = 0x33,
-	.prox_pulsecnt = 0x08,
+	.prox_pulsecnt = 0x07,
 	.prox_gain = 0x28,
 	.coef_atime = 50,
-	.ga = 81,
+	.ga = 79,
 	.coef_a = 1000,
-	.coef_b = 1880,
-	.coef_c = 690,
-	.coef_d = 1230,
+	.coef_b = 1770,
+	.coef_c = 680,
+	.coef_d = 1135,
 };
 
 static struct i2c_board_info opt_i2c_borad_info[] = {
@@ -2035,7 +2099,7 @@ static int __init pn544_init(void)
 
 static int __init sensor_device_init(void)
 {
-	sensor_power_on_vdd(SNS_PWR_ON, SNS_PWR_KEEP);
+	sensor_power_on_vdd(SNS_PWR_ON, SNS_PWR_ON);
 	return 0;
 }
 #endif
@@ -3622,14 +3686,14 @@ static u8 t47_config_e[] = {PROCI_STYLUS_T47,
 
 static u8 t48_config_e[] = {PROCG_NOISESUPPRESSION_T48,
 				3, 132, MXT224E_CALCFG_BATT,
-				22, 0, 0, 0, 0, 1, 2, 0, 0, 0,
+				25, 0, 0, 0, 0, 1, 2, 0, 0, 0,
 				6, 6, 0, 0, 48, 4, 48, 10,
 				0, 8, 5, 0, 14, 0, 5,
 				0, 0, 0, 0, 0, 0, MXT224E_T48_BLEN_BATT,
 				MXT224E_THRESHOLD_BATT,
 				2, 3, 1, 46, MXT224_MAX_MT_FINGERS,
-				5, 40, 235, 235, 10, 10, 160, 50, 143,
-				80, 18, 15, 0 };
+				5, 40, 245, 245, 25, 10, 160, 50, 143,
+				80, 10, 15, 0 };
 
 static u8 t48_config_chrg_e[] = {PROCG_NOISESUPPRESSION_T48,
 				3, 132, MXT224E_CALCFG_CHRG,
@@ -3639,8 +3703,8 @@ static u8 t48_config_chrg_e[] = {PROCG_NOISESUPPRESSION_T48,
 				0, 0, 0, 0, 0, 0, MXT224E_T48_BLEN_CHRG,
 				MXT224E_THRESHOLD_CHRG,
 				2, 5, 2, 47, MXT224_MAX_MT_FINGERS,
-				5, 40, 235, 235, 10, 10, 160, 50, 143,
-				80, 18, 15, 0 };
+				5, 40, 245, 245, 25, 10, 160, 50, 143,
+				80, 10, 15, 0 };
 
 static u8 end_config_e[] = {RESERVED_T255};
 
@@ -3689,7 +3753,7 @@ static struct mxt224_platform_data mxt224_data = {
 	.power_onoff = mxt224_power_onoff,
 	.register_cb = mxt224_register_callback,
 	.read_ta_status = mxt224_read_ta_status,
-	.config_fw_version = "T699_At_0420",
+	.config_fw_version = "T699_At_0612",
 };
 
 /* I2C2 */
@@ -4512,29 +4576,16 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(ON, GDHS, MAX, ACTIVE),
-		false,
-		8500, 51, 1122000, 8500,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, MAX, ACTIVE),
 		false,
 		9000, 51, 1130300, 9000,
 	},
+
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, ACTIVE, RET_HIGH),
 		false,
 		10000, 51, 1130300, 10000,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(OFF, GDHS, MAX, ACTIVE),
-		false,
-		12000, 14, 2205900, 12000,
 	},
 
 	{

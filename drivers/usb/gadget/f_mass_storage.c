@@ -1024,7 +1024,9 @@ static int do_read_cd(struct fsg_common *common)
 			break;		/* No more left to read */
 
 		/* Send this buffer and go read some more */
-		start_in_transfer(common, bh);
+		if (!start_in_transfer(common, bh))
+			/* Don't know what to do if common->fsg is NULL */
+			return -EIO;
 		common->next_buffhd_to_fill = bh->next;
 	}
 
@@ -1591,8 +1593,7 @@ static int do_inquiry(struct fsg_common *common, struct fsg_buffhd *bh)
 #if defined(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE)
 	strncpy(new_product_name, common->product_string, 16);
 	new_product_name[16] = '\0';
-	if (common->product_string &&
-		strlen(common->product_string) <= 11 &&
+	if (strlen(common->product_string) <= 11 &&
 			/* check string length */
 			common->lun > 0) {
 		strncat(new_product_name, " Card", 16);

@@ -698,7 +698,7 @@ u32 vcd_free_buffers_internal(
 	VCD_MSG_LOW("vcd_free_buffers_internal:");
 
 	if (buf_pool->entries) {
-		for (i = 1; i <= buf_pool->count; i++) {
+		for (i = 0; i < buf_pool->count; i++) { 
 			if (buf_pool->entries[i].valid &&
 				buf_pool->entries[i].allocated) {
 				vcd_pmem_free(buf_pool->entries[i].alloc,
@@ -726,7 +726,7 @@ u32 vcd_alloc_buffer_pool_entries(
 	buf_pool->count = buf_req->actual_count;
 	buf_pool->entries = (struct vcd_buffer_entry *)
 		kzalloc((sizeof(struct vcd_buffer_entry) *
-			   (VCD_MAX_BUFFER_ENTRIES + 1)), GFP_KERNEL);
+			  (VCD_MAX_BUFFER_ENTRIES)), GFP_KERNEL); 
 
 	if (!buf_pool->entries) {
 		VCD_MSG_ERROR("Buf_pool entries alloc failed");
@@ -734,7 +734,7 @@ u32 vcd_alloc_buffer_pool_entries(
 	}
 
 	INIT_LIST_HEAD(&buf_pool->queue);
-	buf_pool->entries[0].valid = true;
+	
 	buf_pool->q_len = 0;
 
 	buf_pool->validated = 0;
@@ -759,7 +759,7 @@ void vcd_flush_in_use_buffer_pool_entries(struct vcd_clnt_ctxt *cctxt,
 	VCD_MSG_LOW("vcd_flush_buffer_pool_entries: event=0x%x", event);
 
 	if (buf_pool->entries) {
-		for (i = 0; i <= buf_pool->count; i++) {
+		for (i = 0; i < buf_pool->count; i++) { 
 			if (buf_pool->entries[i].virtual &&
 				buf_pool->entries[i].in_use) {
 				cctxt->callback(event, VCD_S_SUCCESS,
@@ -780,7 +780,7 @@ void vcd_reset_buffer_pool_for_reuse(struct vcd_buffer_pool *buf_pool)
 	VCD_MSG_LOW("vcd_reset_buffer_pool_for_reuse:");
 
 	if (buf_pool->entries) {
-		memset(&buf_pool->entries[1], 0,
+		memset(&buf_pool->entries[0], 0, 
 			sizeof(struct vcd_buffer_entry) *
 			VCD_MAX_BUFFER_ENTRIES);
 	}
@@ -796,12 +796,11 @@ struct vcd_buffer_entry *vcd_get_free_buffer_pool_entry
 	(struct vcd_buffer_pool *pool) {
 	u32 i;
 
-	i = 1;
-	while (i <= pool->count && pool->entries[i].valid)
+       i = 0;
+	while (i < pool->count && pool->entries[i].valid)
 		i++;
 
-
-	if (i <= pool->count) {
+	if (i < pool->count) {
 		pool->entries[i].valid = true;
 
 		return &pool->entries[i];
@@ -816,13 +815,21 @@ struct vcd_buffer_entry *vcd_find_buffer_pool_entry
 	u32 i;
 	u32 found = false;
 
-	if(pool->entries==NULL)
-		return NULL;
+	if (pool == NULL) 
+	{ 
+	VCD_MSG_ERROR("buffer pool is NULL\n"); 
+	return NULL; 
+	} 
 
-	for (i = 0; i <= pool->count && !found; i++) {
+	for (i = 0; i < pool->count && !found; i++) { 
+
+	if(pool->entries==NULL)
+		{ 
+			VCD_MSG_ERROR("pool->entries is NULL\n"); 
+		return NULL;
+		} 
 		if (pool->entries[i].virtual == addr)
 			found = true;
-
 	}
 
 	if (found)
@@ -883,7 +890,7 @@ void vcd_flush_bframe_buffers(struct vcd_clnt_ctxt *cctxt, u32 mode)
 		buf_pool = (mode == VCD_FLUSH_INPUT) ?
 			&cctxt->in_buf_pool : &cctxt->out_buf_pool;
 		if (buf_pool->entries != NULL) {
-			for (i = 1; i <= buf_pool->count; i++) {
+			for (i = 0; i < buf_pool->count; i++) { 
 				if ((buf_pool->entries[i].in_use) &&
 					(buf_pool->entries[i].frame.virtual
 					 != NULL)) {
@@ -2398,8 +2405,9 @@ u32 vcd_handle_first_fill_output_buffer_for_dec(
 		return VCD_ERR_ALLOC_FAIL;
 	}
 
-	for (i = 1; i <= out_buf_pool->count; i++)
-		dpb_list[i - 1].vcd_frm = out_buf_pool->entries[i].frame;
+	for (i = 0; i < out_buf_pool->count; i++)
+		dpb_list[i].vcd_frm = out_buf_pool->entries[i].frame;
+	
 
 	dpb.dec_pic_buffers = dpb_list;
 	dpb.no_of_dec_pic_buf = out_buf_pool->count;
@@ -3174,7 +3182,7 @@ u32 vcd_check_if_buffer_req_met(struct vcd_clnt_ctxt *cctxt,
 		VCD_MSG_ERROR("Buffer pool is not completely setup yet");
 		return VCD_ERR_BAD_STATE;
 	}
-	for (i = 1; (rc == VCD_S_SUCCESS && i <= buf_pool->count); i++) {
+	for (i = 0; (rc == VCD_S_SUCCESS && i < buf_pool->count); i++) { 
 		if (buf_pool->entries[i].sz <
 			buf_pool->buf_req.sz) {
 			VCD_MSG_ERROR(

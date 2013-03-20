@@ -1686,8 +1686,8 @@ static struct resource resources_qup_spi_gsbi11[] = {
 	/*test: Qualcomm, DMA SPI, start */
 	{
 		.name	= "spidm_channels",
-		.start	= 9,
-		.end	= 10,
+		.start	= 3,
+		.end	= 4,
 		.flags	= IORESOURCE_DMA,
 	},
 	{

@@ -97,10 +97,9 @@ struct hdmi_msm_state_type {
 	void __iomem *hdmi_io;
 
 	struct external_common_state_type common;
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
-	boolean mhl_hpd_state;
 	boolean hpd_on_offline;
-#endif
+	boolean mhl_hpd_state;
+
 	struct switch_dev	hdmi_audio_switch;
 	struct switch_dev	hdmi_audio_ch;
 	boolean	boot_completion;

@@ -151,6 +151,9 @@ static unsigned reset_reason = 0xFFEEFFEE;
 static char sec_build_info[100];
 static unsigned int secdbg_paddr;
 static unsigned int secdbg_size;
+#ifdef CONFIG_SEC_SSR_DEBUG_LEVEL_CHK
+static unsigned enable_cp_debug = 1;
+#endif
 
 uint runtime_debug_val;
 
@@ -158,9 +161,15 @@ module_param_named(enable, enable, uint, 0644);
 module_param_named(enable_user, enable_user, uint, 0644);
 module_param_named(reset_reason, reset_reason, uint, 0644);
 module_param_named(runtime_debug_val, runtime_debug_val, uint, 0644);
+#ifdef CONFIG_SEC_SSR_DEBUG_LEVEL_CHK
+module_param_named(enable_cp_debug, enable_cp_debug, uint, 0644);
+#endif
 
 static int force_error(const char *val, struct kernel_param *kp);
 module_param_call(force_error, force_error, NULL, NULL, 0644);
+
+static int dbg_set_cpu_affinity(const char *val, struct kernel_param *kp);
+module_param_call(setcpuaff, dbg_set_cpu_affinity, NULL, NULL, 0644);
 
 static char *sec_build_time[] = {
 	__DATE__,
@@ -266,7 +275,29 @@ static int force_error(const char *val, struct kernel_param *kp)
 
 	return 0;
 }
+static int dbg_set_cpu_affinity(const char *val, struct kernel_param *kp)
+{
+	char *endptr;
+	pid_t pid;
+	int cpu;
+	struct cpumask mask;
+	long ret;
 
+	pid = (pid_t)memparse(val, &endptr);
+	if (*endptr != '@') {
+		pr_info("%s: invalid input strin: %s\n", __func__, val);
+		return -EINVAL;
+	}
+	cpu = memparse(++endptr, &endptr);
+	cpumask_clear(&mask);
+	cpumask_set_cpu(cpu, &mask);
+	pr_info("%s: Setting %d cpu affinity to cpu%d\n",
+		__func__, pid, cpu);
+	ret = sched_setaffinity(pid, &mask);
+	pr_info("%s: sched_setaffinity returned %ld\n", __func__, ret);
+
+	return 0;
+}
 /* for sec debug level */
 unsigned int sec_dbg_level;
 static int __init sec_debug_level(char *str)
@@ -818,6 +849,7 @@ int sec_debug_subsys_init(void)
 
 	sec_debug_subsys_set_kloginfo(&secdbg_krait->log.idx_paddr,
 		&secdbg_krait->log.log_paddr, &secdbg_krait->log.size);
+	sec_debug_subsys_set_logger_info(&secdbg_krait->logger_log);
 
 	secdbg_krait->tz_core_dump =
 		(struct tzbsp_dump_buf_s **)get_wdog_regsave_paddr();
@@ -834,6 +866,7 @@ int sec_debug_subsys_init(void)
 		&secdbg_krait->fb_info.rgb_bitinfo.a_off,
 		&secdbg_krait->fb_info.rgb_bitinfo.a_len);
 
+	SEC_DEBUG_SUBSYS_ADD_STR_TO_MONITOR(unit_name);
 	SEC_DEBUG_SUBSYS_ADD_STR_TO_MONITOR(linux_banner);
 	SEC_DEBUG_SUBSYS_ADD_VAR_TO_MONITOR(global_pvs);
 
@@ -908,6 +941,13 @@ int sec_debug_is_enabled(void)
 {
 	return enable;
 }
+
+#ifdef CONFIG_SEC_SSR_DEBUG_LEVEL_CHK
+int sec_debug_is_enabled_for_ssr(void)
+{
+	return enable_cp_debug;
+}
+#endif
 
 /* klaatu - schedule log */
 #ifdef CONFIG_SEC_DEBUG_SCHED_LOG

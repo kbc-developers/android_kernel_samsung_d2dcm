@@ -2155,6 +2155,9 @@ static int vfe32_proc_general(struct msm_isp_cmd *cmd)
 		pr_info("vfe32_proc_general: cmdID = %s\n",
 			vfe32_general_cmd[cmd->id]);
 		vfe32_stop();
+#if defined(CONFIG_MACH_ESPRESSO_VZW)
+		cam_mode = 0;
+#endif
 		break;
 
 	case VFE_CMD_SYNC_TIMER_SETTING:
@@ -4039,7 +4042,7 @@ static int __devinit vfe32_probe(struct platform_device *pdev)
 
 vfe32_no_resource:
 	kfree(vfe32_ctrl);
-	return 0;
+	return rc;
 }
 
 static struct platform_driver vfe32_driver = {

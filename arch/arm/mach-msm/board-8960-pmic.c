@@ -90,7 +90,7 @@ struct pm8xxx_mpp_init {
 
 /* Initial PM8921 GPIO configurations */
 static struct pm8xxx_gpio_init pm8921_gpios[] __initdata = {
-#ifndef CONFIG_MACH_M2_DCM
+#if !defined(CONFIG_MACH_M2_DCM) && !defined(CONFIG_MACH_K2_KDI)
 	PM8XXX_GPIO_INPUT(16,	    PM_GPIO_PULL_UP_30), /* SD_CARD_WP */
     /* External regulator shared by display and touchscreen on LiQUID */
 	PM8XXX_GPIO_OUTPUT_VIN(21, 1, PM_GPIO_VIN_VPH),	 /* Backlight Enable */
@@ -115,8 +115,23 @@ static struct pm8xxx_gpio_init pm8921_gpios[] __initdata = {
 #else
 	PM8XXX_GPIO_OUTPUT(17,	 0),	 /* DISP 3.3 V Boost */
 #endif
-#if defined(CONFIG_MACH_ESPRESSO_VZW) || defined(CONFIG_MACH_ESPRESSO10_VZW)
+#if defined(CONFIG_MACH_ESPRESSO_VZW) || defined(CONFIG_MACH_ESPRESSO10_VZW) \
+		|| defined(CONFIG_MACH_ESPRESSO10_ATT) \
+		|| defined(CONFIG_MACH_ESPRESSO10_SPR) \
+		|| defined(CONFIG_MACH_ESPRESSO_SPR)
 	PM8XXX_GPIO_OUTPUT(38,   1),
+#endif
+
+#if defined(CONFIG_MACH_AEGIS2) /* Disable NC GPIOs for AEGIS2*/
+	PM8XXX_GPIO_DISABLE(1),
+	PM8XXX_GPIO_DISABLE(2),
+	PM8XXX_GPIO_DISABLE(9),
+	PM8XXX_GPIO_DISABLE(15),
+	PM8XXX_GPIO_DISABLE(23),
+	PM8XXX_GPIO_DISABLE(28),
+	PM8XXX_GPIO_DISABLE(35),
+	PM8XXX_GPIO_DISABLE(40),
+	PM8XXX_GPIO_DISABLE(41),
 #endif
 };
 
@@ -191,6 +206,47 @@ static struct pm8xxx_adc_amux pm8xxx_adc_channels_data[] = {
 	{"dev_mpp_7", ADC_MPP_1_AMUX6, CHAN_PATH_SCALING1, AMUX_RSV1,
 		ADC_DECIMATION_TYPE2, ADC_SCALE_SEC_BOARD_THERM},  /*main_thm */
 #ifdef CONFIG_SAMSUNG_JACK
+	{"earjack", ADC_MPP_2_AMUX6, CHAN_PATH_SCALING2, AMUX_RSV1, 
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT}, 
+#endif
+};
+
+static struct pm8xxx_adc_amux pm8xxx_adc_channels_data_rev10[] = {
+	{"vcoin", CHANNEL_VCOIN, CHAN_PATH_SCALING2, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"vbat", CHANNEL_VBAT, CHAN_PATH_SCALING2, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"dcin", CHANNEL_DCIN, CHAN_PATH_SCALING4, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"ichg", CHANNEL_ICHG, CHAN_PATH_SCALING1, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"vph_pwr", CHANNEL_VPH_PWR, CHAN_PATH_SCALING2, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"ibat", CHANNEL_IBAT, CHAN_PATH_SCALING1, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"batt_therm", CHANNEL_BATT_THERM, CHAN_PATH_SCALING1, AMUX_RSV2,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_BATT_THERM},
+	{"batt_id", CHANNEL_BATT_ID, CHAN_PATH_SCALING1, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"usbin", CHANNEL_USBIN, CHAN_PATH_SCALING3, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"pmic_therm", CHANNEL_DIE_TEMP, CHAN_PATH_SCALING1, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_PMIC_THERM},
+	{"625mv", CHANNEL_625MV, CHAN_PATH_SCALING1, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"125v", CHANNEL_125V, CHAN_PATH_SCALING1, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"chg_temp", CHANNEL_CHG_TEMP, CHAN_PATH_SCALING1, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
+	{"pa_therm1", ADC_MPP_1_AMUX8, CHAN_PATH_SCALING1, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_PA_THERM},
+	{"xo_therm", CHANNEL_MUXOFF, CHAN_PATH_SCALING1, AMUX_RSV0,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_XOTHERM},
+	{"pa_therm0", ADC_MPP_1_AMUX3, CHAN_PATH_SCALING1, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_PA_THERM},
+	{"dev_mpp_7", ADC_MPP_1_AMUX6, CHAN_PATH_SCALING1, AMUX_RSV1,
+		ADC_DECIMATION_TYPE2, ADC_SCALE_SEC_BOARD_THERM},  /*main_thm */
+#ifdef CONFIG_SAMSUNG_JACK
 	{"earjack", ADC_MPP_1_AMUX6_SCALE_DEFAULT,
 		CHAN_PATH_SCALING1, AMUX_RSV1,
 		ADC_DECIMATION_TYPE2, ADC_SCALE_DEFAULT},
@@ -206,6 +262,13 @@ static struct pm8xxx_adc_properties pm8xxx_adc_data = {
 static struct pm8xxx_adc_platform_data pm8xxx_adc_pdata = {
 	.adc_channel            = pm8xxx_adc_channels_data,
 	.adc_num_board_channel  = ARRAY_SIZE(pm8xxx_adc_channels_data),
+	.adc_prop               = &pm8xxx_adc_data,
+	.adc_mpp_base		= PM8921_MPP_PM_TO_SYS(1),
+};
+
+static struct pm8xxx_adc_platform_data pm8xxx_adc_pdata_rev10 = {
+	.adc_channel            = pm8xxx_adc_channels_data_rev10,
+	.adc_num_board_channel  = ARRAY_SIZE(pm8xxx_adc_channels_data_rev10),
 	.adc_prop               = &pm8xxx_adc_data,
 	.adc_mpp_base		= PM8921_MPP_PM_TO_SYS(1),
 };
@@ -549,13 +612,13 @@ static struct led_info pm8921_led_info[] = {
 		.name			= "led:b",
 	},
 	[PM8XXX_LED_PAT8_RED] = {
-		.name			= "led:r",
+		.name			= "led:blink_red",
 	},
 	[PM8XXX_LED_PAT8_GREEN] = {
-		.name			= "led:g",
+		.name			= "led:blink_green",
 	},
 	[PM8XXX_LED_PAT8_BLUE] = {
-		.name			= "led:b",
+		.name			= "led:blink_blue",
 	},
 	[PM8XXX_LED_KB_LED] = {
 		.name = "kb:backlight",
@@ -621,16 +684,15 @@ static int pm8921_led0_pat6_blue_pwm_duty_pcts[] = {
 	94, 95, 96, 97, 98, 99, 100,
 };
 
-static int pm8921_led0_pat8_red_pwm_duty_pcts[] = {
+int pm8921_led0_pat8_red_pwm_duty_pcts[] = {
 	0, 100
 };
-static int pm8921_led0_pat8_green_pwm_duty_pcts[] = {
+int pm8921_led0_pat8_green_pwm_duty_pcts[] = {
 	0, 100
 };
-static int pm8921_led0_pat8_blue_pwm_duty_pcts[] = {
+int pm8921_led0_pat8_blue_pwm_duty_pcts[] = {
 	0, 100
 };
-
 
 
 static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat5_red_duty_cycles = {
@@ -751,6 +813,9 @@ static struct pm8xxx_pwm_duty_cycles pm8921_led0_pwm_pat8_blue_duty_cycles = {
 	.start_idx =  ARRAY_SIZE(pm8921_led0_pat8_red_pwm_duty_pcts) +
 			ARRAY_SIZE(pm8921_led0_pat8_green_pwm_duty_pcts),
 };
+
+
+
 
 static struct pm8xxx_led_config pm8921_led_configs[] = {
 	/*pattern 1 Charging*/
@@ -960,11 +1025,35 @@ static struct pm8921_platform_data pm8921_platform_data __devinitdata = {
 	.ccadc_pdata		= &pm8xxx_ccadc_pdata,
 };
 
+static struct pm8921_platform_data pm8921_platform_data_rev10 __devinitdata = {
+	.irq_pdata		= &pm8xxx_irq_pdata,
+	.gpio_pdata		= &pm8xxx_gpio_pdata,
+	.mpp_pdata		= &pm8xxx_mpp_pdata,
+	.rtc_pdata              = &pm8xxx_rtc_pdata,
+	.pwrkey_pdata		= &pm8xxx_pwrkey_pdata,
+	.keypad_pdata		= &keypad_data,
+	.misc_pdata		= &pm8xxx_misc_pdata,
+	.regulator_pdatas	= msm_pm8921_regulator_pdata,
+	.charger_pdata		= &pm8921_chg_pdata,
+	.bms_pdata		= &pm8921_bms_pdata,
+	.adc_pdata		= &pm8xxx_adc_pdata_rev10,
+	.leds_pdata		= &pm8xxx_leds_pdata,
+	.ccadc_pdata		= &pm8xxx_ccadc_pdata,
+};
+
 static struct msm_ssbi_platform_data msm8960_ssbi_pm8921_pdata __devinitdata = {
 	.controller_type = MSM_SBI_CTRL_PMIC_ARBITER,
 	.slave	= {
 		.name			= "pm8921-core",
 		.platform_data		= &pm8921_platform_data,
+	},
+};
+
+static struct msm_ssbi_platform_data msm8960_ssbi_pm8921_pdata_rev10 __devinitdata = {
+	.controller_type = MSM_SBI_CTRL_PMIC_ARBITER,
+	.slave	= {
+		.name			= "pm8921-core",
+		.platform_data		= &pm8921_platform_data_rev10,
 	},
 };
 
@@ -986,6 +1075,9 @@ static void msm8921_sec_charger_init(void)
 	} else if (machine_is_M2_DCM() && system_rev >= 0x00) {
 		pm8921_chg_pdata.batt_id_min = 860000;
 		pm8921_chg_pdata.batt_id_max = 960000;
+	} else if (machine_is_K2_KDI() && system_rev >= 0x00) {
+		pm8921_chg_pdata.batt_id_min = 860000;
+		pm8921_chg_pdata.batt_id_max = 960000;
 	} else if (machine_is_jaguar() && system_rev >= 0x04) {
 		pm8921_chg_pdata.batt_id_min = 860000;
 		pm8921_chg_pdata.batt_id_max = 960000;
@@ -1005,6 +1097,7 @@ static void msm8921_sec_charger_init(void)
 		(machine_is_M2_VZW() && system_rev >= 0x06) ||
 		(machine_is_jaguar() && system_rev >= 0x0A) ||
 		(machine_is_M2_DCM() && system_rev >= 0x00) ||
+		(machine_is_K2_KDI() && system_rev >= 0x00) ||
 		machine_is_JASPER())
 		pm8921_chg_pdata.max_voltage = 4350;
 }
@@ -1013,15 +1106,34 @@ void __init msm8960_init_pmic(void)
 {
 	msm8921_sec_charger_init();
 
+#if !defined(CONFIG_MACH_AEGIS2) && !defined(CONFIG_MACH_JASPER)\
+	&& !defined(CONFIG_MACH_M2_VZW)
 	pmic_reset_irq = PM8921_IRQ_BASE + PM8921_RESOUT_IRQ;
-	msm8960_device_ssbi_pmic.dev.platform_data =
-				&msm8960_ssbi_pm8921_pdata;
-	pm8921_platform_data.num_regulators = msm_pm8921_regulator_pdata_len;
+#endif
+	if(system_rev !=10) {
+		msm8960_device_ssbi_pmic.dev.platform_data =
+					&msm8960_ssbi_pm8921_pdata;
 
-	/* Simulator supports a QWERTY keypad */
-	if (machine_is_msm8960_sim())
-		pm8921_platform_data.keypad_pdata = &keypad_data_sim;
+		pm8921_platform_data.num_regulators = msm_pm8921_regulator_pdata_len;
 
-	if (machine_is_msm8960_liquid())
-		pm8921_platform_data.keypad_pdata = &keypad_data_liquid;
+		/* Simulator supports a QWERTY keypad */
+		if (machine_is_msm8960_sim())
+			pm8921_platform_data.keypad_pdata = &keypad_data_sim;
+
+		if (machine_is_msm8960_liquid())
+			pm8921_platform_data.keypad_pdata = &keypad_data_liquid;
+	}
+	else {
+		msm8960_device_ssbi_pmic.dev.platform_data =
+					&msm8960_ssbi_pm8921_pdata_rev10;
+
+		pm8921_platform_data_rev10.num_regulators = msm_pm8921_regulator_pdata_len;
+
+		/* Simulator supports a QWERTY keypad */
+		if (machine_is_msm8960_sim())
+			pm8921_platform_data_rev10.keypad_pdata = &keypad_data_sim;
+
+		if (machine_is_msm8960_liquid())
+			pm8921_platform_data_rev10.keypad_pdata = &keypad_data_liquid;
+	}
 }

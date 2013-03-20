@@ -344,6 +344,9 @@ static void show_data(unsigned long addr, int nbytes, const char *name)
 static void show_extra_register_data(struct pt_regs *regs, int nbytes)
 {
 	mm_segment_t fs;
+#ifdef CONFIG_SEC_DEBUG
+	extern int64_t msm_timer_enter_idle(void);
+#endif
 
 	fs = get_fs();
 	set_fs(KERNEL_DS);
@@ -363,6 +366,9 @@ static void show_extra_register_data(struct pt_regs *regs, int nbytes)
 	show_data(regs->ARM_r8 - nbytes, nbytes * 2, "R8");
 	show_data(regs->ARM_r9 - nbytes, nbytes * 2, "R9");
 	show_data(regs->ARM_r10 - nbytes, nbytes * 2, "R10");
+#ifdef CONFIG_SEC_DEBUG
+	show_data(&msm_timer_enter_idle+0x4C - nbytes, nbytes * 2, "msm_timer_enter_idle+0x4C");
+#endif
 	set_fs(fs);
 }
 

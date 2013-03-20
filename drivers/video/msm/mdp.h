@@ -38,9 +38,19 @@
 
 #include "msm_fb_panel.h"
 
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL)
+#define MDP_HANG_DEBUG
+#define MDP_UNDERFLOW_RESET_CTRL_CMD
+#endif
+
 extern uint32 mdp_hw_revision;
 extern ulong mdp4_display_intf;
 extern spinlock_t mdp_spin_lock;
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+extern spinlock_t mixer_reset_lock;
+#endif
 extern int mdp_rev;
 extern struct mdp_csc_cfg mdp_csc_convert[4];
 
@@ -50,7 +60,9 @@ extern int mdp_lut_i;
 extern int mdp_lut_push;
 extern int mdp_lut_push_i;
 extern struct mutex mdp_lut_push_sem;
-
+#ifdef MDP_HANG_DEBUG
+extern void dump_mdp_registers();
+#endif
 #define MDP4_REVISION_V1		0
 #define MDP4_REVISION_V2		1
 #define MDP4_REVISION_V2_1	2

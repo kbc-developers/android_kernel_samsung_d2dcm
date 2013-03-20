@@ -27,6 +27,12 @@
 #include <mach/msm8960-gpio.h>
 #include <linux/gpio.h>
 
+//ssong.
+#undef pr_debug
+#undef pr_info
+#define pr_debug pr_err
+#define pr_info pr_err
+
 /* Slave address */
 #define SMB347_SLAVE_ADDR		0x0C
 
@@ -132,6 +138,7 @@ struct smb347_chip {
 	int aicl_status;
 	int otg_check;
 	int input_source;
+	int ovp_state;
 };
 
 static enum power_supply_property smb347_battery_props[] = {
@@ -142,6 +149,11 @@ static enum power_supply_property smb347_battery_props[] = {
 
 static int smb347_disable_charging(struct i2c_client *client);
 static int smb347_verA5;
+#if defined(CONFIG_MACH_K2_KDI)
+static void smb347_AICL_enable(struct i2c_client *client, bool en);
+static int smb347_set_fast_current(struct i2c_client *client, int fast_current);
+static int smb347_set_input_current_limit_kdi(struct i2c_client *client, int input_current);
+#endif
 
 static int smb347_write_reg(struct i2c_client *client, int reg, u8 value)
 {
@@ -250,7 +262,7 @@ static void check_smb347_version(void)
 #elif defined(CONFIG_MACH_M2_SKT)
 	if (system_rev >= 0x7)
 		smb347_verA5 = 1;
-#elif defined(CONFIG_MACH_M2_DCM)
+#elif defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_K2_KDI)
 	if (system_rev >= 0x3)
 		smb347_verA5 = 1;
 #elif defined(CONFIG_MACH_JAGUAR)
@@ -259,6 +271,10 @@ static void check_smb347_version(void)
 #elif defined(CONFIG_MACH_AEGIS2)
 	if (system_rev >= 0x4)
 		smb347_verA5 = 1;
+#elif defined(CONFIG_MACH_SUPERIORLTE_SKT)
+	smb347_verA5 = 1;
+#elif defined(CONFIG_MACH_INFINITE)
+	smb347_verA5 = 1;
 #else
 	smb347_verA5 = 0;
 #endif
@@ -335,7 +351,7 @@ static void smb347_enter_suspend(struct i2c_client *client)
 static int smb347_get_current_input_source(struct i2c_client *client)
 {
 	struct smb347_chip *chip = i2c_get_clientdata(client);
-	int val = 0;
+	int val, val2 = 0;
 
 	val = smb347_read_reg(client, SMB347_INTERRUPT_STATUS_F);
 	/*
@@ -350,6 +366,12 @@ static int smb347_get_current_input_source(struct i2c_client *client)
 	} else {
 		pr_info("%s : power is not ok(%d)\n", __func__, val);
 		val = INPUT_NONE;
+	}
+
+	val2 = smb347_read_reg(client, SMB347_INTERRUPT_STATUS_E);
+	if (val2 & 0x04) {
+		pr_info("%s:OVP cut off input power\n", __func__);
+		chip->ovp_state = 1;
 	}
 
 	return val;
@@ -379,19 +401,19 @@ static void smb347_charger_function_conrol(struct i2c_client *client)
 
 #ifdef CONFIG_WIRELESS_CHARGING
 		if (chip->input_source == INPUT_DCIN) {
-			pr_info("[battery] INPUT_DCIN ----------\n");
+			pr_info("[battery] INPUT_DCIN\n");
 			data &= 0x0f;
 			if (chip->chg_mode == CHG_MODE_MISC) {
-				pr_info("[battery] wpc 700mA ----------\n");
+				pr_info("[battery] wpc 700mA\n");
 				data |= 0x20;
 			} else {
-				pr_info("[battery] wpc 500mA ----------\n");
+				pr_info("[battery] wpc 500mA\n");
 				data |= 0x10;
 			}
 		}
 #endif /*CONFIG_WIRELESS_CHARGING*/
 
-		pr_info("[battery] INPUT_USBIN ----------\n");
+		pr_info("[battery] INPUT_USBIN\n");
 		data &= 0xf0;
 		if (chip->chg_mode == CHG_MODE_AC) {
 			/* 900mA limit */
@@ -496,6 +518,16 @@ static void smb347_charger_function_conrol(struct i2c_client *client)
 	smb347_write_reg(client, SMB347_STATUS_INTERRUPT, 0x02);
 	/* smb347_write_reg(client, SMB347_STATUS_INTERRUPT, 0x00); */
 
+#if defined(CONFIG_MACH_K2_KDI)
+	if (chip->chg_mode == CHG_MODE_AC && chip->lpm_chg_mode)
+	{
+		smb347_set_fast_current(chip->client ,FAST_1500mA);
+		smb347_set_input_current_limit_kdi(chip->client ,ICL_1500mA);
+		smb347_AICL_enable(chip->client ,false);
+		smb347_AICL_enable(chip->client ,true);
+		pr_debug("[SMB347] 1200mA charging enabled!\n"); 
+	}
+#endif				
 }
 
 static int smb347_watchdog_control(struct i2c_client *client, bool enable)
@@ -554,7 +586,6 @@ static bool smb347_check_bat_full(struct i2c_client *client)
 		if (val & SMB347_CHARGING_STATUS)
 			ret = true;	/* full */
 	}
-
 	return ret;
 }
 
@@ -598,6 +629,22 @@ static bool smb347_check_vdcin(struct i2c_client *client)
 
 		if (data & (0x1))
 			ret = true;
+
+
+#if defined(CONFIG_MACH_K2_KDI)
+#define DOCK_TEST 1
+#if (DOCK_TEST)
+		reg = SMB347_STATUS_B;
+		val = smb347_read_reg(client, reg);
+		pr_debug("[KDI SMB347] ADDR(0x%x)=0x%x\n",reg,val);
+	
+		reg = SMB347_STATUS_E;
+		val = smb347_read_reg(client, reg);
+		pr_debug("[KDI SMB347] ADDR(0x%x)=0x%x\n",reg,val);
+#endif
+#endif
+
+		
 	}
 	return ret;
 
@@ -882,6 +929,79 @@ static int smb347_set_input_current_limit(struct i2c_client *client,
 
 	return 0;
 }
+
+#if defined(CONFIG_MACH_K2_KDI)
+static int smb347_set_input_current_limit_kdi(struct i2c_client *client, int input_current)
+{
+	int val, reg, data, set_val;
+
+	smb347_allow_volatile_writes(client);
+
+	if (input_current < ICL_300mA || input_current > ICL_2500mA) {
+		pr_err("%s: invalid input_current set value(%d)\n",
+		       __func__, input_current);
+		return -EINVAL;
+	}
+
+	switch (input_current) {
+	case ICL_300mA: //USBIN 340mA
+		set_val = 0x00;
+		break;
+	case ICL_500mA: //USBIN 500mA
+		set_val = 0x11;
+		break;
+	case ICL_700mA: //USBIN 660mA
+		set_val = 0x22;
+		break;
+	case ICL_900mA: //USBIN 820mA
+		set_val = 0x33;
+		break;
+	case ICL_1200mA: //USBIN 1030mA
+		set_val = 0x44;
+		break;
+	case ICL_1500mA: //USBIN 1300mA
+		set_val = 0x55;
+		break;
+	case ICL_1800mA: //USBIN 1540mA
+		set_val = 0x66;
+		break;
+	case ICL_2000mA: //USBIN 1700mA
+		set_val = 0x77;
+		break;
+	case ICL_2200mA: //USBIN 1860mA
+		set_val = 0x88;
+		break;
+	case ICL_2500mA: //USBIN 2100mA
+		set_val = 0x99;
+		break;
+	default:
+		set_val = 0x77;
+		break;
+	}
+
+	reg = SMB347_INPUT_CURRENTLIMIT;
+	val = smb347_read_reg(client, reg);
+
+	if (val >= 0) {
+		data = (u8) val;
+
+		data &= ~(0xff);
+		data |= set_val;
+
+		pr_debug("%s : write data = 0x%x\n", __func__, data);
+
+		if (smb347_write_reg(client, reg, data) < 0) {
+			pr_err("%s : error!\n", __func__);
+			return -1;
+		}
+		
+		data = smb347_read_reg(client, reg);
+		pr_debug("%s : => reg (0x%x) = 0x%x\n", __func__, reg, data);
+	}
+
+	return 0;
+}
+#endif
 
 static int smb347_adjust_charging_current(struct i2c_client *client,
 					  int chg_current)
@@ -1229,6 +1349,41 @@ static int smb347_chg_set_property(struct power_supply *psy,
 		smb347_enter_suspend(chip->client);
 
 		break;
+#if defined(CONFIG_MACH_K2_KDI)
+	case POWER_SUPPLY_PROP_SUSPEND:
+		#define VAL_1500mA 5
+		#define VAL_1200mA 4
+		
+		pr_info("PROP SUSPEND, chg_mode:%d\n", chip->chg_mode);
+			
+		if(!chip->lpm_chg_mode && chip->chg_mode == CHG_MODE_AC \
+			&& (0x0F & smb347_read_reg(chip->client, SMB347_INPUT_CURRENTLIMIT)) != VAL_1500mA)
+		{
+			smb347_set_fast_current(chip->client ,FAST_1500mA);
+			smb347_set_input_current_limit_kdi(chip->client ,ICL_1500mA);
+			smb347_AICL_enable(chip->client ,false);
+			smb347_AICL_enable(chip->client ,true);
+			
+			pr_err("[SMB347] 1200mA charging enabled!\n"); 
+		}
+	break;
+	
+	case POWER_SUPPLY_PROP_RESUME:
+		pr_info("PROP RESUME, chg_mode:%d\n", chip->chg_mode);
+			
+		if(!chip->lpm_chg_mode && chip->chg_mode == CHG_MODE_AC \
+			&& (0x0F & smb347_read_reg(chip->client, SMB347_INPUT_CURRENTLIMIT)) != VAL_1200mA)
+		{
+			smb347_set_fast_current(chip->client ,FAST_1500mA);
+			smb347_set_input_current_limit_kdi(chip->client ,ICL_1200mA);
+			smb347_AICL_enable(chip->client ,false);
+			smb347_AICL_enable(chip->client ,true);
+			
+			pr_err("[SMB347] 1000mA charging enabled!\n"); 
+		}
+	break;
+	
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -1543,6 +1698,7 @@ static irqreturn_t smb347_inok_work_func(int irq, void *smb_chip)
 	struct power_supply *psy = power_supply_get_by_name("battery");
 	union power_supply_propval value;
 	int input_source = 0;
+	int cable_type = 0;
 	int ret = 0;
 
 	if (psy) {
@@ -1551,6 +1707,17 @@ static irqreturn_t smb347_inok_work_func(int irq, void *smb_chip)
 		input_source = smb347_get_current_input_source(chip->client);
 		switch (input_source) {
 		case INPUT_NONE:
+			ret = smb347_read_reg(chip->client,
+				SMB347_INTERRUPT_STATUS_E);
+			if (ret & 0x04) {
+				pr_info("%s: OVP cut off input power\n",
+					__func__);
+				chip->ovp_state = 1;
+			} else {
+				pr_debug("%s: OVP isn't set\n", __func__);
+				chip->ovp_state = 0;
+			}
+
 			if (chip->input_source == INPUT_DCIN) {
 				/* AICL enable */
 				smb347_AICL_enable(chip->client, true);
@@ -1595,7 +1762,15 @@ static irqreturn_t smb347_inok_work_func(int irq, void *smb_chip)
 #endif
 			break;
 		case INPUT_USBIN:
-			pr_info("%s : skip dcin type.\n", __func__);
+			if (chip->pdata->smb347_get_cable) {
+				if (chip->ovp_state) {
+					cable_type =
+						chip->pdata->smb347_get_cable();
+					pr_info("%s: Recovery OVP, restart charging (%d)\n",
+						__func__, cable_type);
+				}
+			}
+			chip->ovp_state = 0;
 			break;
 		default:
 			pr_err("%s : failed to read input source type(%d)\n",
@@ -1646,6 +1821,8 @@ static int __devinit smb347_probe(struct i2c_client *client,
 	chip->chg_set_current = 0;
 	chip->chg_icl = 0;
 	chip->float_voltage = 0;
+	chip->ovp_state = 0;
+
 	if (poweroff_charging) {
 		chip->lpm_chg_mode = 1;
 		pr_info("%s : is lpm charging mode (%d)\n",
@@ -1675,7 +1852,7 @@ static int __devinit smb347_probe(struct i2c_client *client,
 				 IRQF_TRIGGER_FALLING, "smb347", chip);
 	if (ret) {
 		pr_err("%s : Failed to request smb347 charger irq\n", __func__);
-		goto err_irq_wake;
+		goto err_request_irq;
 	}
 
 	ret = enable_irq_wake(chip->client->irq);
@@ -1697,7 +1874,7 @@ static int __devinit smb347_probe(struct i2c_client *client,
 			if (ret) {
 				pr_err("%s : Failed to request smb347 charger inok irq\n",
 					__func__);
-				goto err_request_irq;
+				goto err_irq_wake;
 			}
 
 			ret = enable_irq_wake(

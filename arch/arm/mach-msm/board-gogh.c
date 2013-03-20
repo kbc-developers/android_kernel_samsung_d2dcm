@@ -303,7 +303,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 };
 
 
-#define MSM_PMEM_ADSP_SIZE         0x2500000 /* 37 Mbytes */
+#define MSM_PMEM_ADSP_SIZE         0x4E00000 /* 78 Mbytes */
 #define MSM_PMEM_AUDIO_SIZE        0x160000 /* 1.375 Mbytes */
 #define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
@@ -657,12 +657,12 @@ static void __init adjust_mem_for_liquid(void)
 			msm_ion_sf_size = MSM_HDMI_PRIM_ION_SF_SIZE;
 
 		if (machine_is_msm8960_liquid() || hdmi_is_primary) {
-		for (i = 0; i < ion_pdata.nr; i++) {
-					if (ion_pdata.heaps[i].id == ION_SF_HEAP_ID) {
-						ion_pdata.heaps[i].size =
-							msm_ion_sf_size;
-						pr_debug("msm_ion_sf_size 0x%x\n",
-							msm_ion_sf_size);
+			for (i = 0; i < ion_pdata.nr; i++) {
+				if (ion_pdata.heaps[i].id == ION_SF_HEAP_ID) {
+					ion_pdata.heaps[i].size =
+						msm_ion_sf_size;
+					pr_debug("msm_ion_sf_size 0x%x\n",
+						msm_ion_sf_size);
 				break;
 			}
 		}
@@ -1039,6 +1039,12 @@ static struct platform_device touchkey_i2c_gpio_device = {
 	.dev.platform_data	= &cypress_touchkey_i2c_gpio_data,
 };
 
+static void cypress_init(void)
+{
+	gpio_tlmm_config(GPIO_CFG(gpio_rev(GPIO_TOUCH_KEY_INT), 0,
+		GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+}
+
 #endif
 
 #ifdef CONFIG_USB_SWITCH_FSA9485
@@ -1244,6 +1250,54 @@ static void fsa9485_dock_cb(int attached)
 	}
 }
 
+static void fsa9485_usb_cdp_cb(bool attached)
+{
+	union power_supply_propval value;
+	int i, ret = 0;
+	struct power_supply *psy;
+
+	pr_info("fsa9485_usb_cdp_cb attached %d\n", attached);
+
+	set_cable_status =
+		attached ? CABLE_TYPE_CDP : CABLE_TYPE_NONE;
+
+	if (system_rev >= 0x1) {
+		if (attached) {
+			pr_info("%s set vbus state\n", __func__);
+			msm_otg_set_vbus_state(attached);
+		}
+	}
+
+	for (i = 0; i < 10; i++) {
+		psy = power_supply_get_by_name("battery");
+		if (psy)
+			break;
+	}
+	if (i == 10) {
+		pr_err("%s: fail to get battery ps\n", __func__);
+		return;
+	}
+
+	switch (set_cable_status) {
+	case CABLE_TYPE_CDP:
+		value.intval = POWER_SUPPLY_TYPE_USB_CDP;
+		break;
+	case CABLE_TYPE_NONE:
+		value.intval = POWER_SUPPLY_TYPE_BATTERY;
+		break;
+	default:
+		pr_err("invalid status:%d\n", attached);
+		return;
+	}
+
+	ret = psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE,
+		&value);
+	if (ret) {
+		pr_err("%s: fail to set power_suppy ONLINE property(%d)\n",
+			__func__, ret);
+	}
+}
+
 static int fsa9485_dock_init(void)
 {
 	int ret;
@@ -1302,6 +1356,7 @@ static struct fsa9485_platform_data fsa9485_pdata = {
 	.jig_cb = fsa9485_jig_cb,
 	.dock_cb = fsa9485_dock_cb,
 	.dock_init = fsa9485_dock_init,
+	.usb_cdp_cb = fsa9485_usb_cdp_cb,
 };
 
 static struct i2c_board_info micro_usb_i2c_devices_info[] __initdata = {
@@ -1469,25 +1524,31 @@ static int is_sec_battery_using(void)
 		return 0;
 }
 
+int check_battery_type(void)
+{
+	return BATT_TYPE_GOGH;
+}
+
 static struct sec_bat_platform_data sec_bat_pdata = {
 	.fuel_gauge_name	= "fuelgauge",
 	.charger_name	= "sec-charger",
 	.get_cable_type	= msm8960_get_cable_type,
 	.sec_battery_using = is_sec_battery_using,
-	.iterm = 150,
+	.check_batt_type = check_battery_type,
+	.iterm = 100,
 	.charge_duration = 8 * 60 * 60,
 	.recharge_duration = 2 * 60 * 60,
 	.max_voltage = 4350 * 1000,
 	.recharge_voltage = 4280 * 1000,
-	.event_block = 600,
-	.high_block = 450,
-	.high_recovery = 445,
-	.low_block = 0,
-	.low_recovery = 5,
+	.event_block = 620,
+	.high_block = 470,
+	.high_recovery = 440,
+	.low_block = -40,
+	.low_recovery = 0,
 	.lpm_high_block = 450,
 	.lpm_high_recovery = 445,
-	.lpm_low_block = 0,
-	.lpm_low_recovery = 5,
+	.lpm_low_block = -30,
+	.lpm_low_recovery = -15,
 };
 
 static struct platform_device sec_device_battery = {
@@ -1594,7 +1655,8 @@ static int max17040_low_batt_cb(void)
 static struct max17040_platform_data max17043_pdata = {
 	.hw_init = max17040_hw_init,
 	.low_batt_cb = max17040_low_batt_cb,
-	.rcomp_value = 0xe71f,
+	.check_batt_type = check_battery_type,
+	.rcomp_value = 0x691c,
 };
 
 static struct i2c_gpio_platform_data fuelgauge_i2c_gpio_data = {
@@ -1680,6 +1742,8 @@ static struct taos_platform_data taos_pdata = {
 	.als_int = GPIO_ALS_INT,
 	.prox_thresh_hi = 700,
 	.prox_thresh_low = 550,
+	.prox_th_hi_cal = 470,
+	.prox_th_low_cal = 380,
 	.als_time = 0xED,
 	.intr_filter = 0x33,
 	.prox_pulsecnt = 0x08,
@@ -2044,13 +2108,9 @@ static int __init sensor_device_init(void)
 static int __init sensor_device_init(void)
 {
 
-	gpio_request(GPIO_SENSOR_RDY, "COMPASS_RDY");
-	gpio_direction_output(GPIO_SENSOR_RDY, 1);
 	sensor_power_on_vdd(SNS_PWR_KEEP, SNS_PWR_ON);
 	msleep(200);
 	sensor_power_on_vdd(SNS_PWR_ON, SNS_PWR_KEEP);
-	gpio_request(GPIO_ACC_INT_N, "ACC_INT");
-	gpio_direction_input(GPIO_ACC_INT_N);
 
 	return 0;
 }
@@ -3655,6 +3715,12 @@ static struct sec_jack_zone jack_zones[] = {
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[2] = {
+		.adc_high	= 1720,
+		.delay_ms	= 10,
+		.check_count	= 10,
+		.jack_type	= SEC_HEADSET_4POLE,
+	},
+	[3] = {
 		.adc_high	= 9999,
 		.delay_ms	= 10,
 		.check_count	= 10,
@@ -4070,29 +4136,16 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(ON, GDHS, MAX, ACTIVE),
-		false,
-		8500, 51, 1122000, 8500,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, MAX, ACTIVE),
 		false,
 		9000, 51, 1130300, 9000,
 	},
+
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, ACTIVE, RET_HIGH),
 		false,
 		10000, 51, 1130300, 10000,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(OFF, GDHS, MAX, ACTIVE),
-		false,
-		12000, 14, 2205900, 12000,
 	},
 
 	{
@@ -4641,6 +4694,9 @@ static void __init samsung_gogh_init(void)
 	defined(CONFIG_OPTICAL_GP2AP020A00F) || \
 	defined(CONFIG_OPTICAL_TAOS_TRITON)
 	opt_init();
+#endif
+#ifdef CONFIG_KEYBOARD_CYPRESS_TOUCH_236
+	cypress_init();
 #endif
 #if defined(CONFIG_NFC_PN544)
 	pn544_init();

@@ -755,6 +755,31 @@ config SAMSUNG_JACK
 	help
 	  This is 3.5 PI JACK driver for Samsung devices.
 
+config SAMSUNG_JACK_GNDLDET
+	bool "GND plus L Detection for Earjack"
+	depends on INPUT
+	default n
+	help
+	  This is gnd plus l detection for earjack.
+	  The gnd gpio is added for the detection of earjack.
+	  This is added to decide the earjack properly
+	  in case of the insertion of water.
+
+config SAMSUNG_JACK_GNDLDET_KOR
+	bool "GND plus L Detection for Earjack"
+	depends on INPUT
+	default n
+	help
+	  This is gnd plus l detection for earjack.
+	  The gnd gpio is added for the detection of earjack ISR.
+	  This is added to decide the earjack properly
+	  in case of the insertion of water.
+
+config OPTICAL_BH1721
+	tristate "Rohm bh1721 Optical Sensor"
+	default n
+	depends on I2C
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

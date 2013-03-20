@@ -1689,6 +1689,7 @@ static const char *chg_to_string(enum usb_chg_type chg_type)
 	}
 }
 
+#define MSM_CHG_DCD_POLL_TIME_LONG		(1000 * HZ/1000) /* 100 msec */
 #define MSM_CHG_DCD_POLL_TIME		(100 * HZ/1000) /* 100 msec */
 #define MSM_CHG_DCD_MAX_RETRIES		6 /* Tdcd_tmout = 6 * 100 msec */
 #define MSM_CHG_PRIMARY_DET_TIME	(50 * HZ/1000) /* TVDPSRC_ON */
@@ -1709,7 +1710,7 @@ static void msm_chg_detect_work(struct work_struct *w)
 		msm_chg_enable_aca_det(motg);
 		motg->chg_state = USB_CHG_STATE_WAIT_FOR_DCD;
 		motg->dcd_retries = 0;
-		delay = MSM_CHG_DCD_POLL_TIME;
+		delay = MSM_CHG_DCD_POLL_TIME_LONG;
 		break;
 	case USB_CHG_STATE_WAIT_FOR_DCD:
 		is_aca = msm_chg_aca_detect(motg);
@@ -1776,7 +1777,7 @@ static void msm_chg_detect_work(struct work_struct *w)
 		msm_chg_block_off(motg);
 		msm_chg_enable_aca_det(motg);
 		msm_chg_enable_aca_intr(motg);
-		dev_dbg(otg->dev, "chg_type = %s\n",
+		dev_info(otg->dev, "chg_type = %s\n",
 			chg_to_string(motg->chg_type));
 		schedule_work(&motg->sm_work);
 		return;
@@ -1892,6 +1893,13 @@ static void msm_otg_sm_work(struct work_struct *w)
 		dev_info(otg->dev, "OTG_STATE_B_IDLE state\n");
 		if ((!test_bit(ID, &motg->inputs) ||
 				test_bit(ID_A, &motg->inputs)) && otg->host) {
+			if (motg->pdata->vbus_gpio && motg->pdata->vbus_irq) {
+				if (test_bit(B_SESS_VLD, &motg->inputs)) {
+					clear_bit(B_SESS_VLD, &motg->inputs);
+					cancel_delayed_work_sync(
+						&motg->chg_work);
+				}
+			}
 			if (motg->chg_type == USB_ACA_DOCK_CHARGER)
 				msm_otg_notify_charger(motg,
 						IDEV_ACA_CHG_MAX);
@@ -1929,13 +1937,6 @@ static void msm_otg_sm_work(struct work_struct *w)
 				motg->chg_state = USB_CHG_STATE_DETECTED;
 			}
 #endif
-			if (motg->pdata->vbus_gpio && motg->pdata->vbus_irq) {
-				if (motg->chg_state != USB_CHG_STATE_DETECTED) {
-					motg->chg_type = USB_SDP_CHARGER;
-					motg->chg_state =
-						USB_CHG_STATE_DETECTED;
-				}
-			}
 			switch (motg->chg_state) {
 			case USB_CHG_STATE_UNDEFINED:
 				msm_chg_detect_work(&motg->chg_work.work);
@@ -1947,6 +1948,7 @@ static void msm_otg_sm_work(struct work_struct *w)
 					ulpi_write(otg, 0x2, 0x85);
 					msm_otg_notify_charger(motg,
 							IDEV_CHG_MAX);
+					msm_otg_reset(otg);
 					pm_runtime_put_noidle(otg->dev);
 					pm_runtime_suspend(otg->dev);
 					break;
@@ -2019,38 +2021,14 @@ static void msm_otg_sm_work(struct work_struct *w)
 			msm_otg_notify_charger(motg, IDEV_ACA_CHG_MAX);
 		}
 #else
-		if (motg->pdata->vbus_gpio && motg->pdata->vbus_irq) {
-			if (motg->chg_state == USB_CHG_STATE_DETECTED
-					&& motg->chg_type == USB_DCP_CHARGER) {
-#ifdef CONFIG_USB_HOST_NOTIFY
-				del_timer(&motg->sm_work_timer);
-#endif
-				msm_otg_start_peripheral(otg, 0);
-				msm_otg_notify_charger(motg,
-								IDEV_CHG_MAX);
-				msm_otg_reset(otg);
-				pm_runtime_put_noidle(otg->dev);
-				pm_runtime_suspend(otg->dev);
-				otg->state = OTG_STATE_B_IDLE;
-			} else if (!test_bit(B_SESS_VLD, &motg->inputs) ||
-					!test_bit(ID, &motg->inputs) ||
-					!test_bit(ID_C, &motg->inputs)) {
-				msm_otg_start_peripheral(otg, 0);
-				otg->state = OTG_STATE_B_IDLE;
-				schedule_work(w);
-			} else if (test_bit(ID_C, &motg->inputs)) {
-				msm_otg_notify_charger(motg, IDEV_ACA_CHG_MAX);
-			}
-		} else {
-			if (!test_bit(B_SESS_VLD, &motg->inputs) ||
-					!test_bit(ID, &motg->inputs) ||
-					!test_bit(ID_C, &motg->inputs)) {
-				msm_otg_start_peripheral(otg, 0);
-				otg->state = OTG_STATE_B_IDLE;
-				schedule_work(w);
-			} else if (test_bit(ID_C, &motg->inputs)) {
-				msm_otg_notify_charger(motg, IDEV_ACA_CHG_MAX);
-			}
+		if (!test_bit(B_SESS_VLD, &motg->inputs) ||
+				!test_bit(ID, &motg->inputs) ||
+				!test_bit(ID_C, &motg->inputs)) {
+			msm_otg_start_peripheral(otg, 0);
+			otg->state = OTG_STATE_B_IDLE;
+			schedule_work(w);
+		} else if (test_bit(ID_C, &motg->inputs)) {
+			msm_otg_notify_charger(motg, IDEV_ACA_CHG_MAX);
 		}
 #endif
 		break;
@@ -2185,6 +2163,34 @@ static irqreturn_t msm_otg_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+void msm_otg_set_cable_state(int type)
+{
+	struct msm_otg *motg = the_msm_otg;
+
+	switch (type) {
+	case POWER_SUPPLY_TYPE_USB:
+		pr_info("%s, POWER_SUPPLY_TYPE_USB\n", __func__);
+		cancel_delayed_work_sync(&motg->chg_work);
+		motg->chg_type = USB_SDP_CHARGER;
+		motg->chg_state = USB_CHG_STATE_DETECTED;
+		schedule_work(&motg->sm_work);
+		break;
+	case POWER_SUPPLY_TYPE_MAINS:
+		pr_info("%s, POWER_SUPPLY_TYPE_MAINS\n", __func__);
+		cancel_delayed_work_sync(&motg->chg_work);
+		motg->chg_type = USB_DCP_CHARGER;
+		motg->chg_state = USB_CHG_STATE_DETECTED;
+		schedule_work(&motg->sm_work);
+		break;
+	case POWER_SUPPLY_TYPE_BATTERY:
+		pr_info("%s, POWER_SUPPLY_TYPE_BATTERY\n", __func__);
+		motg->chg_state = USB_CHG_STATE_UNDEFINED;
+		motg->chg_type = USB_INVALID_CHARGER;
+		break;
+	}
+}
+EXPORT_SYMBOL_GPL(msm_otg_set_cable_state);
+
 void msm_otg_set_vbus_state(int online)
 {
 	static bool init;
@@ -2272,6 +2278,27 @@ void msm_otg_set_smartdock_state(bool enable)
 	schedule_work(&motg->sm_work);
 }
 EXPORT_SYMBOL_GPL(msm_otg_set_smartdock_state);
+
+#ifdef CONFIG_CAMERON_HEALTH
+void msm_otg_set_cameronhealth_state(bool enable)
+{
+	struct msm_otg *motg = the_msm_otg;
+
+	if (!enable) {
+		pr_info("CAMERON_HEALTH : ID set\n");
+		set_bit(ID, &motg->inputs);
+	} else {
+		pr_info("CAMERON_HEALTH : ID clear\n");
+		clear_bit(ID, &motg->inputs);
+	}
+
+	if (test_bit(B_SESS_VLD, &motg->inputs))
+		clear_bit(B_SESS_VLD, &motg->inputs);
+
+	schedule_work(&motg->sm_work);
+}
+EXPORT_SYMBOL_GPL(msm_otg_set_cameronhealth_state);
+#endif
 
 static void msm_otg_enable_peripheral(struct msm_otg *motg, bool enable)
 {

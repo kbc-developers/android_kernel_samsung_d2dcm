@@ -330,10 +330,13 @@ static int is_pm8921_sec_charger_using(void)
 #elif defined(CONFIG_MACH_M2_SKT)
 	if (system_rev >= 0x4)
 		return 0;
-#elif defined(CONFIG_MACH_GOGH)
+#elif (defined(CONFIG_MACH_GOGH) || defined(CONFIG_MACH_INFINITE))
 	if (system_rev >= 0x1)
 		return 0;
-#elif defined(CONFIG_MACH_M2_DCM)
+#elif defined(CONFIG_MACH_INFINITE)
+	if (system_rev >= 0x1)
+		return 0;
+#elif defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_K2_KDI)
 	if (system_rev >= 0x1)
 		return 0;
 #elif defined(CONFIG_MACH_AEGIS2)
@@ -359,6 +362,14 @@ static int is_pm8921_sec_charger_using(void)
 #elif defined(CONFIG_MACH_ESPRESSO_ATT)
 	return 0;
 #elif defined(CONFIG_MACH_ESPRESSO10_VZW)
+	return 0;
+#elif defined(CONFIG_MACH_ESPRESSO10_SPR)
+	return 0;
+#elif defined(CONFIG_MACH_ESPRESSO10_ATT)
+	return 0;
+#elif defined(CONFIG_MACH_STRETTO)
+	return 0;
+#elif defined(CONFIG_MACH_SUPERIORLTE_SKT)
 	return 0;
 #endif
 	return 1;

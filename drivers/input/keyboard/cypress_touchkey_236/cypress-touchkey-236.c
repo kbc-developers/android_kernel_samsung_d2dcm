@@ -492,7 +492,7 @@ static ssize_t touchkey_menu_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct cypress_touchkey_info *info = dev_get_drvdata(dev);
-	static u8 menu_sensitivity;
+	static u16 menu_sensitivity;
 	u8 data[2] = {0,};
 	int ret;
 	bool touchkey;
@@ -523,7 +523,7 @@ static ssize_t touchkey_back_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct cypress_touchkey_info *info = dev_get_drvdata(dev);
-	static u8 back_sensitivity;
+	static u16 back_sensitivity;
 	u8 data[2] = {0,};
 	int ret;
 	bool touchkey;
@@ -556,7 +556,7 @@ static ssize_t touchkey_home_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct cypress_touchkey_info *info = dev_get_drvdata(dev);
-	static u8 home_sensitivity;
+	static u16 home_sensitivity;
 	u8 data[2] = {0,};
 	int ret;
 
@@ -942,7 +942,7 @@ static int __devinit cypress_touchkey_probe(struct i2c_client *client,
 	dev_err(&client->dev, "Touchkey FW Version: 0x%02x\n", ic_fw_ver);
 
 #if defined(CONFIG_MACH_M2_ATT) || defined(CONFIG_MACH_M2_DCM) \
-	|| defined(CONFIG_MACH_M2_SKT)
+	|| defined(CONFIG_MACH_M2_SKT) || defined(CONFIG_MACH_K2_KDI)
 	dev_err(&client->dev, "Touchkey FW Version: 0x%02x, system_rev: %x\n",
 						ic_fw_ver, system_rev);
 	if (0 /* ic_fw_ver < BIN_FW_VERSION */) {
@@ -1125,12 +1125,12 @@ static int __devinit cypress_touchkey_probe(struct i2c_client *client,
 	return 0;
 
 err_req_irq:
-	mutex_destroy(&info->touchkey_led_mutex);
 err_gpio_request:
 	input_unregister_device(input_dev);
 err_reg_input_dev:
 	input_free_device(input_dev);
 	input_dev = NULL;
+	mutex_destroy(&info->touchkey_led_mutex);
 err_input_dev_alloc:
 	kfree(info);
 err_sysfs:

@@ -228,10 +228,17 @@ void hci_setup_sync(struct hci_conn *conn, __u16 handle)
 		/* Retransmission Effort */
 		cp.retrans_effort = RE_LINK_QUALITY;
 	} else {
-		cp.max_latency    = cpu_to_le16(0xffff);
+		#if defined(CONFIG_BT_HCISMD)
+			BT_DBG("BT_HCISMD");
+			cp.max_latency    = cpu_to_le16(0x000A);
+			cp.retrans_effort = 0x01;
+		#else
+			cp.max_latency    = cpu_to_le16(0xffff);
+			cp.retrans_effort = 0xff;
+		#endif
+
 		cp.pkt_type = cpu_to_le16(conn->pkt_type);
 		cp.voice_setting  = cpu_to_le16(hdev->voice_setting);
-		cp.retrans_effort = 0xff;
 	}
 	hci_send_cmd(hdev, HCI_OP_SETUP_SYNC_CONN, sizeof(cp), &cp);
 }

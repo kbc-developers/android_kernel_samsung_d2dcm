@@ -557,6 +557,10 @@ static unsigned char suspend_mode[] = {
 	0x80, 0x10, 0x00, 0x01
 };
 
+static unsigned char pcm_reset[] = {
+	0x80, 0x31, 0x00, 0x00
+};
+
 static ssize_t chk_wakeup_a2220(struct a2220_data *a2220)
 {
 	int i, rc = 0, retry = 4;
@@ -647,7 +651,8 @@ int a2220_set_config(struct a2220_data *a2220, char newid, int mode)
 	if ((a2220->suspended) && (newid == A2220_PATH_SUSPEND))
 		return rc;
 
-	if (a2220_current_config == newid) {
+	if ((a2220_current_config == newid) &&
+		(a2220_current_config != A2220_PATH_PCMRESET)) {
 		pr_info("already configured this path!!!\n");
 		return rc;
 	}
@@ -749,6 +754,11 @@ int a2220_set_config(struct a2220_data *a2220, char newid, int mode)
 	case A2220_PATH_CAMCORDER:
 		i2c_cmds = BACK_MIC_recording;
 		size = sizeof(BACK_MIC_recording);
+		break;
+	case A2220_PATH_PCMRESET:
+		i2c_cmds = pcm_reset;
+		size = sizeof(pcm_reset);
+		msleep(30);
 		break;
 	default:
 		pr_err("%s: invalid cmd %d\n", __func__, newid);

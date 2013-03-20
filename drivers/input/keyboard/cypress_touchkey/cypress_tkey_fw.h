@@ -19,6 +19,21 @@
 #ifdef _CYPRESS_TKEY_FW_H
 #include "apexq_tkey_fw.h"
 #endif
+#elif defined(CONFIG_MACH_AEGIS2)
+#define BIN_FW_VERSION          0x10
+#ifdef _CYPRESS_TKEY_FW_H
+#include "aegis2_tkey_fw.h"
+#endif
+#elif defined(CONFIG_MACH_EXPRESS)
+#define BIN_FW_VERSION          0x09
+#ifdef _CYPRESS_TKEY_FW_H
+#include "express_tkey_fw.h"
+#endif
+#elif defined(CONFIG_MACH_SUPERIORLTE_SKT)
+#define BIN_FW_VERSION		0x01
+#ifdef _CYPRESS_TKEY_FW_H
+#include "superiorlte-skt_tkey_fw.h"
+#endif
 #else
 #define BIN_FW_VERSION		0x00
 #ifdef _CYPRESS_TKEY_FW_H

@@ -12,10 +12,14 @@ ifeq ($(CONFIG_FB_MSM_MDP40),y)
 obj-y += mdp4_util.o
 obj-$(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) += mdp4_video_enhance.o
 obj-$(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) += mdp4_video_enhance.o
+obj-$(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT) += mdp4_video_enhance.o
 obj-$(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT) += mdp4_video_enhance.o
 obj-$(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT) += mdp4_video_enhance.o
 obj-$(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) += mdp4_video_enhance.o
 obj-$(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) += mdp4_video_enhance.o
+obj-$(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT) += mdp4_video_enhance.o
+obj-$(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT) += mdp4_video_enhance.o
+
 obj-y += mdp4_hsic.o
 else
 obj-y += mdp_hw_init.o
@@ -138,7 +142,8 @@ obj-$(CONFIG_FB_MSM_MIPI_RENESAS_VIDEO_FWVGA_PT) += mipi_renesas_video_fwvga_pt.
 obj-$(CONFIG_FB_MSM_MIPI_RENESAS_CMD_FWVGA_PT) += mipi_renesas_cmd_fwvga_pt.o
 obj-$(CONFIG_FB_MSM_MIPI_TRULY_VIDEO_WVGA_PT) += mipi_truly_video_wvga_pt.o
 obj-$(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) += mipi_samsung_oled_cmd_qhd_pt.o smart_mtp_s6e39a0x02.o
-obj-$(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) += mipi_magna_oled_video_qhd_pt.o smart_mtp_ea8960.o
+obj-$(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) += mipi_magna_oled_video_qhd_pt.o smart_mtp_ea8868.o
+obj-$(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT) += mipi_magna_oled_video_wvga_pt.o smart_mtp_ea8868.o
 obj-$(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) += mipi_samsung_oled_video_hd_pt.o smart_mtp_s6e8aa0x01.o
 obj-$(CONFIG_SAMSUNG_CMC624) += samsung_cmc624.o cmc624_sysfs.o
 obj-$(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) += mipi_samsung_oled_video_wvga_pt.o smart_mtp_s6e63m0.o

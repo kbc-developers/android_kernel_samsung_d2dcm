@@ -293,7 +293,7 @@ static int __devinit csiphy_probe(struct platform_device *pdev)
 csiphy_no_resource:
 	mutex_destroy(&new_csiphy_dev->mutex);
 	kfree(new_csiphy_dev);
-	return 0;
+	return rc;
 }
 
 static struct platform_driver csiphy_driver = {

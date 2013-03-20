@@ -435,10 +435,8 @@ int res_trk_update_bus_perf_level(struct vcd_dev_ctxt *dev_ctxt, u32 perf_level)
 		client_type = 1;
 	if (perf_level <= RESTRK_1080P_VGA_PERF_LEVEL)
 		bus_clk_index = 0;
-	else if (perf_level < RESTRK_1080P_720P_PERF_LEVEL)
+	else if (perf_level <= RESTRK_1080P_720P_PERF_LEVEL)
 		bus_clk_index = 1;
-	else if (perf_level == RESTRK_1080P_720P_PERF_LEVEL)
-		bus_clk_index = 2;
 	else if (perf_level <= RESTRK_1080P_MAX_PERF_LEVEL)								
 		bus_clk_index = 2;
 	else
@@ -480,12 +478,9 @@ u32 res_trk_set_perf_level(u32 req_perf_lvl, u32 *pn_set_perf_lvl,
 	if (req_perf_lvl <= RESTRK_1080P_VGA_PERF_LEVEL) {
 		vidc_freq = vidc_clk_table[0];
 		*pn_set_perf_lvl = RESTRK_1080P_VGA_PERF_LEVEL;
-	} else if (req_perf_lvl <  RESTRK_1080P_720P_PERF_LEVEL) {
+	} else if (req_perf_lvl <=  RESTRK_1080P_720P_PERF_LEVEL) {
 		vidc_freq = vidc_clk_table[1];
-		*pn_set_perf_lvl = RESTRK_1080P_720P_PERF_LEVEL;
-	} else if (req_perf_lvl == RESTRK_1080P_720P_PERF_LEVEL){  
-		vidc_freq = vidc_clk_table[2];
-		*pn_set_perf_lvl = RESTRK_1080P_MAX_PERF_LEVEL;	
+		*pn_set_perf_lvl = RESTRK_1080P_720P_PERF_LEVEL;	
 	} else if (req_perf_lvl <= RESTRK_1080P_MAX_PERF_LEVEL) {
 		vidc_freq = vidc_clk_table[2];
 		*pn_set_perf_lvl = RESTRK_1080P_MAX_PERF_LEVEL;

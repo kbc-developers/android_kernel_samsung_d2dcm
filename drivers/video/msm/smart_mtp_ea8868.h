@@ -1,7 +1,7 @@
 /*
  * =================================================================
  *
- *       Filename:  smart_mtp_s6e39a0x02.h
+ *       Filename:  smart_mtp_EA8868.h
  *
  *    Description:  Smart dimming algorithm implementation
  *
@@ -30,8 +30,8 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
  * 02110-1301, USA.
  *
 */
-#ifndef _SMART_MTP_S6E39A0X02_H_
-#define _SMART_MTP_S6E39A0X02_H_
+#ifndef _SMART_MTP_EA8868_H_
+#define _SMART_MTP_EA8868_H_
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -44,50 +44,50 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #define LUMINANCE_MAX 30
 #define GAMMA_SET_MAX 24
 #define BIT_SHIFT 14
+#define GEN_GAMMA_MAX 21
+
 /*
 	it means BIT_SHIFT is 14.  pow(2,BIT_SHIFT) is 16384.
 	BIT_SHIFT is used for right bit shfit
 */
 #define BIT_SHFIT_MUL 16384
 
-#define S6E39A0X02_GRAY_SCALE_MAX 256
+#define EA8868_GRAY_SCALE_MAX 256
 
 /*4.5*16384 */
-#define S6E39A0X02_VREG0_REF 73728
+#define EA8868_VREG0_REF 73728
 
 /*V0,V1,V15,V35,V59,V87,V177,V255*/
-#define S6E39A0X02_MAX 8
+#define EA8868_MAX 8
 
-/*for LDI: S6E39A0X02 */
+/*for LDI: EA8868 */
 /* PANEL DEPENDET THINGS */
-#define V1_300CD_R 0x58
-#define V1_300CD_G 0x42
-#define V1_300CD_B 0x56
+#define V255_300CD_R_MSB 0x00
+#define V255_300CD_R_LSB 0xC0
+#define V171_300CD_R 0xBA
+#define V87_300CD_R 0xA5
+#define V59_300CD_R 0xCF
+#define V35_300CD_R 0xC0
+#define V15_300CD_R 0xC8
+#define V1_300CD_R 0x55
 
-#define V15_300CD_R 0xAA
-#define V15_300CD_G 0xC8
-#define V15_300CD_B 0xAE
+#define V255_300CD_G_MSB 0x00
+#define V255_300CD_G_LSB 0xE0
+#define V171_300CD_G 0xB8
+#define V87_300CD_G 0xA3
+#define V59_300CD_G 0xCD
+#define V35_300CD_G 0xBE
+#define V15_300CD_G 0xC9
+#define V1_300CD_G 0x55
 
-#define V35_300CD_R 0xB5
-#define V35_300CD_G 0xC1
+#define V255_300CD_B_MSB 0x00
+#define V255_300CD_B_LSB 0xE7
+#define V171_300CD_B 0xB8
+#define V87_300CD_B 0xA3
+#define V59_300CD_B 0xCD
 #define V35_300CD_B 0xBE
-
-#define V59_300CD_R 0xB4
-#define V59_300CD_G 0xC0
-#define V59_300CD_B 0xB2
-
-#define V87_300CD_R 0x93
-#define V87_300CD_G 0x9F
-#define V87_300CD_B 0x93
-
-#define V171_300CD_R 0xA6
-#define V171_300CD_G 0xAD
-#define V171_300CD_B 0xA2
-
-
-#define V255_300CD_R 0xE9
-#define V255_300CD_G 0xDB
-#define V255_300CD_B 0x10F
+#define V15_300CD_B 0xCF
+#define V1_300CD_B 0x55
 /* PANEL DEPENDET THINGS END*/
 
 enum {
@@ -128,18 +128,17 @@ struct GRAY_VOLTAGE {
 } __packed;
 
 struct GRAY_SCALE {
-	struct GRAY_VOLTAGE TABLE[S6E39A0X02_GRAY_SCALE_MAX];
+	struct GRAY_VOLTAGE TABLE[EA8868_GRAY_SCALE_MAX];
 } __packed;
 
 struct MTP_SET {
-	char OFFSET_1;
-	char OFFSET_15;
-	char OFFSET_35;
-	char OFFSET_59;
-	char OFFSET_87;
-	char OFFSET_171;
 	char OFFSET_255_MSB;
 	char OFFSET_255_LSB;
+	char OFFSET_171;
+	char OFFSET_87;
+	char OFFSET_59;
+	char OFFSET_35;
+	char OFFSET_15;
 } __packed;
 
 struct MTP_OFFSET {

@@ -459,12 +459,19 @@ adreno_probe(struct platform_device *pdev)
 
 	adreno_debugfs_init(device);
 
-	kgsl_pwrscale_init(device);
-	kgsl_pwrscale_attach_policy(device, ADRENO_DEFAULT_PWRSCALE_POLICY);
+	status = kgsl_pwrscale_init(device);
+	if (status != 0)
+		goto error_close_rb;
+
+	status = kgsl_pwrscale_attach_policy(device,\
+		ADRENO_DEFAULT_PWRSCALE_POLICY);
+	if (status != 0)
+		goto error_close_pwrscale;
 
 	device->flags &= ~KGSL_FLAGS_SOFT_RESET;
 	return 0;
-
+error_close_pwrscale:
+	kgsl_pwrscale_close(device);
 error_close_rb:
 	adreno_ringbuffer_close(&adreno_dev->ringbuffer);
 error:

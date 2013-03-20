@@ -161,10 +161,6 @@
 #ifdef CONFIG_SENSORS_CM36651
 #include <linux/i2c/cm36651.h>
 #endif
-#ifdef CONFIG_REGULATOR_MAX8952
-#include <linux/regulator/max8952.h>
-#include <linux/regulator/machine.h>
-#endif
 #ifdef CONFIG_VIBETONZ
 #include <linux/vibrator.h>
 #endif
@@ -315,8 +311,8 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 };
 
 
-#define MSM_PMEM_ADSP_SIZE         0x7800000 /* 120 Mbytes */
-#define MSM_PMEM_ADSP_SIZE_FOR_2GB         0x8400000 /* 132 Mbytes */
+#define MSM_PMEM_ADSP_SIZE                 0x9600000 /* 150 Mbytes */
+#define MSM_PMEM_ADSP_SIZE_FOR_2GB         0x9600000 /* 150 Mbytes */
 #define MSM_PMEM_AUDIO_SIZE        0x160000 /* 1.375 Mbytes */
 #define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
@@ -328,7 +324,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 #define MSM_ION_SF_SIZE_FOR_2GB		0x6400000 /* 100MB */
 #define MSM_ION_MM_FW_SIZE	0x200000 /* (2MB) */
 #define MSM_ION_MM_SIZE		MSM_PMEM_ADSP_SIZE
-#define MSM_ION_QSECOM_SIZE	0x600000 /* (6MB) */
+#define MSM_ION_QSECOM_SIZE	0x1700000 /* (24MB) */
 #define MSM_ION_MFC_SIZE	SZ_8K
 #define MSM_ION_AUDIO_SIZE	0x1000 /* 4KB */
 #define MSM_ION_HEAP_NUM	8
@@ -336,7 +332,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 #define MSM_LIQUID_ION_SF_SIZE MSM_LIQUID_PMEM_SIZE
 #define MSM_HDMI_PRIM_ION_SF_SIZE MSM_HDMI_PRIM_PMEM_SIZE
 
-#define MSM8960_FIXED_AREA_START 0xb0000000
+#define MSM8960_FIXED_AREA_START 0xad000000
 #define MAX_FIXED_AREA_SIZE	0x10000000
 #define MSM_MM_FW_SIZE		0x280000
 #define MSM8960_FW_START	(MSM8960_FIXED_AREA_START - MSM_MM_FW_SIZE)
@@ -1241,7 +1237,6 @@ static void fsa9485_usb_cb(bool attached)
 	if (system_rev >= 0x01) {
 		if (attached) {
 			pr_info("%s set vbus state\n", __func__);
-
 			msm_otg_set_vbus_state(attached);
 		}
 	}
@@ -1855,6 +1850,7 @@ static struct smb347_platform_data smb347_pdata = {
 #ifdef CONFIG_WIRELESS_CHARGING
 	.smb347_wpc_cb = smb347_wireless_cb,
 #endif
+	.smb347_get_cable = msm8960_get_cable_type,
 };
 #endif /* CONFIG_CHARGER_SMB347 */
 
@@ -4661,29 +4657,16 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(ON, GDHS, MAX, ACTIVE),
-		false,
-		8500, 51, 1122000, 8500,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, MAX, ACTIVE),
 		false,
 		9000, 51, 1130300, 9000,
 	},
+
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, ACTIVE, RET_HIGH),
 		false,
 		10000, 51, 1130300, 10000,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(OFF, GDHS, MAX, ACTIVE),
-		false,
-		12000, 14, 2205900, 12000,
 	},
 
 	{
@@ -4785,43 +4768,6 @@ static struct i2c_board_info msm_camera_boardinfo[] __initdata = {
 };
 #endif
 
-/*Gopal: add for D2_DCM CAM_ISP_CORE power setting by MAX8952*/
-#ifdef CONFIG_REGULATOR_MAX8952
-static int max8952_is_used(void)
-{
-	if (system_rev >= 0x3)
-		return 1;
-	else
-		return 0;
-}
-
-static struct regulator_consumer_supply max8952_consumer =
-	REGULATOR_SUPPLY("cam_isp_core", NULL);
-
-static struct max8952_platform_data m2_dcm_max8952_pdata = {
-	.gpio_vid0	= -1, /* NOT controlled by GPIO, HW default high*/
-	.gpio_vid1	= -1, /* NOT controlled by GPIO, HW default high*/
-	.gpio_en	= CAM_CORE_EN, /*Controlled by GPIO, High enable */
-	.default_mode	= 3, /* vid0 = 1, vid1 = 1 */
-	.dvs_mode	= { 33, 33, 33, 43 }, /* 1.1V, 1.1V, 1.1V, 1.2V*/
-	.sync_freq	= 0, /* default: fastest */
-	.ramp_speed	= 0, /* default: fastest */
-	.reg_data	= {
-		.constraints	= {
-			.name		= "CAM_ISP_CORE",
-			.min_uV		= 770000,
-			.max_uV		= 1400000,
-			.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE |
-					  REGULATOR_CHANGE_STATUS,
-			.always_on	= 0,
-			.boot_on	= 0,
-		},
-		.num_consumer_supplies	= 1,
-		.consumer_supplies	= &max8952_consumer,
-	},
-};
-#endif /*CONFIG_REGULATOR_MAX8952*/
-
 #ifdef CONFIG_SAMSUNG_CMC624
 static struct i2c_board_info cmc624_i2c_borad_info[] = {
 	{
@@ -4829,19 +4775,6 @@ static struct i2c_board_info cmc624_i2c_borad_info[] = {
 	},
 };
 #endif
-
-#ifdef CONFIG_REGULATOR_MAX8952
-static struct i2c_board_info cmc624_max8952_i2c_borad_info[] = {
-	{
-		I2C_BOARD_INFO("cmc624", 0x38),
-	},
-
-	{
-		I2C_BOARD_INFO("max8952", 0xC0>>1),
-		.platform_data = &m2_dcm_max8952_pdata,
-	},
-};
-#endif /*CONFIG_REGULATOR_MAX8952*/
 
 /* Sensors DSPS platform data */
 #ifdef CONFIG_MSM_DSPS
@@ -5040,15 +4973,6 @@ static void __init register_i2c_devices(void)
 	u8 mach_mask = 0;
 	int i;
 
-#ifdef CONFIG_REGULATOR_MAX8952
-struct i2c_registry cmc624_max8952_i2c_devices = {
-		I2C_SURF | I2C_FFA | I2C_FLUID ,
-		MSM_CMC624_I2C_BUS_ID,
-		cmc624_max8952_i2c_borad_info,
-		ARRAY_SIZE(cmc624_max8952_i2c_borad_info),
-	};
-#endif /*CONFIG_REGULATOR_MAX8952*/
-
 #ifdef CONFIG_BATTERY_MAX17040
 	struct i2c_registry msm8960_fg_i2c_devices = {
 		I2C_SURF | I2C_FFA | I2C_FLUID,
@@ -5091,17 +5015,6 @@ struct i2c_registry cmc624_max8952_i2c_devices = {
 						msm8960_i2c_devices[i].info,
 						msm8960_i2c_devices[i].len);
 	}
-
-#ifdef CONFIG_SAMSUNG_CMC624
-#ifdef CONFIG_REGULATOR_MAX8952
-	if (max8952_is_used()) {
-		m2_dcm_max8952_pdata.gpio_en = gpio_rev(CAM_CORE_EN);
-		i2c_register_board_info(cmc624_max8952_i2c_devices.bus,
-					cmc624_max8952_i2c_devices.info,
-					cmc624_max8952_i2c_devices.len);
-	}
-#endif /*CONFIG_REGULATOR_MAX8952*/
-#endif /*CONFIG_SAMSUNG_CMC624*/
 
 #if defined(CONFIG_BATTERY_MAX17040)
 	if (!is_smb347_using()) {

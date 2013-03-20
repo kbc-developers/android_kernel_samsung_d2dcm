@@ -203,7 +203,7 @@ static int mdp4_dtv_start(struct msm_fb_data_type *mfd)
 
 	/* Test pattern 8 x 8 pixel */
 	/* MDP_OUTP(MDP_BASE + DTV_BASE + 0x4C, 0x80000808); */
-
+    
 	/* enable DTV block */
 	MDP_OUTP(MDP_BASE + DTV_BASE, 1);
 	mdp_pipe_ctrl(MDP_OVERLAY1_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
@@ -241,7 +241,8 @@ int mdp4_dtv_on(struct platform_device *pdev)
 	if (mfd->key != MFD_KEY)
 		return -EINVAL;
 
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
+#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2) || \
+		defined(CONFIG_VIDEO_MHL_TAB_V2)
 	if (!hdmi_msm_state->hpd_on_offline) {
 		pr_info("hdmi_online is not\n");
 		return -ENODEV;
@@ -265,7 +266,8 @@ int mdp4_dtv_off(struct platform_device *pdev)
 {
 	struct msm_fb_data_type *mfd;
 	int ret = 0;
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
+#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2) || \
+		defined(CONFIG_VIDEO_MHL_TAB_V2)
 	if (hdmi_msm_state->hpd_on_offline) {
 		pr_info("hpd_offline is not\n");
 		return -ENODEV;
@@ -495,7 +497,6 @@ void mdp4_overlay_dtv_ov_done_push(struct msm_fb_data_type *mfd,
 {
 	mdp4_overlay_reg_flush(pipe, 0);
 	mdp4_overlay_dtv_ov_start(mfd);
-
 	if (pipe->flags & MDP_OV_PLAY_NOWAIT)
 		return;
 

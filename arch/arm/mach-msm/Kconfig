@@ -168,6 +168,7 @@ config ARCH_MSM8960
 	select MULTI_IRQ_HANDLER
 	select MSM_PM8X60 if PM
 	select HOLES_IN_ZONE if SPARSEMEM
+	select MSM_KRAIT_WFE_FIXUP
 
 config ARCH_MSM8930
 	bool "MSM8930"
@@ -205,6 +206,7 @@ config ARCH_MSM8930
 	select MULTI_IRQ_HANDLER
 	select MSM_PM8X60 if PM
 	select HOLES_IN_ZONE if SPARSEMEM
+	select MSM_KRAIT_WFE_FIXUP
 
 config ARCH_APQ8064
 	bool "APQ8064"
@@ -222,6 +224,7 @@ config ARCH_APQ8064
 	select MULTI_IRQ_HANDLER
 	select MSM_PM8X60 if PM
 	select HOLES_IN_ZONE if SPARSEMEM
+	select MSM_KRAIT_WFE_FIXUP
 
 config ARCH_MSMCOPPER
 	bool "MSM Copper"
@@ -306,6 +309,9 @@ config  ARCH_MSM_SCORPIONMP
 config  ARCH_MSM_KRAITMP
 	select ARCH_MSM_KRAIT
 	select MSM_SMP
+	bool
+
+config  MSM_KRAIT_WFE_FIXUP
 	bool
 
 config  ARCH_MSM_CORTEX_A5
@@ -651,6 +657,13 @@ config MACH_GOGH
         help
           Support for the Samsung Gogh device.
 
+config MACH_INFINITE
+        depends on ARCH_MSM8960
+        default n
+        bool "MSM8960 Samsung INFINITE"
+        help
+          Support for the Samsung Infinite device.
+
 config MACH_ACCELERATE
         depends on ARCH_MSM8960
         default n
@@ -683,6 +696,21 @@ config MACH_ESPRESSO10_VZW
         depends on ARCH_MSM8960
         default n
         bool "MSM8960 Samsung ESPRESSO10_VZW"
+
+config MACH_ESPRESSO10_SPR
+        depends on ARCH_MSM8960
+        default n
+        bool "MSM8960 Samsung ESPRESSO10_SPR"
+
+config MACH_ESPRESSO10_ATT
+        depends on ARCH_MSM8960
+        default n
+        bool "MSM8960 Samsung ESPRESSO10_ATT"
+
+config MACH_ESPRESSO_SPR
+        depends on ARCH_MSM8960
+        default n
+        bool "MSM8960 Samsung ESPRESSO_SPR"
 
 config MACH_ESPRESSO_ATT
         depends on ARCH_MSM8960
@@ -747,11 +775,38 @@ config MACH_M2_DCM
 	help
           Support for the Samsung M2 DCM device.
 
+config MACH_K2_KDI
+	depends on ARCH_MSM8960
+	default n
+	bool "MSM8960 Samsung K2_KDI"
+	help
+          Support for the Samsung K2 KDI device.
+
+config MACH_STRETTO
+	depends on ARCH_MSM8960
+	default n
+	bool "MSM8960 Samsung STRETTO"
+
+config MACH_SUPERIORLTE_SKT
+	depends on ARCH_MSM8960
+	default n
+	bool "MSM8960 Samsung SUPERIORLTE_SKT"
+
 config MACH_MSM8960_LIQUID
 	depends on ARCH_MSM8960
 	bool "MSM8960 LIQUID"
 	help
 	  Support for the Qualcomm MSM8960 LIQUID device.
+
+config DMUX_LA1_5
+	depends on ARCH_MSM8960
+	default n
+	bool "BAM_DMUX LA1_5"
+	help
+          Support for the LA1.5 Modem device.
+	  Samsung should get rid of this feature after the verification.
+	  Because this feature is for preventing modem crash.
+	  This feature is used in bam_dmux.c
 
 config MACH_MSM8930_CDP
 	depends on ARCH_MSM8930
@@ -2244,6 +2299,11 @@ config SEC_L1_DCACHE_PANIC_CHK
 	bool "L1 Dcache Panic check"
 	help
 	  To check the L1 Dcache Panic on MSM8960.
+
+config SEC_SSR_DEBUG_LEVEL_CHK
+	bool "SSR DEBUG LEVEL check"
+	help
+	  To check the level of debug for SSR.
 
 config MSM_DCVS
 	bool "Use MSM DCVS for CPU/GPU Frequency control"

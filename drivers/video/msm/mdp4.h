@@ -25,6 +25,7 @@ extern uint32 mdp_intr_mask;
 extern spinlock_t mdp_spin_lock;
 extern struct mdp4_statistic mdp4_stat;
 extern uint32 mdp4_extn_disp;
+extern spinlock_t dsi_clk_lock;
 
 #define MDP4_OVERLAYPROC0_BASE	0x10000
 #define MDP4_OVERLAYPROC1_BASE	0x18000
@@ -248,7 +249,12 @@ enum {
 #define MDP4_PIPE_PER_MIXER	2
 
 #define MDP4_MAX_PLANE		4
-#define VSYNC_PERIOD		16
+#define VSYNC_PERIOD		50
+
+#if defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT_PANEL)
+/*#define DEBUG_MDP_LOCKUP*/
+#endif
 
 struct mdp4_hsic_regs {
 	int32_t params[NUM_HSIC_PARAM];
@@ -341,6 +347,33 @@ struct mdp4_overlay_pipe {
 	struct mdp_overlay req_data;
 };
 
+#ifdef MDP_HANG_DEBUG
+#define MDP_GENERAL_DUMP_START	0x00000
+#define MDP_GENERAL_DUMP_END	0x00054
+#define MDP_GENENRL_DUMP_NUM\
+	(((MDP_GENERAL_DUMP_END - MDP_GENERAL_DUMP_START)/4)+1)
+
+#define MDP_SYNC_DUMP_START	0x00100
+#define MDP_SYNC_DUMP_END	0x004D4
+#define MDP_SYNC_DUMP_NUM\
+	(((MDP_SYNC_DUMP_END - MDP_SYNC_DUMP_START)/4)+1)
+
+#define MDP_OV_PROC_DUMP_START	0x10000
+#define MDP_OV_PROC_DUMP_END	0x5FFFC
+#define MDP_OV_PROC_DUMP_NUM\
+	(((MDP_OV_PROC_DUMP_END - MDP_OV_PROC_DUMP_START)/4)+1)
+
+#define MDP_DMA_P_DUMP_START	0x90000
+#define MDP_DMA_P_DUMP_END	0x90070
+#define MDP_DMA_P_DUMP_NUM\
+	(((MDP_DMA_P_DUMP_END - MDP_DMA_P_DUMP_START)/4)+1)
+
+#define MIPI_DSI1_DUMP_START	0x00000
+#define MIPI_DSI1_DUMP_END	0x001F0
+#define MIPI_DSI1_DUMP_NUM\
+	(((MIPI_DSI1_DUMP_END - MIPI_DSI1_DUMP_START)/4)+1)
+#endif
+
 struct mdp4_statistic {
 	ulong intr_tot;
 	ulong intr_dma_p;
@@ -355,6 +388,7 @@ struct mdp4_statistic {
 	ulong intr_underrun_e;	/* external interface */
 	ulong intr_histogram;
 	ulong intr_rd_ptr;
+	ulong mixer_reset;
 	ulong dsi_mdp_start;
 	ulong dsi_clk_on;
 	ulong dsi_clk_off;
@@ -385,7 +419,25 @@ struct mdp4_statistic {
 	ulong err_stage;
 	ulong err_play;
 	ulong err_underflow;
+#if defined(DEBUG_MDP_LOCKUP)
+	ulong last_dma_start_time;
+	ulong dma_wait_start_time;
+	ulong last_cmd_dma_time;
+	boolean last_cmd_dma_intr_loss;
+	struct task_struct *last_dma_process;
+#endif
+#ifdef MDP_HANG_DEBUG
+	uint32 mdp_reg_dump_general[MDP_GENENRL_DUMP_NUM];
+	uint32 mdp_reg_dump_sync[MDP_SYNC_DUMP_NUM];
+	uint32 mdp_reg_dump_ov_pro[MDP_OV_PROC_DUMP_NUM];
+	uint32 mdp_reg_dump_prim_disp[MDP_OV_PROC_DUMP_NUM];
+	uint32 mdp_reg_dump_prim_disp2[3];
+	uint32 mipi_dsi1_reg_dump[MIPI_DSI1_DUMP_NUM];
+#endif
 };
+
+void mdp4_overlay_dsi_video_wait4event(struct msm_fb_data_type *mfd,
+						int intr_done);
 
 struct mdp4_overlay_pipe *mdp4_overlay_ndx2pipe(int ndx);
 void mdp4_sw_reset(unsigned long bits);
@@ -555,7 +607,9 @@ void mdp4_vg_qseed_init(int);
 	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT) \
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT)
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
 void mdp4_vg_qseed_init_DMB(int vg_num);
 void mdp4_vg_qseed_init_VideoPlay(int vg_num);
 #endif
@@ -652,6 +706,14 @@ void mdp4_overlay_dsi_video_vsync_push(struct msm_fb_data_type *mfd,
 				struct mdp4_overlay_pipe *pipe);
 void mdp4_dsi_cmd_overlay_restore(void);
 void mdp_dsi_cmd_overlay_suspend(void);
+#ifdef CONFIG_FB_MSM_MDP303
+static inline void mdp4_dsi_cmd_del_timer(void)
+{
+	/* empty */
+}
+#else
+void mdp4_dsi_cmd_del_timer(void);
+#endif
 #else
 static inline void mdp4_dsi_cmd_dma_busy_wait(struct msm_fb_data_type *mfd)
 {
@@ -745,10 +807,12 @@ void mdp4_free_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num);
 #if defined(CONFIG_MIPI_SAMSUNG_ESD_REFRESH)
 void set_esd_disable(void);
 void set_esd_enable(void);
+boolean get_esd_refresh_stat(void);
 #endif
 
 extern int play_speed_1_5;
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT)
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
 extern boolean camera_mode;
 #endif
 
@@ -762,4 +826,9 @@ bool samsung_has_cmc624(void);
 #endif
 
 int mdp4_igc_lut_config(struct mdp_igc_lut_data *cfg);
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+void mdp4_mixer_reset(int mixer);
+void mdp4_dsi_cmd_dmap_reconfig(void);
+#endif
+
 #endif /* MDP_H */

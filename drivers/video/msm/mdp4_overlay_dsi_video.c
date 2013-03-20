@@ -64,9 +64,6 @@ void mdp4_dsi_video_fxn_register(cmd_fxn_t fxn)
 	display_on = fxn;
 }
 
-static void mdp4_overlay_dsi_video_wait4event(struct msm_fb_data_type *mfd,
-						int intr_done);
-
 int mdp4_dsi_video_on(struct platform_device *pdev)
 {
 	int dsi_width;
@@ -433,7 +430,7 @@ static void mdp4_dsi_video_blt_dmap_update(struct mdp4_overlay_pipe *pipe)
  * INTR_DMA_P_DONE and INTR_PRIMARY_VSYNC event only
  * no INTR_OVERLAY0_DONE event allowed.
  */
-static void mdp4_overlay_dsi_video_wait4event(struct msm_fb_data_type *mfd,
+void mdp4_overlay_dsi_video_wait4event(struct msm_fb_data_type *mfd,
 						int intr_done)
 {
 	unsigned long flag;
@@ -525,8 +522,14 @@ void mdp4_primary_vsync_dsi_video(void)
  */
 void mdp4_dma_p_done_dsi_video(struct mdp_dma_data *dma)
 {
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) || \
+	defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT) ||\
+	defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
 #if defined(CONFIG_SAMSUNG_CMC624)
 	if (!samsung_has_cmc624()) {
+#endif
 		if (blt_cfg_changed) {
 			mdp_is_in_isr = TRUE;
 			mdp4_overlayproc_cfg(dsi_pipe);
@@ -546,8 +549,10 @@ void mdp4_dma_p_done_dsi_video(struct mdp_dma_data *dma)
 			blt_cfg_changed = 0;
 		}
 		complete_all(&dsi_video_comp);
+#if defined(CONFIG_SAMSUNG_CMC624)
 	} else
 		complete_all(&dsi_video_comp);
+#endif
 #else
 	complete_all(&dsi_video_comp);
 #endif
@@ -640,13 +645,20 @@ static void mdp4_dsi_video_do_blt(struct msm_fb_data_type *mfd, int enable)
 	 */
 	data = inpdw(MDP_BASE + DSI_VIDEO_BASE);
 	data &= 0x01;
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) || \
+	defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT) ||\
+	defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT_PANEL) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
 #if defined(CONFIG_SAMSUNG_CMC624)
 	if (!samsung_has_cmc624()) {
+#endif /* CONFIG_SAMSUNG_CMC624 */
 		if (data) {
 			mdp4_overlay_dsi_video_wait4event(mfd, INTR_DMA_P_DONE);
 			mdp4_overlay_dsi_video_wait4event(
 						mfd, INTR_PRIMARY_VSYNC);
 		}
+#if defined(CONFIG_SAMSUNG_CMC624)
 	} else {
 		if (data) {	/* timing generator enabled */
 #if defined(CONFIG_MIPI_SAMSUNG_ESD_REFRESH)
@@ -683,6 +695,7 @@ static void mdp4_dsi_video_do_blt(struct msm_fb_data_type *mfd, int enable)
 #endif
 		}
 	}
+#endif /* CONFIG_SAMSUNG_CMC624 */
 #else
 	if (data) {
 		mdp4_overlay_dsi_video_wait4event(mfd, INTR_DMA_P_DONE);

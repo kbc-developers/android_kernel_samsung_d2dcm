@@ -11,6 +11,7 @@
  *
  */
 #include <linux/clk.h>
+#include <mach/clk.h>  // QC SR 94888.patch 20120929 for Unknown Reset Problem in K2 JPN
 #include "msm_fb.h"
 #include "mdp.h"
 #include "mdp4.h"
@@ -486,7 +487,9 @@ void mipi_dsi_phy_init(int panel_ndx, struct msm_panel_info const *panel_info,
 	int i, off;
 
 	MIPI_OUTP(MIPI_DSI_BASE + 0x128, 0x0001);/* start phy sw reset */
+#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT_PANEL)
 	msleep(100);
+#endif
 	MIPI_OUTP(MIPI_DSI_BASE + 0x128, 0x0000);/* end phy w reset */
 	MIPI_OUTP(MIPI_DSI_BASE + 0x500, 0x0003);/* regulator_ctrl_0 */
 	MIPI_OUTP(MIPI_DSI_BASE + 0x504, 0x0001);/* regulator_ctrl_1 */
@@ -592,9 +595,16 @@ void mipi_dsi_clk_enable(void)
 	if (clk_set_rate(dsi_byte_div_clk, 1) < 0)/* divided by 1 */
 		pr_err("%s: dsi_byte_div_clk - "
 			"clk_set_rate failed\n", __func__);
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || \
+	defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT)
+	if (clk_set_rate(dsi_esc_clk, 1) < 0)/* divided by 2 */
+		pr_err("%s: dsi_esc_clk - "
+			"clk_set_rate failed\n", __func__);
+#else
 	if (clk_set_rate(dsi_esc_clk, 2) < 0)/* divided by 2 */
 		pr_err("%s: dsi_esc_clk - "
 			"clk_set_rate failed\n", __func__);
+#endif
 	mipi_dsi_pclk_ctrl(&dsi_pclk, 1);
 	mipi_dsi_clk_ctrl(&dsicore_clk, 1);
 	clk_enable(dsi_byte_div_clk);
@@ -682,6 +692,12 @@ void hdmi_msm_reset_core(void)
 	hdmi_msm_clk(0);
 	udelay(5);
 	hdmi_msm_clk(1);
+
+	/*  QC SR 94888.patch 20120929 for Unknown Reset Problem in K2 JPN */
+	clk_reset(hdmi_msm_state->hdmi_app_clk, CLK_RESET_ASSERT);
+	udelay(20);
+	clk_reset(hdmi_msm_state->hdmi_app_clk, CLK_RESET_DEASSERT);
+	/* QC SR PATCH END */
 }
 
 void hdmi_msm_init_phy(int video_format)

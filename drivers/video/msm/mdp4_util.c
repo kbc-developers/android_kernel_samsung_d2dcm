@@ -51,15 +51,30 @@ unsigned is_mdp4_hw_reset(void)
 void mdp4_sw_reset(ulong bits)
 {
 	/* MDP cmd block enable */
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+#endif
 
 	bits &= 0x1f;	/* 5 bits */
 	outpdw(MDP_BASE + 0x001c, bits);	/* MDP_SW_RESET */
+	dsb();
 
 	while (inpdw(MDP_BASE + 0x001c) & bits) /* self clear when complete */
 		;
 	/* MDP cmd block disable */
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+#endif
 
 	MSM_FB_DEBUG("mdp4_sw_reset: 0x%x\n", (int)bits);
 }
@@ -1132,7 +1147,10 @@ static uint32 vg_qseed_table2[] = {
 	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) \
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT)
+	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
 static uint32 vg_qseed_table2_DMB[] = {
 	0x02000000, 0x00000000, 0x01ff0ff9, 0x00000008,
 	0x01fb0ff2, 0x00000013, 0x01f50fed, 0x0ffe0020,
@@ -1738,7 +1756,10 @@ void mdp4_vg_qseed_init(int vp_num)
 	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) \
 	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) \
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT)
+	|| defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_BOEOT_TFT_VIDEO_WSVGA_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WXGA_PT)
 void mdp4_vg_qseed_init_VideoPlay(int vp_num)
 {
 	uint32 *off;
@@ -1964,12 +1985,26 @@ void mdp4_vg_csc_mv_setup(int vp_num)
 	off = (uint32 *)(MDP_BASE + MDP4_VIDEO_BASE + voff +
 					MDP4_CSC_MV_OFF);
 
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+#endif
 	for (i = 0; i < 9; i++) {
 		outpdw(off, csc_matrix[vp_num].csc_mv[i]);
 		off++;
 	}
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+#endif
 }
 
 void mdp4_vg_csc_pre_bv_setup(int vp_num)
@@ -1981,12 +2016,26 @@ void mdp4_vg_csc_pre_bv_setup(int vp_num)
 	off = (uint32 *)(MDP_BASE + MDP4_VIDEO_BASE + voff +
 					MDP4_CSC_PRE_BV_OFF);
 
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+#endif
 	for (i = 0; i < 3; i++) {
 		outpdw(off, csc_matrix[vp_num].csc_pre_bv[i]);
 		off++;
 	}
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+#endif
 }
 
 void mdp4_vg_csc_post_bv_setup(int vp_num)
@@ -1998,12 +2047,26 @@ void mdp4_vg_csc_post_bv_setup(int vp_num)
 	off = (uint32 *)(MDP_BASE + MDP4_VIDEO_BASE + voff +
 					MDP4_CSC_POST_BV_OFF);
 
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+#endif
 	for (i = 0; i < 3; i++) {
 		outpdw(off, csc_matrix[vp_num].csc_post_bv[i]);
 		off++;
 	}
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+#endif
 }
 
 void mdp4_vg_csc_pre_lv_setup(int vp_num)
@@ -2015,12 +2078,26 @@ void mdp4_vg_csc_pre_lv_setup(int vp_num)
 	off = (uint32 *)(MDP_BASE + MDP4_VIDEO_BASE + voff +
 					MDP4_CSC_PRE_LV_OFF);
 
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+#endif
 	for (i = 0; i < 6; i++) {
 		outpdw(off, csc_matrix[vp_num].csc_pre_lv[i]);
 		off++;
 	}
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+#endif
 }
 
 void mdp4_vg_csc_post_lv_setup(int vp_num)
@@ -2032,12 +2109,26 @@ void mdp4_vg_csc_post_lv_setup(int vp_num)
 	off = (uint32 *)(MDP_BASE + MDP4_VIDEO_BASE + voff +
 					MDP4_CSC_POST_LV_OFF);
 
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+#endif
 	for (i = 0; i < 6; i++) {
 		outpdw(off, csc_matrix[vp_num].csc_post_lv[i]);
 		off++;
 	}
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+#endif
 }
 
 void mdp4_vg_csc_convert_setup(int vp_num)
@@ -3067,11 +3158,25 @@ int mdp4_csc_enable(struct mdp_csc_cfg_data *config)
 		return -EINVAL;
 	}
 
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+#endif
 	temp = inpdw(MDP_BASE + base) & ~mask;
 	output |= temp;
 	outpdw(MDP_BASE + base, output);
+#ifdef MDP_UNDERFLOW_RESET_CTRL_CMD
+	if (!in_interrupt())
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	else
+		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, TRUE);
+#else
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+#endif
 	return 0;
 }
 

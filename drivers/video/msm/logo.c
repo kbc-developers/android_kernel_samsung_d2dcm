@@ -24,7 +24,9 @@
 #include <linux/irq.h>
 #include <asm/system.h>
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) \
-	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT)
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT)\
+	|| defined(CONFIG_MACH_K2_KDI)	
 #include <asm/cacheflush.h>
 #endif
 
@@ -149,7 +151,9 @@ int load_565rle_image(char *filename)
 	}
 
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) \
-	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT)
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT) \
+	|| defined(CONFIG_MACH_K2_KDI)	
 	flush_cache_all();
 	outer_flush_all();
 #endif

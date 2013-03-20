@@ -290,6 +290,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
  * Free the provided handle.
  */
 void ion_free(struct ion_client *client, struct ion_handle *handle);
+int ion_free_ext(struct ion_client *client, struct ion_handle *handle);
 
 /**
  * ion_phys - returns the physical address and len of a handle

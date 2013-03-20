@@ -23,14 +23,20 @@
 #include "d2_tkey_fw.h"
 #endif
 
+#elif defined(CONFIG_MACH_K2_KDI)
+#define BIN_FW_VERSION		0x09
+#ifdef _CYPRESS_TKEY_FW_H
+#include "k2_tkey_fw.h"
+#endif
+
 #elif defined(CONFIG_MACH_GOGH)
-#define BIN_FW_VERSION		0x06
+#define BIN_FW_VERSION		0x0E
 #ifdef _CYPRESS_TKEY_FW_H
 #include "gogh_tkey_fw.h"
 #endif
 
 #elif defined(CONFIG_MACH_APEXQ)
-#define BIN_FW_VERSION		0x03
+#define BIN_FW_VERSION		0x06
 #ifdef _CYPRESS_TKEY_FW_H
 #include "apexq_tkey_fw.h"
 #endif

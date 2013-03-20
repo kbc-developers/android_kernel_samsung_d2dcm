@@ -299,7 +299,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 };
 
 
-#define MSM_PMEM_ADSP_SIZE         0x2500000 /* 37 Mbytes */
+#define MSM_PMEM_ADSP_SIZE         0x4600000 /* 70 Mbytes */
 #define MSM_PMEM_AUDIO_SIZE        0x160000 /* 1.375 Mbytes */
 #define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
@@ -318,7 +318,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 #define MSM_LIQUID_ION_SF_SIZE MSM_LIQUID_PMEM_SIZE
 #define MSM_HDMI_PRIM_ION_SF_SIZE MSM_HDMI_PRIM_PMEM_SIZE
 
-#define MSM8960_FIXED_AREA_START 0xa0000000
+#define MSM8960_FIXED_AREA_START 0xa9000000
 #define MAX_FIXED_AREA_SIZE	0x10000000
 #define MSM_MM_FW_SIZE		0x280000
 #define MSM8960_FW_START	(MSM8960_FIXED_AREA_START - MSM_MM_FW_SIZE)
@@ -653,17 +653,17 @@ static void __init adjust_mem_for_liquid(void)
 			msm_ion_sf_size = MSM_HDMI_PRIM_ION_SF_SIZE;
 
 		if (machine_is_msm8960_liquid() || hdmi_is_primary) {
-		for (i = 0; i < ion_pdata.nr; i++) {
-					if (ion_pdata.heaps[i].id == ION_SF_HEAP_ID) {
-						ion_pdata.heaps[i].size =
-							msm_ion_sf_size;
-						pr_debug("msm_ion_sf_size 0x%x\n",
-							msm_ion_sf_size);
+			for (i = 0; i < ion_pdata.nr; i++) {
+				if (ion_pdata.heaps[i].id == ION_SF_HEAP_ID) {
+					ion_pdata.heaps[i].size =
+						msm_ion_sf_size;
+					pr_debug("msm_ion_sf_size 0x%x\n",
+						msm_ion_sf_size);
 				break;
+				}
 			}
 		}
 	}
-}
 }
 
 static void __init reserve_mem_for_ion(enum ion_memory_types mem_type,
@@ -1196,6 +1196,55 @@ static void fsa9485_dock_cb(int attached)
 	}
 }
 
+static void fsa9485_usb_cdp_cb(bool attached)
+{
+
+	union power_supply_propval value;
+	int i, ret = 0;
+	struct power_supply *psy;
+
+	pr_info("fsa9485_usb_cdp_cb attached %d\n", attached);
+
+	set_cable_status =
+		attached ? CABLE_TYPE_CDP : CABLE_TYPE_NONE;
+
+	if (system_rev >= BOARD_REV02) {
+		if (attached) {
+			pr_info("%s set vbus state\n", __func__);
+			msm_otg_set_vbus_state(attached);
+		}
+	}
+
+	for (i = 0; i < 10; i++) {
+		psy = power_supply_get_by_name("battery");
+		if (psy)
+			break;
+	}
+	if (i == 10) {
+		pr_err("%s: fail to get battery ps\n", __func__);
+		return;
+	}
+
+	switch (set_cable_status) {
+	case CABLE_TYPE_CDP:
+		value.intval = POWER_SUPPLY_TYPE_USB_CDP;
+		break;
+	case CABLE_TYPE_NONE:
+		value.intval = POWER_SUPPLY_TYPE_BATTERY;
+		break;
+	default:
+		pr_err("invalid status:%d\n", attached);
+		return;
+	}
+
+	ret = psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE,
+		&value);
+	if (ret) {
+		pr_err("%s: fail to set power_suppy ONLINE property(%d)\n",
+			__func__, ret);
+	}
+}
+
 static int fsa9485_dock_init(void)
 {
 	int ret;
@@ -1214,8 +1263,9 @@ static void svc_led_power_onoff(int onoff)
 	static struct regulator *reg_8921_leda;
 	static int prev_on;
 	int rc;
-
+	static int ref_count;
 	if (!reg_8921_leda) {
+		ref_count = 0;
 		reg_8921_leda = regulator_get(NULL, "8921_l16");
 		rc = regulator_set_voltage(reg_8921_leda,
 			3000000, 3000000);
@@ -1226,17 +1276,22 @@ static void svc_led_power_onoff(int onoff)
 
 	if (onoff) {
 		rc = regulator_enable(reg_8921_leda);
+		ref_count = 1;
 		if (rc) {
 			pr_err("'%s' regulator enable failed, rc=%d\n",
 				"reg_8921_leda", rc);
 			return;
 		}
 	} else {
-		rc = regulator_disable(reg_8921_leda);
-		if (rc) {
-			pr_err("'%s' regulator disable failed, rc=%d\n",
+
+		if (ref_count) {
+			rc = regulator_disable(reg_8921_leda);
+			ref_count = 0;
+			if (rc) {
+				pr_err("'%s' regulator disable failed, rc=%d\n",
 				"reg_8921_leda", rc);
-			return;
+				return;
+			}
 		}
 	}
 	prev_on = onoff;
@@ -1297,6 +1352,7 @@ static struct fsa9485_platform_data fsa9485_pdata = {
 	.jig_cb = fsa9485_jig_cb,
 	.dock_cb = fsa9485_dock_cb,
 	.dock_init = fsa9485_dock_init,
+	.usb_cdp_cb = fsa9485_usb_cdp_cb,
 };
 
 static struct i2c_board_info micro_usb_i2c_devices_info[] __initdata = {
@@ -1481,8 +1537,8 @@ static struct sec_bat_platform_data sec_bat_pdata = {
 	.max_voltage = 4350 * 1000,
 	.recharge_voltage = 4280 * 1000,
 	.event_block = 626,
-	.high_block = 478,
-	.high_recovery = 422,
+	.high_block = 506,
+	.high_recovery = 478,
 	.low_block = -52,
 	.low_recovery = -3,
 	.lpm_high_block = 478,
@@ -1698,17 +1754,20 @@ static struct taos_platform_data taos_pdata = {
 	.led_on	=	taos_led_onoff,
 	.als_int = GPIO_ALS_INT,
 	.prox_thresh_hi = 650,
-	.prox_thresh_low = 510,
+	.prox_thresh_low = 500,
+	.prox_th_hi_cal = 500,
+	.prox_th_low_cal = 400,
 	.als_time = 0xED,
 	.intr_filter = 0x33,
 	.prox_pulsecnt = 0x08,
 	.prox_gain = 0x28,
 	.coef_atime = 50,
-	.ga = 117,
+	.ga = 95,
 	.coef_a = 1000,
-	.coef_b = 1600,
-	.coef_c = 660,
-	.coef_d = 1250,
+	.coef_b = 1500,
+	.coef_c = 1250,
+	.coef_d = 2080,
+	.min_max = MIN
 };
 #endif
 
@@ -1769,8 +1828,9 @@ static void taos_led_onoff(int onoff)
 	static struct regulator *reg_8921_leda;
 	static int prev_on;
 	int rc;
-
+	static int ref_count;
 	if (!reg_8921_leda) {
+		ref_count = 0;
 		reg_8921_leda = regulator_get(NULL, "8921_l16");
 		rc = regulator_set_voltage(reg_8921_leda,
 			3000000, 3000000);
@@ -1781,17 +1841,22 @@ static void taos_led_onoff(int onoff)
 
 	if (onoff) {
 		rc = regulator_enable(reg_8921_leda);
+		ref_count = 1;
 		if (rc) {
 			pr_err("'%s' regulator enable failed, rc=%d\n",
 				"reg_8921_leda", rc);
 			return;
 		}
 	} else {
-		rc = regulator_disable(reg_8921_leda);
-		if (rc) {
-			pr_err("'%s' regulator disable failed, rc=%d\n",
+
+		if (ref_count) {
+			rc = regulator_disable(reg_8921_leda);
+			ref_count = 0;
+			if (rc) {
+				pr_err("'%s' regulator disable failed, rc=%d\n",
 				"reg_8921_leda", rc);
-			return;
+				return;
+			}
 		}
 	}
 	prev_on = onoff;
@@ -2264,8 +2329,6 @@ static struct i2c_board_info a2220_device[] __initdata = {
 };
 
 static struct i2c_gpio_platform_data  a2220_i2c_gpio_data = {
-	.sda_pin		= GPIO_A2220_I2C_SDA,
-	.scl_pin		= GPIO_A2220_I2C_SCL,
 	.udelay			= 1,
 };
 
@@ -3462,7 +3525,12 @@ static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi10_pdata = {
 	.clk_freq = 100000,
 	.src_clk_rate = 24000000,
 };
-
+#ifdef CONFIG_VP_A2220
+static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi8_pdata = {
+	.clk_freq = 400000,
+	.src_clk_rate = 24000000,
+};
+#endif
 static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi12_pdata = {
 	.clk_freq = 400000,
 	.src_clk_rate = 24000000,
@@ -3658,6 +3726,12 @@ static struct sec_jack_zone jack_zones[] = {
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[2] = {
+		.adc_high	= 1720,
+		.delay_ms	= 10,
+		.check_count	= 10,
+		.jack_type	= SEC_HEADSET_4POLE,
+	},
+	[3] = {
 		.adc_high	= 9999,
 		.delay_ms	= 10,
 		.check_count	= 10,
@@ -3787,6 +3861,9 @@ static struct platform_device *common_devices[] __initdata = {
 	&msm8960_device_qup_i2c_gsbi4,
 	&msm8960_device_qup_i2c_gsbi7,
 	&msm8960_device_qup_i2c_gsbi10,
+#ifdef CONFIG_VP_A2220
+	&msm8960_device_qup_i2c_gsbi8,
+#endif
 #ifndef CONFIG_MSM_DSPS
 	&msm8960_device_qup_i2c_gsbi12,
 #endif
@@ -3975,7 +4052,10 @@ static void __init msm8960_i2c_init(void)
 
 	msm8960_device_qup_i2c_gsbi10.dev.platform_data =
 					&msm8960_i2c_qup_gsbi10_pdata;
-
+#ifdef CONFIG_VP_A2220
+	msm8960_device_qup_i2c_gsbi8.dev.platform_data =
+					&msm8960_i2c_qup_gsbi8_pdata;
+#endif
 	msm8960_device_qup_i2c_gsbi12.dev.platform_data =
 					&msm8960_i2c_qup_gsbi12_pdata;
 }
@@ -4069,29 +4149,16 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(ON, GDHS, MAX, ACTIVE),
-		false,
-		8500, 51, 1122000, 8500,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, MAX, ACTIVE),
 		false,
 		9000, 51, 1130300, 9000,
 	},
+
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, ACTIVE, RET_HIGH),
 		false,
 		10000, 51, 1130300, 10000,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(OFF, GDHS, MAX, ACTIVE),
-		false,
-		12000, 14, 2205900, 12000,
 	},
 
 	{
@@ -4263,7 +4330,7 @@ static struct i2c_registry msm8960_i2c_devices[] __initdata = {
 #ifdef CONFIG_VP_A2220
 	{
 		I2C_SURF | I2C_FFA | I2C_FLUID,
-		MSM_A2220_I2C_BUS_ID,
+		MSM_8960_GSBI8_QUP_I2C_BUS_ID,
 		a2220_device,
 		ARRAY_SIZE(a2220_device),
 	},

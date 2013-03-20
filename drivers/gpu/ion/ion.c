@@ -388,6 +388,19 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 		/* Do not allow un-secure heap if secure is specified */
 		if (secure_allocation && (heap->type != ION_HEAP_TYPE_CP))
 			continue;
+
+		if (heap->id == ION_CP_MM_HEAP_ID) {
+			if (client->task == NULL)
+				printk(KERN_WARNING "MM ION alloc request from %s (%d)\n",
+					client->name, client->pid);
+			else {
+				char task_comm[TASK_COMM_LEN];
+				get_task_comm(task_comm, client->task);
+				printk(KERN_WARNING "MM ION alloc request from %s (%d)\n",
+					task_comm, client->pid);
+			}
+		}
+
 		buffer = ion_buffer_create(heap, dev, len, align, flags);
 		if (!IS_ERR_OR_NULL(buffer))
 			break;
@@ -456,6 +469,26 @@ void ion_free(struct ion_client *client, struct ion_handle *handle)
 	mutex_unlock(&client->lock);
 }
 EXPORT_SYMBOL(ion_free);
+
+int ion_free_ext(struct ion_client *client, struct ion_handle *handle)
+{
+	bool valid_handle;
+	int freed;
+
+	BUG_ON(client != handle->client);
+
+	mutex_lock(&client->lock);
+	valid_handle = ion_handle_validate(client, handle);
+	if (!valid_handle) {
+		mutex_unlock(&client->lock);
+		WARN("%s: invalid handle passed to free.\n", __func__);
+		return 1;
+	}
+	freed = ion_handle_put(handle);
+	mutex_unlock(&client->lock);
+
+	return freed;
+}
 
 static void ion_client_get(struct ion_client *client);
 static int ion_client_put(struct ion_client *client);

@@ -908,9 +908,18 @@ ion_error:
 	if (vcd_h264_mv_buffer->kernel_virtual_addr)
 		ion_unmap_kernel(client_ctx->user_ion_client,
 				client_ctx->h264_mv_ion_handle);
-	if (client_ctx->h264_mv_ion_handle)
-		ion_free(client_ctx->user_ion_client,
-			client_ctx->h264_mv_ion_handle);
+	if (client_ctx->h264_mv_ion_handle) {
+		int freed;
+		freed = ion_free_ext(client_ctx->user_ion_client,
+					client_ctx->h264_mv_ion_handle);
+		if (freed) {
+			client_ctx->h264_mv_ion_handle = NULL;
+			pr_info("ion_error:client_ctx=0x%08x"
+				"h264_mv_ion_handle is freed."
+				"num_of_output_buffers=%d", client_ctx,
+				client_ctx->num_of_output_buffers);
+		}
+	}
 	return false;
 }
 
@@ -979,10 +988,17 @@ static u32 vid_dec_free_h264_mv_buffers(struct video_client_ctx *client_ctx)
 				      &vcd_property_hdr, &h264_mv_buffer_size);
 
 	if (client_ctx->h264_mv_ion_handle != NULL) {
+		int freed;
 		ion_unmap_kernel(client_ctx->user_ion_client,
 					client_ctx->h264_mv_ion_handle);
-		ion_free(client_ctx->user_ion_client,
+		freed = ion_free_ext(client_ctx->user_ion_client,
 					client_ctx->h264_mv_ion_handle);
+		if (freed) {
+			client_ctx->h264_mv_ion_handle = NULL;
+			pr_info("client_ctx=0x%08x h264_mv_ion_handle is freed."
+				"num_of_output_buffers=%d", client_ctx,
+				client_ctx->num_of_output_buffers);
+		}
 	}
 
 	if (vcd_status)

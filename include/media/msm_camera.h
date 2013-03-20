@@ -933,6 +933,7 @@ struct msm_snapshot_pp_status {
 #define EXT_CAM_UPDATE_FW		42
 #define EXT_CAM_ANTI_BANDING		43
 #define EXT_CAM_SAMSUNG_CAMERA		44
+#define EXT_CAM_SET_FLIP		45
 
 /* QRD */
 #define CAMERA_EFFECT_BW		10

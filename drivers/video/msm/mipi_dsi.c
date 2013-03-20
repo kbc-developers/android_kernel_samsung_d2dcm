@@ -80,6 +80,8 @@ static int mipi_dsi_off(struct platform_device *pdev)
 	else
 		down(&mfd->dma->mutex);
 
+	pr_info("entering %s\n", __func__);
+
 	mdp4_overlay_dsi_state_set(ST_DSI_SUSPEND);
 
 	/*
@@ -89,6 +91,7 @@ static int mipi_dsi_off(struct platform_device *pdev)
 	 */
 	if (mfd->panel_info.type == MIPI_CMD_PANEL) {
 		if (mdp_rev >= MDP_REV_41) {
+			mdp4_dsi_cmd_del_timer();
 			mdp4_dsi_cmd_dma_busy_wait(mfd);
 			mdp4_dsi_blt_dmap_busy_wait(mfd);
 			mipi_dsi_mdp_busy_wait(mfd);
@@ -122,9 +125,8 @@ static int mipi_dsi_off(struct platform_device *pdev)
 	mdp_bus_scale_update_request(0);
 #endif
 
-	local_bh_disable();
+	spin_lock_bh(&dsi_clk_lock);
 	mipi_dsi_clk_disable();
-	local_bh_enable();
 
 	/* disbale dsi engine */
 	dsi_ctrl = MIPI_INP(MIPI_DSI_BASE + 0x0000);
@@ -133,10 +135,8 @@ static int mipi_dsi_off(struct platform_device *pdev)
 
 	mipi_dsi_phy_ctrl(0);
 
-
-	local_bh_disable();
 	mipi_dsi_ahb_ctrl(0);
-	local_bh_enable();
+	spin_unlock_bh(&dsi_clk_lock);
 
 	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_power_save)
 		mipi_dsi_pdata->dsi_power_save(0);
@@ -149,7 +149,7 @@ static int mipi_dsi_off(struct platform_device *pdev)
 	else
 		up(&mfd->dma->mutex);
 
-	pr_debug("%s-:\n", __func__);
+	pr_info("exiting %s\n", __func__);
 
 	return ret;
 }
@@ -172,6 +172,7 @@ static int mipi_dsi_on(struct platform_device *pdev)
 	fbi = mfd->fbi;
 	var = &fbi->var;
 	pinfo = &mfd->panel_info;
+	pr_info("entering %s\n", __func__);
 	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_power_save)
 		mipi_dsi_pdata->dsi_power_save(1);
 #if defined(CONFIG_FB_MSM_MIPI_PANEL_POWERON_LP11)
@@ -183,9 +184,8 @@ static int mipi_dsi_on(struct platform_device *pdev)
 #endif /* CONFIG_FB_MSM_MIPI_PANEL_POWERON_LP11 */
 
 	cont_splash_clk_ctrl();
-	local_bh_disable();
+
 	mipi_dsi_ahb_ctrl(1);
-	local_bh_enable();
 
 	clk_rate = mfd->fbi->var.pixclock;
 	clk_rate = min(clk_rate, mfd->panel_info.clk_max);
@@ -209,9 +209,7 @@ static int mipi_dsi_on(struct platform_device *pdev)
 
 	mipi_dsi_phy_init(0, &(mfd->panel_info), target_type);
 
-	local_bh_disable();
 	mipi_dsi_clk_enable();
-	local_bh_enable();
 
 	mipi  = &mfd->panel_info.mipi;
 	if (mfd->panel_info.type == MIPI_VIDEO_PANEL) {
@@ -368,11 +366,10 @@ static int mipi_dsi_on(struct platform_device *pdev)
 	else
 		up(&mfd->dma->mutex);
 
-	pr_debug("%s-:\n", __func__);
+	pr_info("exiting %s\n", __func__);
 
 	return ret;
 }
-
 
 static int mipi_dsi_resource_initialized;
 

@@ -23,6 +23,7 @@
 #include <linux/mfd/pm8xxx/core.h>
 #include <linux/mfd/pm8xxx/pwm.h>
 #include <linux/leds-pm8xxx.h>
+#include <linux/sched.h>
 
 #define SSBI_REG_ADDR_DRV_KEYPAD	0x48
 #define PM8XXX_DRV_KEYPAD_BL_MASK	0xf0
@@ -845,7 +846,6 @@ static ssize_t led_b_store(struct device *dev,
 static DEVICE_ATTR(led_b, S_IRUGO | S_IWUSR | S_IWGRP,
 			led_b_show, led_b_store);
 
-
 static ssize_t led_blink_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -897,7 +897,10 @@ static ssize_t led_blink_store(struct device *dev,
 	unsigned int delayoff = 0;
 	unsigned int argb_count = 0;
 
-	printk(KERN_DEBUG "led_blink input =%s, size=%d\n", buf, size);
+	printk(KERN_ALERT "[LED_blink_store] is \"%s\" (pid %i)\n",
+	current->comm, current->pid);
+	printk(KERN_ALERT "led_blink input =%s, size=%d\n", buf, size);
+
 	if (size < 7) {
 		printk(KERN_DEBUG "led_blink: Invlid input\n");
 		return size;
@@ -931,9 +934,9 @@ static ssize_t led_blink_store(struct device *dev,
 	atomic_set(&info->op_flag , 0);
 	/*buf[0], buf[1] contains 0x, so ignore it. case of RGB*/
 	if (!argb_count) {
-	brightness_r = hex_to_dec(buf[2], buf[3]);
-	brightness_g = hex_to_dec(buf[4], buf[5]);
-	brightness_b = hex_to_dec(buf[6], buf[7]);
+		brightness_r = hex_to_dec(buf[2], buf[3]);
+		brightness_g = hex_to_dec(buf[4], buf[5]);
+		brightness_b = hex_to_dec(buf[6], buf[7]);
 	}
 	/*buf[0], buf[1] contains 0x, so ignore it.
 	buf[2], buf[3] contains A (alpha value), ignore it.case of ARGB*/
@@ -947,6 +950,8 @@ static ssize_t led_blink_store(struct device *dev,
 	mutex_lock(&info->led_work_lock);
 
 	led_cfg = &info->pdata->configs[PM8XXX_LED_PAT8_BLUE];
+	brightness_b = brightness_b * 100 / 255;
+	led_cfg->pwm_duty_cycles->duty_pcts[1] = brightness_b;
 	pm8xxx_set_led_mode_and_max_brightness(&info->led[PM8XXX_LED_PAT8_BLUE],
 				led_cfg->mode, led_cfg->max_current);
 	__pm8xxx_led_work(&info->led[PM8XXX_LED_PAT8_BLUE],
@@ -956,6 +961,8 @@ static ssize_t led_blink_store(struct device *dev,
 				delayoff, delayon);
 
 	led_cfg = &info->pdata->configs[PM8XXX_LED_PAT8_GREEN];
+	brightness_g = brightness_g * 100 / 255;
+	led_cfg->pwm_duty_cycles->duty_pcts[1] = brightness_g;
 	pm8xxx_set_led_mode_and_max_brightness(
 			&info->led[PM8XXX_LED_PAT8_GREEN],
 			led_cfg->mode, led_cfg->max_current);
@@ -966,22 +973,30 @@ static ssize_t led_blink_store(struct device *dev,
 				delayoff, delayon);
 
 	led_cfg = &info->pdata->configs[PM8XXX_LED_PAT8_RED];
+	brightness_r = brightness_r * 100 / 255;
+	led_cfg->pwm_duty_cycles->duty_pcts[1] = brightness_r;
 	pm8xxx_set_led_mode_and_max_brightness(&info->led[PM8XXX_LED_PAT8_RED],
 				led_cfg->mode, led_cfg->max_current);
 	__pm8xxx_led_work(&info->led[PM8XXX_LED_PAT8_RED],
 			led_cfg->max_current);
 	if (led_cfg->mode != PM8XXX_LED_MODE_MANUAL)
 		pm8xxx_led_pwm_configure(&info->led[PM8XXX_LED_PAT8_RED],
-				delayoff, delayon);
+		delayoff, delayon);
 
 	if ((brightness_r || brightness_g || brightness_b) &&
 	(info->pdata->led_power_on))
 		info->pdata->led_power_on(1);
-	pm8xxx_led_set(&info->led[PM8XXX_LED_PAT8_BLUE].cdev, brightness_b);
-	pm8xxx_led_set(&info->led[PM8XXX_LED_PAT8_GREEN].cdev, brightness_g);
-	pm8xxx_led_set(&info->led[PM8XXX_LED_PAT8_RED].cdev, brightness_r);
+	printk(KERN_DEBUG "[LED] USER : R:%d,G:%d,B:%d\n",
+		brightness_r, brightness_g, brightness_b);
+	pm8xxx_led_set(&info->led[PM8XXX_LED_PAT8_RED].cdev,
+		led_cfg->max_current);
+	pm8xxx_led_set(&info->led[PM8XXX_LED_PAT8_GREEN].cdev,
+		led_cfg->max_current);
+	pm8xxx_led_set(&info->led[PM8XXX_LED_PAT8_BLUE].cdev,
+		led_cfg->max_current);
 
 	mutex_unlock(&info->led_work_lock);
+
 	return size;
 
 }

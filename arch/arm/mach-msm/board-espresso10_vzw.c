@@ -70,6 +70,9 @@
 #include <mach/msm_xo.h>
 #include <mach/restart.h>
 #include <mach/msm8960-gpio.h>
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_S7301
+#include <linux/platform_data/synaptics_s7301.h>
+#endif
 #ifdef CONFIG_SENSORS_AK8975
 #include <linux/i2c/ak8975.h>
 #endif
@@ -82,6 +85,9 @@
 #endif
 #ifdef CONFIG_OPTICAL_GP2A
 #include <linux/i2c/gp2a.h>
+#endif
+#ifdef CONFIG_OPTICAL_BH1721
+#include <linux/bh1721fvc.h>
 #endif
 #ifdef CONFIG_OPTICAL_GP2AP020A00F
 #include <linux/i2c/gp2ap020.h>
@@ -108,7 +114,8 @@
 #include <linux/switch.h>
 #endif
 
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
+#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2) \
+		|| defined(CONFIG_VIDEO_MHL_TAB_V2)
 #include <linux/sii9234.h>
 #endif
 
@@ -185,8 +192,6 @@ static struct platform_device msm_fm_platform_init = {
 unsigned int gpio_table[][GPIO_REV_MAX] = {
 	/* GPIO_INDEX   Rev {#00,#01,#02 }, */
 	/* MDP_VSYNC    */      {  0,  0,  0 },
-	/* VOLUME_UP    */      { 50, 50, 50 },
-	/* VOLUME_DOWN  */      { 81, 81, 81 },
 };
 
 int gpio_rev(unsigned int index)
@@ -215,11 +220,23 @@ static void akm_power_on(int onoff);
 #ifdef CONFIG_INPUT_BMP180
 static void bmp180_power_on(int onoff);
 #endif
-
+#ifdef CONFIG_OPTICAL_BH1721
+static int bh1721fvc_light_sensor_reset(void)
+{
+	printk(KERN_INFO " bh1721_light_sensor_reset !!\n");
+	gpio_free(GPIO_ALS_RESET);
+	gpio_request(GPIO_ALS_RESET, "LIGHT_SENSOR_RESET");
+	gpio_direction_output(GPIO_ALS_RESET, 0);
+	udelay(2);
+	gpio_direction_output(GPIO_ALS_RESET, 1);
+	return 0;
+}
+#endif
 #if defined(CONFIG_SENSORS_AK8975) || \
 	defined(CONFIG_MPU_SENSORS_MPU6050B1) || \
 	defined(CONFIG_INPUT_BMP180) || defined(CONFIG_OPTICAL_GP2A) || \
 	defined(CONFIG_OPTICAL_GP2AP020A00F) || \
+	defined(CONFIG_OPTICAL_BH1721) || \
 	defined(CONFIG_OPTICAL_TAOS_TRITON) || \
 	defined(CONFIG_SENSORS_AL3201) || \
 	defined(CONFIG_INPUT_YAS_SENSORS)
@@ -235,6 +252,7 @@ enum {
 	defined(CONFIG_MPU_SENSORS_MPU6050B1) || \
 	defined(CONFIG_INPUT_BMP180) || defined(CONFIG_OPTICAL_GP2A) || \
 	defined(CONFIG_OPTICAL_TAOS_TRITON) || \
+	defined(CONFIG_OPTICAL_BH1721) || \
 	defined(CONFIG_SENSORS_AL3201) || \
 	defined(CONFIG_INPUT_YAS_SENSORS)
 static void sensor_power_on_vdd(int, int);
@@ -291,7 +309,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 };
 
 
-#define MSM_PMEM_ADSP_SIZE         0x7800000 /* 120 Mbytes */
+#define MSM_PMEM_ADSP_SIZE         0x5200000 /* 82 Mbytes */
 #define MSM_PMEM_AUDIO_SIZE        0x160000 /* 1.375 Mbytes */
 #define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
@@ -850,7 +868,6 @@ static void reserve_cache_dump_memory(void)
 	unsigned int l1_size;
 	unsigned int total;
 	int ret;
-
 	ret = scm_call(L1C_SERVICE_ID, L1C_BUFFER_GET_SIZE_COMMAND_ID, &spare,
 		sizeof(spare), &l1_size, sizeof(l1_size));
 
@@ -1036,11 +1053,9 @@ static void fsa9485_usb_cb(bool attached)
 	pr_info("fsa9485_usb_cb attached %d\n", attached);
 	set_cable_status = attached ? CABLE_TYPE_USB : CABLE_TYPE_NONE;
 
-	if (system_rev >= 0x1) {
-		if (attached) {
-			pr_info("%s set vbus state\n", __func__);
-			msm_otg_set_vbus_state(attached);
-		}
+	if (attached) {
+		pr_info("%s set vbus state\n", __func__);
+		msm_otg_set_vbus_state(attached);
 	}
 
 	for (i = 0; i < 10; i++) {
@@ -1220,30 +1235,32 @@ int msm8960_get_cable_type(void)
 }
 #endif
 
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
+#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2) \
+		|| defined(CONFIG_VIDEO_MHL_TAB_V2)
 
 static void msm8960_mhl_gpio_init(void)
 {
 	int ret;
-
-	ret = gpio_request(GPIO_MHL_SEL, "mhl_sel");
-	if (ret < 0) {
-		pr_err("mhl_sel gpio_request is failed\n");
-		return;
-	}
 
 	ret = gpio_request(GPIO_MHL_EN, "mhl_en");
 	if (ret < 0) {
 		pr_err("mhl_en gpio_request is failed\n");
 		return;
 	}
+
+	ret = gpio_request(GPIO_MHL_RST, "mhl_rst");
+	if (ret < 0) {
+		pr_err("mhl_rst gpio_request is failed\n");
+		return;
+	}
 }
 
-static void cfg_mhl_sel(bool onoff)
+static void mhl_gpio_config(void)
 {
-	gpio_direction_output(GPIO_MHL_SEL, onoff ? 1 : 0);
-	pr_info("mhl_sel :%d in fsa9485\n",
-				gpio_get_value_cansleep(GPIO_MHL_SEL));
+	gpio_tlmm_config(GPIO_CFG(GPIO_MHL_EN, 0, GPIO_CFG_OUTPUT,
+				GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
+	gpio_tlmm_config(GPIO_CFG(GPIO_MHL_RST, 0, GPIO_CFG_OUTPUT,
+				GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
 }
 
 static struct i2c_gpio_platform_data mhl_i2c_gpio_data = {
@@ -1259,13 +1276,6 @@ static struct platform_device mhl_i2c_gpio_device = {
 		.platform_data  = &mhl_i2c_gpio_data,
 	},
 };
-/*
-gpio_interrupt pin is very changable each different h/w_rev or  board.
-*/
-int get_mhl_int_irq(void)
-{
-	return  MSM_GPIO_TO_INT(GPIO_MHL_INT);
-}
 
 static struct regulator *mhl_l12;
 
@@ -1278,7 +1288,7 @@ static void sii9234_hw_onoff(bool onoff)
 	if (onoff) {
 		gpio_tlmm_config(GPIO_CFG(GPIO_MHL_EN, 0, GPIO_CFG_OUTPUT,
 			GPIO_CFG_PULL_UP, GPIO_CFG_2MA), 1);
-		if (system_rev > BOARD_REV01) {
+
 			mhl_l12 = regulator_get(NULL, "8921_l12");
 			rc = regulator_set_voltage(mhl_l12, 1200000, 1200000);
 			if (rc)
@@ -1287,18 +1297,14 @@ static void sii9234_hw_onoff(bool onoff)
 				if (rc)
 					pr_err("error enabling regulator\n");
 			usleep(1*1000);
-		}
 
 		gpio_direction_output(GPIO_MHL_EN, 1);
 	} else {
 		gpio_direction_output(GPIO_MHL_EN, 0);
-
-		if (system_rev > BOARD_REV01) {
 			if (mhl_l12) {
 				rc = regulator_disable(mhl_l12);
 				if (rc)
 					pr_err("error disabling regulator\n");
-			}
 	}
 
 		usleep_range(10000, 20000);
@@ -1316,7 +1322,6 @@ static void sii9234_hw_onoff(bool onoff)
 
 static void sii9234_hw_reset(void)
 {
-	gpio_request(GPIO_MHL_RST, NULL);
 
 	usleep_range(10000, 20000);
 	if (gpio_direction_output(GPIO_MHL_RST, 1))
@@ -1334,14 +1339,23 @@ static void sii9234_hw_reset(void)
 			 __func__);
 	msleep(30);
 }
+static int check_swing_level(void)
+{
+	u32 swing;
 
+	if (system_rev < BOARD_REV02)
+		swing = 0xEB;
+	else if (system_rev == BOARD_REV02)
+		swing = 0xF9;
+	else if (system_rev > BOARD_REV02)
+		swing = 0xCB;
+	return swing;
+}
 struct sii9234_platform_data sii9234_pdata = {
-	.get_irq = get_mhl_int_irq,
 	.hw_onoff = sii9234_hw_onoff,
 	.hw_reset = sii9234_hw_reset,
-	.gpio = GPIO_MHL_SEL,
+	.gpio_cfg = mhl_gpio_config,
 #if defined(CONFIG_VIDEO_MHL_V2)
-	.mhl_sel = NULL,
 	.vbus_present = fsa9485_mhl_cb,
 #endif
 };
@@ -1445,6 +1459,103 @@ static struct i2c_board_info fuelgauge_i2c_board_info[] = {
 };
 #endif
 
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_S7301
+
+static void init_synaptics_i2c(void)
+{
+	int ret;
+
+	ret = gpio_request(GPIO_TOUCH_IRQ, "tsp_int");
+	if (ret != 0)
+		pr_err("tsp int request failed, ret=%d", ret);
+	gpio_tlmm_config(GPIO_CFG(11, 0,
+			GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+	ret = gpio_request(GPIO_TOUCH_SCL, "tsp_scl");
+	if (ret != 0)
+		pr_err("tsp scl request failed, ret=%d", ret);
+	ret = gpio_request(GPIO_TOUCH_SDA, "tsp_sda");
+	if (ret != 0)
+		pr_err("tsp sda request failed, ret=%d", ret);
+}
+
+static void tsp_set_power(bool onoff)
+{
+	int ret = 0;
+	static struct regulator *reg_l11;
+
+	/* 2.8V */
+	if (!reg_l11) {
+		reg_l11 = regulator_get(NULL, "8921_l11");
+		if (IS_ERR(reg_l11)) {
+			pr_err("could not get L11, rc=%ld\n",
+			PTR_ERR(reg_l11));
+			return;
+		}
+		ret = regulator_set_voltage(reg_l11,
+							2800000, 2800000);
+		if (ret) {
+			pr_err("%s: not set L11 to 2.8V\n",
+				__func__);
+			return;
+		}
+	}
+
+	if (onoff) {
+		ret = regulator_enable(reg_l11);
+		if (ret) {
+			pr_err("enable l11 failed, rc=%d\n",
+			ret);
+			return;
+		}
+		pr_info("tsp 2.8V on is finished.\n");
+	} else {
+		if (regulator_is_enabled(reg_l11))
+			ret = regulator_disable(reg_l11);
+
+		if (ret) {
+			pr_err("disable l11 failed, rc=%d\n",
+			ret);
+		return;
+		}
+		pr_info("tsp 2.8V off is finished.\n");
+	}
+
+
+}
+
+static struct synaptics_platform_data synaptics_ts_pdata = {
+	.model_name = "Espresso10_VZW",
+	.rx_channel_no = 42,    /* Y channel line */
+	.tx_channel_no = 27,    /* X channel line */
+	.x_pixel_size = 1279,
+	.y_pixel_size = 799,
+	.ta_state = CABLE_TYPE_NONE,
+	.set_power = tsp_set_power,
+};
+
+static struct i2c_gpio_platform_data synaptics_i2c_gpio_data = {
+	.sda_pin		= GPIO_TOUCH_SDA,
+	.scl_pin		= GPIO_TOUCH_SCL,
+	.udelay			= 2,
+	.sda_is_open_drain	= 0,
+	.scl_is_open_drain	= 0,
+	.scl_is_output_only	= 0,
+};
+
+static struct platform_device  synaptics_i2c_gpio_device = {
+	.name			= "i2c-gpio",
+	.id			= MSM_8960_GSBI3_QUP_I2C_BUS_ID,
+	.dev.platform_data	= &synaptics_i2c_gpio_data,
+};
+static struct i2c_board_info __initdata synaptics_ts_i2c_boardinfo[] = {
+	{
+		I2C_BOARD_INFO("synaptics-ts", 0x20),
+		.platform_data  = &synaptics_ts_pdata,
+		.irq = MSM_GPIO_TO_INT(GPIO_TOUCH_IRQ),
+	},
+};
+
+#endif
 #ifdef CONFIG_ADC_STMPE811
 static struct i2c_gpio_platform_data stmpe811_i2c_gpio_data = {
 	.sda_pin		= GPIO_ADC_SDA,
@@ -1570,6 +1681,7 @@ static struct platform_device vibetonz_device = {
 
 #if defined(CONFIG_OPTICAL_TAOS_TRITON) || \
 	defined(CONFIG_OPTICAL_GP2A) || \
+	defined(CONFIG_OPTICAL_BH1721) || \
 	defined(CONFIG_OPTICAL_GP2AP020A00F) || \
 	defined(CONFIG_SENSORS_AL3201)
 
@@ -1597,6 +1709,12 @@ static struct taos_platform_data taos_pdata = {
 };
 #endif
 
+#if defined(CONFIG_OPTICAL_BH1721)
+static struct bh1721fvc_platform_data opt_bh1721fvc_data = {
+	.reset = bh1721fvc_light_sensor_reset,
+};
+#endif
+
 static struct i2c_board_info opt_i2c_borad_info[] = {
 	{
 #if defined(CONFIG_OPTICAL_GP2A)
@@ -1606,6 +1724,9 @@ static struct i2c_board_info opt_i2c_borad_info[] = {
 #elif defined(CONFIG_OPTICAL_TAOS_TRITON)
 		I2C_BOARD_INFO("taos", 0x39),
 		.platform_data = &taos_pdata,
+#elif defined(CONFIG_OPTICAL_BH1721)
+		I2C_BOARD_INFO("bh1721fvc", 0x23),
+		.platform_data = &opt_bh1721fvc_data,
 #elif defined(CONFIG_SENSORS_AL3201)
 		I2C_BOARD_INFO("AL3201", 0x1c),
 #endif
@@ -1621,6 +1742,18 @@ static void opt_init(void)
 		GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 
 	sensor_power_on_vdd(SNS_PWR_KEEP, 1);
+}
+
+#elif defined(CONFIG_OPTICAL_BH1721)
+static void opt_init(void)
+{
+	gpio_tlmm_config(GPIO_CFG(GPIO_SENSOR_ALS_SDA, 0, GPIO_CFG_INPUT,
+		GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+	gpio_tlmm_config(GPIO_CFG(GPIO_SENSOR_ALS_SCL, 0, GPIO_CFG_INPUT,
+		GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+
+	sensor_power_on_vdd(SNS_PWR_KEEP, 1);
+
 }
 
 #else
@@ -1968,6 +2101,7 @@ static int __init sensor_device_init(void)
 	defined(CONFIG_MPU_SENSORS_MPU6050B1) || \
 	defined(CONFIG_INPUT_BMP180) || defined(CONFIG_OPTICAL_GP2A) || \
 	defined(CONFIG_OPTICAL_TAOS_TRITON) || \
+	defined(CONFIG_OPTICAL_BH1721) || \
 	defined(CONFIG_INPUT_YAS_SENSORS) || \
 	defined(CONFIG_SENSORS_AL3201)
 static struct regulator *vsensor_2p85, *vsensor_1p8;
@@ -2678,11 +2812,15 @@ static int msm_hsusb_otg_en(bool on)
 
 	pr_info("%s, enable %d\n", __func__, on);
 
+	if (enable)
+		msm_otg_set_id_state(enable);
+
 	gpio_set_value_cansleep(
 		PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_OTG_EN), enable);
 	return 0;
 }
 
+static void msm_acc_power(u8 token, bool active);
 static int msm_hsusb_vbus_power(bool on)
 {
 	int enable = 0;
@@ -2690,8 +2828,10 @@ static int msm_hsusb_vbus_power(bool on)
 	enable = on;
 
 	pr_info("%s, attached %d\n", __func__, on);
-
-	gpio_set_value(GPIO_ACCESSORY_EN, enable);
+	if (on)
+		msm_acc_power(1, true);
+	else
+		msm_acc_power(1, false);
 	return 0;
 }
 
@@ -2710,15 +2850,15 @@ static void msm_acc_power(u8 token, bool active)
 	if (active) {
 		acc_en_token |= (1 << token);
 		enable = true;
-		msm_hsusb_vbus_power(1);
+		gpio_set_value(GPIO_ACCESSORY_EN, 1);
 	} else {
 		if (0 == token) {
-			msm_hsusb_vbus_power(0);
+			gpio_set_value(GPIO_ACCESSORY_EN, 0);
 			enable = false;
 		} else {
 			acc_en_token &= ~(1 << token);
 			if (0 == acc_en_token) {
-				msm_hsusb_vbus_power(0);
+				gpio_set_value(GPIO_ACCESSORY_EN, 0);
 				enable = false;
 			}
 		}
@@ -2803,7 +2943,7 @@ struct platform_device sec_device_connector = {
 
 static int phy_settings[] = {
 	0x44, 0x80,
-	0x3F, 0x81,
+	0x6F, 0x81,
 	0x3C, 0x82,
 	0x13, 0x83,
 	-1,
@@ -2922,29 +3062,16 @@ static void __init msm_otg_power_init(void)
 {
 	int rc;
 
-	if (system_rev >= BOARD_REV01)
-		msm_otg_pdata.smb347s = true;
-	else
-		msm_otg_pdata.smb347s = false;
+	msm_otg_pdata.smb347s = true;
 
-	if (system_rev == BOARD_REV02) {
-		msm_otg_pdata.vbus_gpio =
-			PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_USB_INT);
-		msm_otg_pdata.vbus_irq =
-			PM8921_GPIO_IRQ(PM8921_IRQ_BASE, PMIC_GPIO_USB_INT);
+	msm_otg_pdata.vbus_gpio =
+		PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_USB_INT_REV03);
+	msm_otg_pdata.vbus_irq =
+		PM8921_GPIO_IRQ(PM8921_IRQ_BASE,
+					PMIC_GPIO_USB_INT_REV03);
 
-		msm_otg_pmic_gpio_config(PMIC_GPIO_USB_INT, PM_GPIO_DIR_IN,
-				PM_GPIO_PULL_UP_30, "usb_int", 1);
-	} else if (system_rev >= BOARD_REV03) {
-		msm_otg_pdata.vbus_gpio =
-			PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_USB_INT_REV03);
-		msm_otg_pdata.vbus_irq =
-			PM8921_GPIO_IRQ(PM8921_IRQ_BASE,
-						PMIC_GPIO_USB_INT_REV03);
-
-		msm_otg_pmic_gpio_config(PMIC_GPIO_USB_INT_REV03,
-			PM_GPIO_DIR_IN, PM_GPIO_PULL_UP_30, "usb_int", 1);
-	}
+	msm_otg_pmic_gpio_config(PMIC_GPIO_USB_INT_REV03,
+		PM_GPIO_DIR_IN, PM_GPIO_PULL_UP_30, "usb_int", 1);
 
 	msm_otg_pdata.otg_power_gpio =
 		PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_V_ACCESSORY_OUT_5V);
@@ -2972,7 +3099,7 @@ static void __init msm_otg_power_init(void)
 		gpio_free(GPIO_ACCESSORY_EN);
 	}
 	msm_hsusb_otg_en(0);
-	msm_hsusb_vbus_power(0);
+	msm_acc_power(0, false);
 }
 #endif
 
@@ -3690,7 +3817,7 @@ static struct sec_jack_zone jack_zones[] = {
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[1] = {
-		.adc_high	= 630,
+		.adc_high	= 990,
 		.delay_ms	= 10,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_3POLE,
@@ -3708,17 +3835,17 @@ static struct sec_jack_buttons_zone jack_buttons_zones[] = {
 	{
 		.code		= KEY_MEDIA,
 		.adc_low	= 0,
-		.adc_high	= 93,
+		.adc_high	= 153,
 	},
 	{
 		.code		= KEY_VOLUMEUP,
-		.adc_low	= 94,
-		.adc_high	= 217,
+		.adc_low	= 154,
+		.adc_high	= 339,
 	},
 	{
 		.code		= KEY_VOLUMEDOWN,
-		.adc_low	= 218,
-		.adc_high	= 450,
+		.adc_low	= 340,
+		.adc_high	= 680,
 	},
 };
 
@@ -3955,10 +4082,14 @@ static struct platform_device *espresso10_vzw_devices[] __initdata = {
 #ifdef CONFIG_IRDA_MC96
 	&mc96_i2c_gpio_device,
 #endif
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_S7301
+	&synaptics_i2c_gpio_device,
+#endif
 #ifdef CONFIG_ADC_STMPE811
 	&stmpe811_i2c_gpio_device,
 #endif
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
+#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)  \
+		|| defined(CONFIG_VIDEO_MHL_TAB_V2)
 	&mhl_i2c_gpio_device,
 #endif
 #ifdef CONFIG_USB_SWITCH_FSA9485
@@ -3989,7 +4120,8 @@ static struct platform_device *espresso10_vzw_devices[] __initdata = {
 #if defined(CONFIG_OPTICAL_GP2A) || \
 	defined(CONFIG_OPTICAL_GP2AP020A00F) || \
 	defined(CONFIG_OPTICAL_TAOS_TRITON) || \
-	defined(CONFIG_SENSORS_AL3201)
+	defined(CONFIG_SENSORS_AL3201) || \
+	defined(CONFIG_OPTICAL_BH1721)
 	&opt_i2c_gpio_device,
 #endif
 #if defined(CONFIG_OPTICAL_GP2A) ||	defined(CONFIG_OPTICAL_GP2AP020A00F)
@@ -4119,29 +4251,16 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(ON, GDHS, MAX, ACTIVE),
-		false,
-		8500, 51, 1122000, 8500,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, MAX, ACTIVE),
 		false,
 		9000, 51, 1130300, 9000,
 	},
+
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, ACTIVE, RET_HIGH),
 		false,
 		10000, 51, 1130300, 10000,
-	},
-
-	{
-		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
-		MSM_RPMRS_LIMITS(OFF, GDHS, MAX, ACTIVE),
-		false,
-		12000, 14, 2205900, 12000,
 	},
 
 	{
@@ -4294,7 +4413,8 @@ static struct i2c_registry msm8960_i2c_devices[] __initdata = {
 		ARRAY_SIZE(isl_charger_i2c_info),
 	},
 #endif /* CONFIG_ISL9519_CHARGER */
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
+#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2) \
+		|| defined(CONFIG_VIDEO_MHL_TAB_V2)
 	{
 		I2C_SURF | I2C_FFA | I2C_FLUID,
 		MSM_MHL_I2C_BUS_ID,
@@ -4346,7 +4466,8 @@ static struct i2c_registry msm8960_i2c_devices[] __initdata = {
 #if defined(CONFIG_OPTICAL_GP2A) || \
 	defined(CONFIG_OPTICAL_GP2AP020A00F) || \
 	defined(CONFIG_OPTICAL_TAOS_TRITON) || \
-	defined(CONFIG_SENSORS_AL3201)
+	defined(CONFIG_SENSORS_AL3201) || \
+	defined(CONFIG_OPTICAL_BH1721)
 	{
 		I2C_SURF | I2C_FFA | I2C_FLUID,
 		MSM_OPT_I2C_BUS_ID,
@@ -4396,6 +4517,14 @@ static struct i2c_registry msm8960_i2c_devices[] __initdata = {
 		MSM_STMPE811_I2C_BUS_ID,
 		stmpe811_i2c_board_info,
 		ARRAY_SIZE(stmpe811_i2c_board_info),
+	},
+#endif
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_S7301
+	{
+		I2C_SURF | I2C_FFA | I2C_FLUID,
+		MSM_8960_GSBI3_QUP_I2C_BUS_ID,
+		synaptics_ts_i2c_boardinfo,
+		ARRAY_SIZE(synaptics_ts_i2c_boardinfo),
 	},
 #endif
 };
@@ -4547,8 +4676,8 @@ static int secjack_gpio_init()
 #endif
 static void __init gpio_rev_init(void)
 {
-	gpio_keys_button[0].gpio = gpio_rev(VOLUME_UP);
-	gpio_keys_button[1].gpio = gpio_rev(VOLUME_DOWN);
+	gpio_keys_button[0].gpio = GPIO_VOLUME_UP;
+	gpio_keys_button[1].gpio = GPIO_VOLUME_DOWN;
 }
 
 static void __init samsung_espresso10_vzw_init(void)
@@ -4623,7 +4752,9 @@ static void __init samsung_espresso10_vzw_init(void)
 	if (machine_is_msm8960_liquid())
 		mxt_init_hw_liquid();
 	samsung_sys_class_init();
-	mms_tsp_input_init();
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_S7301
+	init_synaptics_i2c();
+#endif
 #if defined(CONFIG_SENSORS_AK8975) || \
 	defined(CONFIG_MPU_SENSORS_MPU6050B1) || \
 	defined(CONFIG_INPUT_BMP180) || \
@@ -4637,27 +4768,24 @@ static void __init samsung_espresso10_vzw_init(void)
 #if defined(CONFIG_OPTICAL_GP2A) || \
 	defined(CONFIG_OPTICAL_GP2AP020A00F) || \
 	defined(CONFIG_OPTICAL_TAOS_TRITON) || \
-	defined(CONFIG_SENSORS_AL3201)
+	defined(CONFIG_SENSORS_AL3201) || \
+	defined(CONFIG_OPTICAL_BH1721)
 	opt_init();
 #endif
 #if defined(CONFIG_NFC_PN544)
 	pn544_init();
 #endif
-#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
+#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2) \
+		|| defined(CONFIG_VIDEO_MHL_TAB_V2)
 	msm8960_mhl_gpio_init();
+	sii9234_pdata.swing_level = check_swing_level();
 #endif
 	register_i2c_devices();
 	msm8960_init_fb();
 #ifdef CONFIG_SAMSUNG_JACK
-	if (system_rev < BOARD_REV03) {
-		pr_info("%s : system rev = %d, MBHC Using\n",
-			__func__, system_rev);
-		memset(&sec_jack_data, 0, sizeof(sec_jack_data));
-	} else {
-		pr_info("%s : system rev = %d, Secjack Using\n",
-			__func__, system_rev);
-		secjack_gpio_init();
-	}
+	pr_info("%s : system rev = %d, Secjack Using\n",
+		__func__, system_rev);
+	secjack_gpio_init();
 #endif
 	slim_register_board_info(msm_slim_devices,
 		ARRAY_SIZE(msm_slim_devices));
