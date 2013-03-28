@@ -232,7 +232,9 @@ static struct workqueue_struct *bam_mux_tx_workqueue;
 
 /* A2 power collaspe */
 #define UL_TIMEOUT_DELAY 1000	/* in ms */
+#ifdef CONFIG_DMUX_LA1_5
 #define ENABLE_DISCONNECT_ACK	0x1
+#endif
 static void toggle_apps_ack(void);
 static void reconnect_to_bam(void);
 static void disconnect_to_bam(void);
@@ -265,7 +267,11 @@ static struct completion dfab_unvote_completion;
 static DEFINE_SPINLOCK(wakelock_reference_lock);
 static int wakelock_reference_count;
 static int a2_pc_disabled_wakelock_skipped;
+#ifdef CONFIG_DMUX_LA1_5
+static int disconnect_ack;
+#else
 static int disconnect_ack = 1;
+#endif
 static LIST_HEAD(bam_other_notify_funcs);
 static DEFINE_MUTEX(smsm_cb_lock);
 static DEFINE_MUTEX(delayed_ul_vote_lock);
@@ -353,6 +359,7 @@ static void bam_dmux_log(const char *fmt, ...)
 	 * #: >=1 On-demand uplink vote
 	 * D: 1 = Disconnect ACK active
 	 */
+#ifdef CONFIG_DMUX_LA1_5
 	len += scnprintf(buff, sizeof(buff),
 		"<DMUX> %u.%09lu %c%c%c%c %c%c%c%c%d%c ",
 		(unsigned)t_now, nanosec_rem,
@@ -367,6 +374,21 @@ static void bam_dmux_log(const char *fmt, ...)
 		atomic_read(&ul_ondemand_vote),
 		disconnect_ack ? 'D' : 'd'
 		);
+#else
+	len += scnprintf(buff, sizeof(buff),
+		"<DMUX> %u.%09lu %c%c%c%c %c%c%c%c%d%c ",
+		(unsigned)t_now, nanosec_rem,
+		a2_pc_disabled ? 'D' : 'd',
+		in_global_reset ? 'R' : 'r',
+		bam_dmux_power_state ? 'P' : 'p',
+		bam_connection_is_active ? 'A' : 'a',
+		bam_dmux_uplink_vote ? 'V' : 'v',
+		bam_is_connected ?  'U' : 'u',
+		wait_for_ack ? 'W' : 'w',
+		ul_wakeup_ack_completion.done ? 'A' : 'a',
+		atomic_read(&ul_ondemand_vote)
+		);
+#endif
 
 	va_start(arg_list, fmt);
 	len += vscnprintf(buff + len, sizeof(buff) - len, fmt, arg_list);
@@ -615,11 +637,19 @@ static void handle_bam_mux_cmd(struct work_struct *work)
 		bam_dmux_log("%s: opening cid %d PC enabled\n", __func__,
 				rx_hdr->ch_id);
 		handle_bam_mux_cmd_open(rx_hdr);
+#ifdef CONFIG_DMUX_LA1_5
+		if (rx_hdr->reserved & ENABLE_DISCONNECT_ACK) {
+			bam_dmux_log("%s: activating disconnect ack\n",
+				__func__);
+			disconnect_ack = 1;
+		}
+#else
 		if (!(rx_hdr->reserved & ENABLE_DISCONNECT_ACK)) {
 			bam_dmux_log("%s: deactivating disconnect ack\n",
 								__func__);
 			disconnect_ack = 0;
 		}
+#endif
 		dev_kfree_skb_any(rx_skb);
 		break;
 	case BAM_MUX_HDR_CMD_OPEN_NO_A2_PC:
@@ -1429,7 +1459,9 @@ static int debug_log(char *buff, int max, loff_t *ppos)
 			"\tW: 1 = Uplink Wait-for-ack\n"
 			"\tA: 1 = Uplink ACK received\n"
 			"\t#: >=1 On-demand uplink vote\n"
+#ifdef CONFIG_DMUX_LA1_5
 			"\tD: 1 = Disconnect ACK active\n"
+#endif
 				);
 		buff += i;
 	}
@@ -1924,9 +1956,10 @@ static void disconnect_to_bam(void)
 	bam_rx_pool_len = 0;
 	mutex_unlock(&bam_rx_pool_mutexlock);
 
+#ifdef CONFIG_DMUX_LA1_5
 	if (disconnect_ack)
 		toggle_apps_ack();
-
+#endif
 	verify_tx_queue_is_empty(__func__);
 }
 
@@ -2039,7 +2072,11 @@ static int restart_notifier_cb(struct notifier_block *this,
 	ul_powerdown_finish();
 	a2_pc_disabled = 0;
 	a2_pc_disabled_wakelock_skipped = 0;
+#ifdef CONFIG_DMUX_LA1_5
+	disconnect_ack = 0;
+#else
 	disconnect_ack = 1;
+#endif
 
 	/* Cleanup Channel States */
 #ifndef CONFIG_MSM_BAM_DMUX_NOLOCK

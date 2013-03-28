@@ -23,6 +23,12 @@
 
 #include <linux/irq.h>
 #include <asm/system.h>
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT)\
+	|| defined(CONFIG_MACH_K2_KDI)	
+#include <asm/cacheflush.h>
+#endif
 
 #define fb_width(fb)	((fb)->var.xres)
 #define fb_height(fb)	((fb)->var.yres)
@@ -95,6 +101,14 @@ int load_565rle_image(char *filename, bool bf_supported)
 			count -= 4;
 		}
 	}
+
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_BOE_CMD_WVGA_PT) \
+	|| defined(CONFIG_FB_MSM_MIPI_NOVATEK_CMD_WVGA_PT) \
+	|| defined(CONFIG_MACH_K2_KDI)	
+	flush_cache_all();
+	outer_flush_all();
+#endif
 
 err_logo_free_data:
 	kfree(data);

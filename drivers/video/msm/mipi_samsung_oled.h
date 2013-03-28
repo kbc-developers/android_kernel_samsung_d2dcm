@@ -242,7 +242,7 @@ extern int poweroff_charging;
 #if defined(CONFIG_SAMSUNG_CMC624)
 extern int cmc_fast_reset;
 #endif
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 int mipi_dsi_cmds_rx_lp(struct msm_fb_data_type *mfd,
 		struct dsi_buf *tp, struct dsi_buf *rp,
 		char *cmds, int rlen);

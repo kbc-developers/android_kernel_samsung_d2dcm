@@ -57,6 +57,9 @@ extern struct platform_device msm_device_uart_dm8;
 extern struct platform_device msm_device_uart_dm9;
 
 extern struct platform_device msm8960_device_uart_gsbi2;
+#ifdef CONFIG_FELICA
+extern struct platform_device msm8960_device_uart_gsbi4;
+#endif /* CONFIG_FELICA */
 extern struct platform_device msm8960_device_uart_gsbi5;
 extern struct platform_device msm8960_device_uart_gsbi8;
 extern struct platform_device msm8960_device_ssbi_pmic;
@@ -73,6 +76,10 @@ extern struct platform_device msm8960_device_qup_spi_gsbi1;
 #endif
 #ifdef CONFIG_S5C73M3 
 extern struct platform_device msm8960_device_qup_spi_gsbi11;
+#endif
+#if defined(CONFIG_TDMB) || defined(CONFIG_TDMB_MODULE) || \
+		defined(CONFIG_ISDBT_NMI)
+extern struct platform_device msm8960_device_qup_spi_gsbi8;
 #endif
 extern struct platform_device msm8960_device_qup_spi_gsbi1;
 extern struct platform_device msm8960_gemini_device;

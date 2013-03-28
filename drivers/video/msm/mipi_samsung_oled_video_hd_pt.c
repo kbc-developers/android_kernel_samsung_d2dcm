@@ -1507,7 +1507,11 @@ static int prepare_brightness_control_cmd_array(int lcd_type, int bl_level)
 	return cmds_send_flag;
 }
 static struct mipi_panel_data mipi_pd = {
+#if defined (CONFIG_MACH_K2_KDI)
+	.panel_name	= "AMS480GY10-0\n",
+#else
 	.panel_name	= "SMD_AMS465GS0x\n",
+#endif	
 	.ready_to_on	= {samsung_panel_ready_to_on_cmds
 				, ARRAY_SIZE(samsung_panel_ready_to_on_cmds)},
 	.ready_to_on_4_8 = {samsung_panel_ready_to_on_cmds_4_8

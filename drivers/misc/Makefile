@@ -82,6 +82,7 @@ obj-$(CONFIG_SEC_MISC)		+= sec_param.o sec_misc.o
 obj-$(CONFIG_ADC_STMPE811)              += stmpe811.o
 obj-$(CONFIG_MPU_411_ENABLE)	+= inv_mpu/
 obj-$(CONFIG_SAMSUNG_JACK)		+= sec_jack.o
+obj-$(CONFIG_OPTICAL_GP2AP020A00F)	+= gp2ap020.o
 obj-$(CONFIG_OPTICAL_BH1721) += bh1721.o
 obj-$(CONFIG_SENSORS_CM36651)           += cm36651.o
 obj-$(CONFIG_VP_A2220)		+= a2220.o
