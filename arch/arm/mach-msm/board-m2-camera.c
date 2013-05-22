@@ -601,7 +601,10 @@ static struct msm_camera_device_platform_data msm_camera_csi_device_data[] = {
 };
 #endif
 
-static struct regulator *l29, *l28, *isp_core;
+static struct regulator *l29, *l28;
+#if !defined(CONFIG_MACH_M2_DCM) && !defined(CONFIG_MACH_K2_KDI)
+static struct regulator *isp_core;
+#endif
 /* CAM power
 	CAM_SENSOR_A_2.8		:  GPIO_CAM_A_EN(GPIO 46)
 	CAM_SENSOR_IO_1.8		: VREG_L29		: l29
@@ -750,21 +753,7 @@ static void cam_ldo_power_on(int mode, int num)
 			} else
 				gpio_set_value_cansleep(CAM_CORE_EN, 1);
 #elif defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_K2_KDI)
-			if (system_rev >= BOARD_REV03) {
-				printk(KERN_DEBUG "[s5c73m3] spr check vddCore : %d\n",
-					vddCore);
-
-				isp_core = regulator_get(NULL, "cam_isp_core");
-				ret = regulator_set_voltage(isp_core,
-					vddCore, vddCore);
-				if (ret)
-					cam_err("error setting voltage\n");
-
-				ret = regulator_enable(isp_core);
-				if (ret)
-					cam_err("error enabling regulator.");
-			} else
-				gpio_set_value_cansleep(CAM_CORE_EN, 1);
+			gpio_set_value_cansleep(gpio_rev(CAM_CORE_EN), 1);
 #else
 			gpio_set_value_cansleep(CAM_CORE_EN, 1);
 #endif
