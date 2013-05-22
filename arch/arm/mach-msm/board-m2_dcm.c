@@ -5254,7 +5254,7 @@ static void __init gpio_rev_init(void)
 		gpio_keys_platform_data.nbuttons = ARRAY_SIZE(gpio_keys_button);
 	}
 #if defined(CONFIG_SENSORS_CM36651)
-	if (system_rev >= BOARD_REV02)
+	if (system_rev < BOARD_REV02)
 		cm36651_pdata.irq = gpio_rev(ALS_INT);
 #endif
 #if defined(CONFIG_OPTICAL_GP2A) || defined(CONFIG_OPTICAL_GP2AP020A00F) \
@@ -5262,12 +5262,12 @@ static void __init gpio_rev_init(void)
 	opt_i2c_gpio_data.sda_pin = gpio_rev(ALS_SDA);
 	opt_i2c_gpio_data.scl_pin = gpio_rev(ALS_SCL);
 #if defined(CONFIG_OPTICAL_GP2A)
-	if (system_rev >= BOARD_REV02) {
+	if (system_rev < BOARD_REV02) {
 		opt_gp2a_data.irq = MSM_GPIO_TO_INT(gpio_rev(ALS_INT));
 		opt_gp2a_data.ps_status = gpio_rev(ALS_INT);
 	}
 #elif defined(CONFIG_OPTICAL_GP2AP020A00F)
-	if (system_rev >= BOARD_REV02)
+	if (system_rev < BOARD_REV02)
 		opt_gp2a_data.p_out = gpio_rev(ALS_INT);
 #endif
 #endif
