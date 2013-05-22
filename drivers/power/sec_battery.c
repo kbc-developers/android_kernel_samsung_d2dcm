@@ -1351,7 +1351,7 @@ static void sec_bat_cable_work(struct work_struct *work)
 						 cable_work.work);
 	struct power_supply *psy = power_supply_get_by_name(info->charger_name);
 	union power_supply_propval val_input;
-	int ret = 0;
+	//int ret = 0;
 	u8 pok_cnt = 0;
 
 	wake_lock(&info->cable_wake_lock);
