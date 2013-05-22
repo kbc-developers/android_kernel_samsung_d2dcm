@@ -938,6 +938,20 @@ config MACH_M2_VZW
         bool "MSM8960 Samsung M2_VZW"
         help
           Support for the Samsung M2 Verizon device.
+
+config MACH_M2_DCM
+	depends on MACH_M2
+	default n
+	bool "MSM8960 Samsung M2_DCM"
+	help
+          Support for the Samsung M2 DCM device.
+
+config MACH_K2_KDI
+	depends on MACH_M2
+	default n
+	bool "MSM8960 Samsung K2_KDI"
+	help
+          Support for the Samsung K2 KDI device.
 endmenu
 
 source "arch/arm/mach-msm/lge/Kconfig"

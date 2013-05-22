@@ -142,6 +142,10 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_MODEL_NAME,
 	POWER_SUPPLY_PROP_MANUFACTURER,
 	POWER_SUPPLY_PROP_SERIAL_NUMBER,
+#if defined(CONFIG_MACH_K2_KDI)
+	POWER_SUPPLY_PROP_SUSPEND,
+	POWER_SUPPLY_PROP_RESUME,
+#endif	
 };
 
 enum power_supply_type {
@@ -166,7 +170,9 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_DUMMY,        /* # 10 is assigned for wireless */
 #endif
 	POWER_SUPPLY_TYPE_OTG,
-
+#if defined (CONFIG_MACH_K2_KDI)
+	POWER_SUPPLY_TYPE_HDMI,
+#endif
 };
 
 union power_supply_propval {

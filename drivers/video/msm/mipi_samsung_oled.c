@@ -49,7 +49,7 @@ static char elvss_value;
 int is_lcd_connected = 1;
 
 #ifdef USE_READ_ID
-#ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 static DEFINE_MUTEX(mipi_lp_mutex);
 char samsung_manufacture_id1_cmd[8] = {
 	0x00, 0x00, 0x09, 0x40, 0xda, 0x00, 0x06, 0xA0};
@@ -73,7 +73,7 @@ static struct dsi_cmd_desc samsung_manufacture_id3_cmd = {
 static uint32 mipi_samsung_manufacture_id(struct msm_fb_data_type *mfd)
 {
 	struct dsi_buf *rp, *tp;
-#ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	char *cmd_lp;
 #else
 	struct dsi_cmd_desc *cmd;
@@ -85,7 +85,7 @@ static uint32 mipi_samsung_manufacture_id(struct msm_fb_data_type *mfd)
 	mipi_dsi_buf_init(rp);
 	mipi_dsi_buf_init(tp);
 
-#ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	cmd_lp = &samsung_manufacture_id1_cmd;
 	mipi_dsi_cmds_rx_lp(mfd, tp, rp, cmd_lp, 1);
 #else
@@ -99,7 +99,7 @@ static uint32 mipi_samsung_manufacture_id(struct msm_fb_data_type *mfd)
 	mipi_dsi_buf_init(rp);
 	mipi_dsi_buf_init(tp);
 
-#ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	cmd_lp = &samsung_manufacture_id2_cmd;
 	mipi_dsi_cmds_rx_lp(mfd, tp, rp, cmd_lp, 1);
 #else
@@ -113,7 +113,7 @@ static uint32 mipi_samsung_manufacture_id(struct msm_fb_data_type *mfd)
 
 	mipi_dsi_buf_init(rp);
 	mipi_dsi_buf_init(tp);
-#ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	cmd_lp = &samsung_manufacture_id3_cmd;
 	mipi_dsi_cmds_rx_lp(mfd, tp, rp, cmd_lp, 1);
 #else
@@ -366,7 +366,7 @@ static int mipi_samsung_disp_send_cmd(struct msm_fb_data_type *mfd,
 
 	pm_qos_update_request(&pm_qos_req,
 		msm_cpuidle_get_deep_idle_latency());
-#ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	mutex_lock(&mipi_lp_mutex);
 #endif
 	if (lock)
@@ -498,7 +498,7 @@ static int mipi_samsung_disp_send_cmd(struct msm_fb_data_type *mfd,
 		mipi_dsi_cmds_tx(&msd.samsung_tx_buf, cmd_desc, cmd_size);
 	}
 
-#ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	mutex_unlock(&mipi_lp_mutex);
 #endif
 	pm_qos_update_request(&pm_qos_req, PM_QOS_DEFAULT_VALUE);
@@ -509,7 +509,7 @@ unknown_command:
 	if (lock)
 		mutex_unlock(&mfd->dma->ov_mutex);
 
-#ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	mutex_unlock(&mipi_lp_mutex);
 #endif
 	pm_qos_update_request(&pm_qos_req, PM_QOS_DEFAULT_VALUE);
@@ -1360,7 +1360,7 @@ static DEVICE_ATTR(panel_colors, S_IRUGO | S_IWUSR | S_IWGRP,
 #define ID_E5H_IDLE 0x80
 #define ID_E5H_IDLE_2 0x84
 #define ID_E5H_IDLE_3 0x81
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 char error_id2_cmd[8] = {
 	0x00, 0x00, 0x09, 0x40, 0xE5, 0x00, 0x06, 0xA0};
 #else
@@ -1374,7 +1374,7 @@ static char error_buf[2];
 static void read_error_register(struct msm_fb_data_type *mfd)
 {
 	struct dsi_buf *rp, *tp;
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	char *cmd_lp;
 #else
 	struct dsi_cmd_desc *cmd;
@@ -1383,7 +1383,7 @@ static void read_error_register(struct msm_fb_data_type *mfd)
 	pm_qos_update_request(&pm_qos_req,
 		msm_cpuidle_get_deep_idle_latency());
 
-#if CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	mutex_lock(&mipi_lp_mutex);
 #endif
 	mutex_lock(&mfd->dma->ov_mutex);
@@ -1396,7 +1396,7 @@ static void read_error_register(struct msm_fb_data_type *mfd)
 	mipi_dsi_buf_init(rp);
 	mipi_dsi_buf_init(tp);
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	cmd_lp = &error_id2_cmd;
 	mipi_dsi_cmds_rx_lp(mfd, tp, rp, cmd_lp, 1);
 	error_buf[0] = *rp->data;
@@ -1411,7 +1411,7 @@ static void read_error_register(struct msm_fb_data_type *mfd)
 #endif
 
 	mutex_unlock(&mfd->dma->ov_mutex);
-#if CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	mutex_unlock(&mipi_lp_mutex);
 #endif
 	pm_qos_update_request(&pm_qos_req, PM_QOS_DEFAULT_VALUE);
@@ -1429,7 +1429,7 @@ static void esd_test_work_func(struct work_struct *work)
 	}
 	return;
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
+#if (defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || defined(CONFIG_MACH_K2_KDI))
 	read_error_register(mfd);
 	pr_info("%s E5H=0x%x esd_cnt:%d\n", __func__, error_buf[0], esd_cnt);
 #else

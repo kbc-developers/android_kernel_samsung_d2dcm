@@ -309,6 +309,8 @@ obj-$(CONFIG_MACH_M2)       += board-m2-camera.o board-m2-display.o board-m2-pmi
 obj-$(CONFIG_MACH_M2_ATT)   += board-m2_att.o board-m2_att-gpiomux.o
 obj-$(CONFIG_MACH_M2_SPR)   += board-m2_spr.o board-m2_spr-gpiomux.o
 obj-$(CONFIG_MACH_M2_VZW)   += board-m2_vzw.o board-m2_vzw-gpiomux.o
+obj-$(CONFIG_MACH_M2_DCM)   += board-m2_dcm.o board-m2_dcm-gpiomux.o
+obj-$(CONFIG_MACH_K2_KDI)   += board-k2_kdi.o board-k2_kdi-gpiomux.o
 
 obj-$(CONFIG_MACH_LGE) += lge/
 
