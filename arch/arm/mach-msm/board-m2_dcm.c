@@ -2701,7 +2701,7 @@ static struct wcd9xxx_pdata tabla_platform_data = {
 	.micbias = {
 		.ldoh_v = TABLA_LDOH_2P85_V,
 		.cfilt1_mv = 1800,
-		.cfilt2_mv = 2700,
+		.cfilt2_mv = 1800,
 		.cfilt3_mv = 1800,
 		.bias1_cfilt_sel = TABLA_CFILT1_SEL,
 		.bias2_cfilt_sel = TABLA_CFILT2_SEL,
@@ -2736,13 +2736,13 @@ static struct wcd9xxx_pdata tabla_platform_data = {
 	{
 		.name = "VDDD_CDC_D",
 		.min_uV = 1225000,
-		.max_uV = 1250000,
+		.max_uV = 1225000,
 		.optimum_uA = WCD9XXX_VDDD_CDC_D_CUR_MAX,
 	},
 	{
 		.name = "CDC_VDDA_A_1P2V",
 		.min_uV = 1225000,
-		.max_uV = 1250000,
+		.max_uV = 1225000,
 		.optimum_uA = WCD9XXX_VDDD_CDC_A_CUR_MAX,
 	},
 	},
@@ -2768,7 +2768,7 @@ static struct wcd9xxx_pdata tabla20_platform_data = {
 	.micbias = {
 		.ldoh_v = TABLA_LDOH_2P85_V,
 		.cfilt1_mv = 1800,
-		.cfilt2_mv = 2700,
+		.cfilt2_mv = 1800,
 		.cfilt3_mv = 1800,
 		.bias1_cfilt_sel = TABLA_CFILT1_SEL,
 		.bias2_cfilt_sel = TABLA_CFILT2_SEL,
@@ -2803,13 +2803,13 @@ static struct wcd9xxx_pdata tabla20_platform_data = {
 	{
 		.name = "VDDD_CDC_D",
 		.min_uV = 1225000,
-		.max_uV = 1250000,
+		.max_uV = 1225000,
 		.optimum_uA = WCD9XXX_VDDD_CDC_D_CUR_MAX,
 	},
 	{
 		.name = "CDC_VDDA_A_1P2V",
 		.min_uV = 1225000,
-		.max_uV = 1250000,
+		.max_uV = 1225000,
 		.optimum_uA = WCD9XXX_VDDD_CDC_A_CUR_MAX,
 	},
 	},
