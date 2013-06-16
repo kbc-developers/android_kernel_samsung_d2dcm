@@ -25,6 +25,7 @@
 #include <linux/uaccess.h>
 #include <linux/irq.h>
 #include <asm/mach/irq.h>
+#include <asm/uaccess.h>
 
 #include <linux/wait.h>
 #include <linux/stat.h>
@@ -153,14 +154,14 @@ static int isdbt_read(struct file *filp, char *buf, size_t count, \
 	}
 
 	/* move data from kernel area to user area */
-	if (copy_to_user(buf, pdev->rwBuf, count) < 0) {
+	if (copy_to_user(buf, pdev->rwBuf, count)) {
 		NM_KMSG("isdbt_read() : put_user() error(rv:%d)!\n", rv);
 		return -1;
 	}
 	return rv;
 }
 
-static int isdbt_write(struct file *filp, char *buf, size_t count, \
+static int isdbt_write(struct file *filp, const char __user *buf, size_t count, \
 	loff_t *f_pos)
 {
 	int rv = 0;
@@ -168,7 +169,7 @@ static int isdbt_write(struct file *filp, char *buf, size_t count, \
 	pdev = (struct ISDBT_OPEN_INFO_T *)(filp->private_data);
 
 	/* move data from user area to kernel  area */
-	if (copy_from_user(pdev->rwBuf, buf, count) < 0) {
+	if (copy_from_user(pdev->rwBuf, buf, count)) {
 		NM_KMSG("isdbt_write() : get_user() error(rv:%d)!\n", rv);
 		return -1;
 	}
@@ -184,10 +185,10 @@ static int isdbt_write(struct file *filp, char *buf, size_t count, \
 	return rv;
 }
 
-static int isdbt_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+static long isdbt_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	long res = 1;
-	int err, size;
+	int err = 1, size;
 	struct ISDBT_OPEN_INFO_T *pdev;
 	pdev = (struct ISDBT_OPEN_INFO_T *)(filp->private_data);
 

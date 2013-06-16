@@ -3282,7 +3282,7 @@ static struct msm_spi_platform_data msm8960_qup_spi_gsbi8_pdata = {
 #endif
 
 #if defined(CONFIG_ISDBT_NMI)
-static void isdbt_gpio_init(void)
+static int isdbt_gpio_init(void)
 {
 	int ret;
 	struct pm_gpio param = {
@@ -3344,12 +3344,12 @@ static void isdbt_gpio_init(void)
 	gpio_tlmm_config(GPIO_CFG(GPIO_ISDBT_SPI_CLK, GPIOMUX_FUNC_GPIO,
 		GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA),
 		GPIO_CFG_ENABLE);
-
+	return 0;
 }
 
 static void isdbt_gpio_on(void)
 {
-	int ret;
+	//int ret;
 
 	printk(KERN_DEBUG "isdbt_gpio_on\n");
 
@@ -3380,7 +3380,7 @@ static void isdbt_gpio_on(void)
 
 static void isdbt_gpio_off(void)
 {
-	int ret;
+	//int ret;
 
 	printk(KERN_DEBUG "isdbt_gpio_off\n");
 
