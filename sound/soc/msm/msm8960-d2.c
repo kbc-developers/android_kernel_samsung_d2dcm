@@ -2020,7 +2020,6 @@ static struct snd_soc_dai_link msm8960_dai[] = {
 		.codec_name = "snd-soc-dummy",
 		.be_id = MSM_FRONTEND_DAI_VOICE2,
 	},
-#if 0
 	{
 		.name = "MSM8960 LowLatency",
 		.stream_name = "MultiMedia5",
@@ -2036,7 +2035,6 @@ static struct snd_soc_dai_link msm8960_dai[] = {
 		.ignore_pmdown_time = 1,
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA5,
 	},
-#endif
 	/* Backend BT/FM DAI Links */
 	{
 		.name = LPASS_BE_INT_BT_SCO_RX,
