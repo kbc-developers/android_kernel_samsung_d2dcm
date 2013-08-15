@@ -1,4 +1,24 @@
 /*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
+ *
+ *
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that the
+ * above copyright notice and this permission notice appear in all
+ * copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
+ * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ */
+/*
  * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
@@ -148,12 +168,12 @@ typedef struct sPmcInfo
     void (*impsCallbackRoutine) (void *callbackContext, eHalStatus status);  /* routine to call when IMPS period
                                                                                 has finished */ 
     void *impsCallbackContext;  /* value to be passed as parameter to routine specified above */
-    tPalTimerHandle hImpsTimer;  /* timer to use with IMPS */
+    vos_timer_t hImpsTimer;  /* timer to use with IMPS */
     vos_timer_t hTrafficTimer;  /* timer to measure traffic for BMPS */
 #ifdef FEATURE_WLAN_DIAG_SUPPORT    
-    tPalTimerHandle hDiagEvtTimer;  /* timer to report PMC state through DIAG event */
+    vos_timer_t hDiagEvtTimer;  /* timer to report PMC state through DIAG event */
 #endif
-    tPalTimerHandle hExitPowerSaveTimer;  /* timer for deferred exiting of power save mode */
+    vos_timer_t hExitPowerSaveTimer;  /* timer for deferred exiting of power save mode */
     tDblLinkList powerSaveCheckList; /* power save check routine list */
     tDblLinkList requestFullPowerList; /* request full power callback routine list */
     tANI_U32 cLastTxUnicastFrames;  /* transmit unicast frame count at last BMPS traffic timer expiration */
@@ -193,6 +213,14 @@ typedef struct sPmcInfo
     void (*wakeReasonIndCB) (void *callbackContext, tpSirWakeReasonInd pWakeReasonInd);  /* routine to call for Wake Reason Indication */ 
     void *wakeReasonIndCBContext;  /* value to be passed as parameter to routine specified above */
 #endif // WLAN_WAKEUP_EVENTS
+
+/* If TRUE driver will go to BMPS only if host operatiing system asks to enter BMPS.
+* For android wlan_hdd_cfg80211_set_power_mgmt API will be used to set host powersave*/
+    v_BOOL_t    isHostPsEn;
+    v_BOOL_t    ImpsReqFailed;
+    v_BOOL_t    ImpsReqTimerFailed;
+    tANI_U8     ImpsReqFailCnt;
+    tANI_U8     ImpsReqTimerfailCnt;
 } tPmcInfo, *tpPmcInfo;
 
 

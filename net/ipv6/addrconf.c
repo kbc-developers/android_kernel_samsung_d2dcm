@@ -36,6 +36,8 @@
  *	YOSHIFUJI Hideaki @USAGI	:	improved source address
  *						selection; consider scope,
  *						status etc.
+ *	Harout S. Hedeshian		:	procfs flag to toggle automatic
+ *						addition of prefix route
  */
 
 #include <linux/errno.h>
@@ -197,6 +199,7 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 	.accept_source_route	= 0,	/* we do not accept RH0 by default. */
 	.disable_ipv6		= 0,
 	.accept_dad		= 1,
+	.accept_ra_prefix_route = 1,
 };
 
 static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
@@ -231,6 +234,7 @@ static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
 	.accept_source_route	= 0,	/* we do not accept RH0 by default. */
 	.disable_ipv6		= 0,
 	.accept_dad		= 1,
+	.accept_ra_prefix_route = 1,
 };
 
 /* IPv6 Wildcard Address and Loopback Address defined by RFC2553 */
@@ -1233,6 +1237,23 @@ try_nextdev:
 }
 EXPORT_SYMBOL(ipv6_dev_get_saddr);
 
+int __ipv6_get_lladdr(struct inet6_dev *idev, struct in6_addr *addr,
+		      unsigned char banned_flags)
+{
+	struct inet6_ifaddr *ifp;
+	int err = -EADDRNOTAVAIL;
+
+	list_for_each_entry(ifp, &idev->addr_list, if_list) {
+		if (ifp->scope == IFA_LINK &&
+		    !(ifp->flags & banned_flags)) {
+			*addr = ifp->addr;
+			err = 0;
+			break;
+		}
+	}
+	return err;
+}
+
 int ipv6_get_lladdr(struct net_device *dev, struct in6_addr *addr,
 		    unsigned char banned_flags)
 {
@@ -1242,17 +1263,8 @@ int ipv6_get_lladdr(struct net_device *dev, struct in6_addr *addr,
 	rcu_read_lock();
 	idev = __in6_dev_get(dev);
 	if (idev) {
-		struct inet6_ifaddr *ifp;
-
 		read_lock_bh(&idev->lock);
-		list_for_each_entry(ifp, &idev->addr_list, if_list) {
-			if (ifp->scope == IFA_LINK &&
-			    !(ifp->flags & banned_flags)) {
-				*addr = ifp->addr;
-				err = 0;
-				break;
-			}
-		}
+		err = __ipv6_get_lladdr(idev, addr, banned_flags);
 		read_unlock_bh(&idev->lock);
 	}
 	rcu_read_unlock();
@@ -1912,8 +1924,10 @@ void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len, bool sllao)
 				flags |= RTF_EXPIRES;
 				expires = jiffies_to_clock_t(rt_expires);
 			}
-			addrconf_prefix_route(&pinfo->prefix, pinfo->prefix_len,
-					      dev, expires, flags);
+			if (dev->ip6_ptr->cnf.accept_ra_prefix_route) {
+				addrconf_prefix_route(&pinfo->prefix,
+					pinfo->prefix_len, dev, expires, flags);
+			}
 		}
 		if (rt)
 			dst_release(&rt->dst);
@@ -2437,6 +2451,9 @@ static void init_loopback(struct net_device *dev)
 		list_for_each_entry(sp_ifa, &idev->addr_list, if_list) {
 
 			if (sp_ifa->flags & (IFA_F_DADFAILED | IFA_F_TENTATIVE))
+				continue;
+
+			if (sp_ifa->rt)
 				continue;
 
 			sp_rt = addrconf_dst_alloc(idev, &sp_ifa->addr, 0);
@@ -4632,6 +4649,13 @@ static struct addrconf_sysctl_table
 			.maxlen         = sizeof(int),
 			.mode           = 0644,
 			.proc_handler   = proc_dointvec
+		},
+		{
+			.procname	= "accept_ra_prefix_route",
+			.data		= &ipv6_devconf.accept_ra_prefix_route,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= proc_dointvec,
 		},
 		{
 			/* sentinel */
