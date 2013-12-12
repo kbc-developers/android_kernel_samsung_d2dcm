@@ -163,7 +163,7 @@ static void mdp4_dsi_video_blt_ov_update(struct mdp4_overlay_pipe *pipe);
 static void mdp4_dsi_video_wait4dmap(int cndx);
 static void mdp4_dsi_video_wait4ov(int cndx);
 
-int mdp4_dsi_video_pipe_commit(int cndx, int wait)
+int mdp4_dsi_video_pipe_commit(int cndx, int wait, u32 *release_busy)
 {
 
 	int  i, undx;
@@ -228,6 +228,16 @@ int mdp4_dsi_video_pipe_commit(int cndx, int wait)
 				 * and not be unset yet
 				 */
 				mdp4_overlay_vsync_commit(pipe);
+				if (pipe->frame_format !=
+						MDP4_FRAME_FORMAT_LINEAR) {
+					spin_lock_irqsave(&vctrl->spin_lock,
+									flags);
+					INIT_COMPLETION(vctrl->dmap_comp);
+					vsync_irq_enable(INTR_DMA_P_DONE,
+								MDP_DMAP_TERM);
+				       spin_unlock_irqrestore(&vctrl->spin_lock,
+								flags);
+				}
 			}
 		}
 	}
@@ -282,6 +292,11 @@ int mdp4_dsi_video_pipe_commit(int cndx, int wait)
 	mdp4_stat.overlay_commit[pipe->mixer_num]++;
 
 	if (wait) {
+		if (release_busy) {
+			msm_fb_release_busy(vctrl->mfd);
+			*release_busy = false;
+			mutex_unlock(&vctrl->mfd->dma->ov_mutex);
+		}
 		if (pipe->ov_blt_addr)
 			mdp4_dsi_video_wait4ov(0);
 		else
@@ -1215,7 +1230,7 @@ void mdp4_dsi_video_overlay(struct msm_fb_data_type *mfd)
 
 	mdp4_overlay_mdp_perf_upd(mfd, 1);
 
-	cnt = mdp4_dsi_video_pipe_commit(cndx, 0);
+	cnt = mdp4_dsi_video_pipe_commit(cndx, 1, NULL);
 	if (cnt >= 0) {
 		if (pipe->ov_blt_addr)
 			mdp4_dsi_video_wait4ov(cndx);
