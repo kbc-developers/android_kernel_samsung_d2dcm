@@ -109,7 +109,7 @@ static struct gpiomux_setting cam_settings[] = {
 	},
 	{
 		.func = GPIOMUX_FUNC_1, /* drive strength for D2*/
-#if defined(CONFIG_MACH_M2)
+#if defined(CONFIG_MACH_M2_VZW)
 		.drv = GPIOMUX_DRV_2MA,
 #else
 		.drv = GPIOMUX_DRV_4MA,
@@ -705,7 +705,7 @@ static void cam_ldo_power_on(int mode, int num)
 			usleep(1*1000);
 
 			/* ISP CORE 1.2V */
-#if defined(CONFIG_MACH_M2)
+#if defined(CONFIG_MACH_M2_VZW)
 			if (system_rev >= BOARD_REV08) {
 				printk(KERN_DEBUG "[s5c73m3] m2 check vddCore : %d\n",
 					vddCore);
@@ -848,7 +848,7 @@ static void cam_ldo_power_off(int mode)
 		usleep(1*1000);
 
 		/* ISP CORE 1.2V */
-#if defined(CONFIG_MACH_M2)
+#if defined(CONFIG_MACH_M2_VZW)
 		if (system_rev >= BOARD_REV08)
 			ret = regulator_disable(isp_core);
 		if (ret)
@@ -1378,7 +1378,7 @@ static int32_t msm_camera_8960_ext_power_ctrl(int enable)
 #endif
 static int get_mclk_rev(void)
 {
-#if defined(CONFIG_MACH_M2)
+#if defined(CONFIG_MACH_M2_VZW)
 	return ((system_rev >= BOARD_REV13) ? 1 : 0);
 #elif defined(CONFIG_MACH_M2_SKT)
 	return ((system_rev >= BOARD_REV09) ? 1 : 0);

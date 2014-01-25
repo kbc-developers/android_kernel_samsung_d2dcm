@@ -240,7 +240,7 @@ static void smb347_print_all_regs(struct i2c_client *client)
 
 static void check_smb347_version(void)
 {
-#if defined(CONFIG_MACH_M2)
+#if defined(CONFIG_MACH_M2_VZW)
 	if (system_rev >= 0xd)
 		smb347_verA5 = 1;
 #elif defined(CONFIG_MACH_M2_SKT)

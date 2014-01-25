@@ -1011,7 +1011,7 @@ static struct msm_ssbi_platform_data msm8960_ssbi_pm8921_pdata __devinitdata = {
 static void msm8921_sec_charger_init(void)
 {
 	/* batt_id */
-	if (machine_is_M2() && system_rev >= 0x04) {
+	if (machine_is_M2_VZW() && system_rev >= 0x02) {
 		pm8921_chg_pdata.batt_id_min = 810000;
 		pm8921_chg_pdata.batt_id_max = 960000;
 	} else if (machine_is_M2_SKT() && system_rev >= 0x02) {
@@ -1034,7 +1034,7 @@ static void msm8921_sec_charger_init(void)
 	}
 
 	/* battery voltage */
-	if ((machine_is_M2() && system_rev >= 0x06) ||
+	if ((machine_is_M2_VZW() && system_rev >= 0x06) ||
 		(machine_is_jaguar() && system_rev >= 0x0A) ||
 		(machine_is_M2_DCM() && system_rev >= 0x00) ||
 		machine_is_JASPER())
@@ -1046,7 +1046,7 @@ void __init msm8960_init_pmic(void)
 	msm8921_sec_charger_init();
 
 #if !defined(CONFIG_MACH_AEGIS2) && !defined(CONFIG_MACH_JASPER)\
-	&& !defined(CONFIG_MACH_M2)
+	&& !defined(CONFIG_MACH_M2_VZW)
 	pmic_reset_irq = PM8921_IRQ_BASE + PM8921_RESOUT_IRQ;
 #endif
 	msm8960_device_ssbi_pmic.dev.platform_data =
