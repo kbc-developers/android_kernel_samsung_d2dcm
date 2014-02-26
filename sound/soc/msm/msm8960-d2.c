@@ -1103,7 +1103,6 @@ static int msm8960_i2s_audrx_init(struct snd_soc_pcm_runtime *rtd)
 
 	return 0;
 }
-#if defined(CONFIG_MACH_M2_DCM)
 static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int err;
