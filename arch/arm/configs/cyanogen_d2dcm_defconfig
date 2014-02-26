@@ -372,6 +372,8 @@ CONFIG_MSM_REMOTE_SPINLOCK_SFPB=y
 # CONFIG_MACH_MSM_DUMMY is not set
 # CONFIG_MACH_M2 is not set
 CONFIG_MACH_M2_DCM=y
+# CONFIG_MACH_APEXQ is not set
+# CONFIG_MACH_EXPRESS is not set
 
 #
 # LGE Board Selection
