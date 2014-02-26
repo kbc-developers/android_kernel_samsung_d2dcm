@@ -1,6 +1,6 @@
 #!/bin/bash
 
 export BUILD_TARGET=RECO
-. sc03e.config
+. sc06d.config
 
 time ./_build-recoveryimg.sh
