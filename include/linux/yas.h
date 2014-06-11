@@ -92,14 +92,22 @@
 #define M_PI (3.14159265358979323846)
 #endif
 
+
+enum {
+	YAS532_POSITION_0 = 1,
+	YAS532_POSITION_1,
+	YAS532_POSITION_2,
+	YAS532_POSITION_3,
+	YAS532_POSITION_4,
+	YAS532_POSITION_5,
+	YAS532_POSITION_6,
+	YAS532_POSITION_7,
+};
+
+#define YAS532_POSITION_OFFSET	1
 /* -------------------------------------------------------------------------- */
 /*  Structure definition                                                      */
 /* -------------------------------------------------------------------------- */
-
-struct mag_platform_data {
-	int position;
-	void (*init_gpio)(void);
-};
 
 struct yas_mag_filter {
 	int len;
@@ -212,8 +220,8 @@ struct yas_mag_calibration_callback {
 	int (*unlock) (void);
 };
 
-#define YAS_MAGCALIB_MODE_SPHERE        (1)
-#define YAS_MAGCALIB_MODE_ELLIPSOID     (0)
+#define YAS_MAGCALIB_MODE_SPHERE        (0)
+#define YAS_MAGCALIB_MODE_ELLIPSOID     (1)
 
 struct yas_mag_calibration {
 	int (*init) (void);
@@ -410,6 +418,7 @@ struct yas_utility {
 
 struct yas_platform_data {
 	void (*poweron) (int);
+	int mag_orientation;
 };
 
 

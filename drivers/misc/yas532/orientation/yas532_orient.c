@@ -33,7 +33,6 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/workqueue.h>
-#include <linux/sensors_core.h>
 
 #define __LINUX_KERNEL_DRIVER__
 #include <linux/yas.h>
@@ -49,7 +48,7 @@
 #define ABS_CONTROL_REPORT              (ABS_THROTTLE)
 
 
-struct orient_platform_data {
+static struct orient_platform_data {
 	struct mutex mutex;
 	int enabled;
 	int delay;
@@ -71,7 +70,7 @@ sensor_delay_show(struct device *dev, struct device_attribute *attr, char *buf)
 
 	mutex_unlock(&(orient_data->mutex));
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", delay);
+	return sprintf(buf, "%d\n", delay);
 }
 
 static ssize_t
@@ -82,7 +81,7 @@ sensor_delay_store(struct device *dev,
 	unsigned long value;
 	int error;
 
-	error = kstrtoul(buf, 10, &value);
+	error = strict_strtoul(buf, 10, &value);
 	if (unlikely(error))
 		return error;
 
@@ -113,7 +112,7 @@ sensor_enable_show(struct device *dev, struct device_attribute *attr, char *buf)
 
 	mutex_unlock(&(orient_data->mutex));
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", enabled);
+	return sprintf(buf, "%d\n", enabled);
 }
 
 static ssize_t
@@ -125,7 +124,7 @@ sensor_enable_store(struct device *dev,
 	unsigned long value;
 	int error;
 
-	error = kstrtoul(buf, 10, &value);
+	error = strict_strtoul(buf, 10, &value);
 	if (unlikely(error))
 		return error;
 
@@ -175,9 +174,9 @@ sensor_data_show(struct device *dev, struct device_attribute *attr, char *buf)
 
 
 #if SENSOR_TYPE <= 4 || (9 <= SENSOR_TYPE && SENSOR_TYPE <= 11)
-	return snprintf(buf, PAGE_SIZE, "%d %d %d\n", x, y, z);
+	return sprintf(buf, "%d %d %d\n", x, y, z);
 #else
-	return snprintf(buf, PAGE_SIZE, "%d\n", x);
+	return sprintf(buf, "%d\n", x);
 #endif
 }
 
@@ -189,7 +188,7 @@ sensor_status_show(struct device *dev, struct device_attribute *attr, char *buf)
 
 	status = input_abs_get_val(input_data, ABS_STATUS);
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", status);
+	return sprintf(buf, "%d\n", status);
 }
 
 static DEVICE_ATTR(delay, S_IRUGO | S_IWUSR | S_IWGRP,
@@ -305,20 +304,9 @@ static int sensor_probe(struct platform_device *pdev)
 	sysfs_created = 1;
 	mutex_init(&(orient_data->mutex));
 
-#ifdef CONFIG_SENSOR_USE_SYMLINK
-	rt =  sensors_initialize_symlink(input_data);
-	if (rt) {
-		YLOGE(("sensor_probe: ori sensors_initialize_symlink failed[%s]\n",
-			input_data->name));
-			goto err_symlink;
-	}
-#endif
 
 	return 0;
-#ifdef CONFIG_SENSOR_USE_SYMLINK
-err_symlink:
-	mutex_destroy(&(orient_data->mutex));
-#endif
+
 err:
 	if (orient_data != NULL) {
 		if (input_data != NULL) {
@@ -339,8 +327,7 @@ err:
 
 static int sensor_remove(struct platform_device *pdev)
 {
-	struct orient_platform_data *orient_data =
-		dev_get_drvdata((struct device *)pdev);
+	struct orient_platform_data *orient_data = dev_get_drvdata(pdev);
 
 	if (orient_data->orient_input_dev != NULL) {
 		sysfs_remove_group(&orient_data->orient_input_dev->dev.kobj,
