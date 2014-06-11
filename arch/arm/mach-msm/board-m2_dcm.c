@@ -5382,7 +5382,7 @@ int main_mic_bias_init(void)
 		return ret;
 	}
 	gpio_direction_output(gpio_rev(GPIO_MAIN_MIC_BIAS), 0);
-	return 0
+	return 0;
 }
 
 static void __init msm8960ab_update_krait_spm(void)
