@@ -87,7 +87,7 @@ static struct gpio_event_direct_entry sec_jack_key_map[] = {
 };
 
 static struct gpio_event_input_info sec_jack_key_info = {
-	.info.func = gpio_event_input_func,
+//	.info.func = gpio_event_input_func,
 	.info.no_suspend = true,
 	.type = EV_KEY,
 	.debounce_time.tv64 = SEND_KEY_CHECK_TIME_MS * NSEC_PER_MSEC,
