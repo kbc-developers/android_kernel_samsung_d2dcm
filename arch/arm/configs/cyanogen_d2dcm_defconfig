@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm 3.4.95 Kernel Configuration
+# Linux/arm 3.4.99 Kernel Configuration
 #
 CONFIG_ARM=y
 CONFIG_ARM_HAS_SG_CHAIN=y
@@ -1526,7 +1526,7 @@ CONFIG_BCM4334=m
 # CONFIG_BCM4354 is not set
 # CONFIG_BCM43241 is not set
 CONFIG_BROADCOM_WIFI=y
-CONFIG_BCMDHD_FW_PATH="/system/etc/wifi/bcmdhd_sta.bin_b2"
+CONFIG_BCMDHD_FW_PATH="/system/etc/wifi/bcmdhd_sta.bin"
 CONFIG_BCMDHD_NVRAM_PATH="/system/etc/wifi/nvram_net.txt"
 CONFIG_BROADCOM_WIFI_RESERVED_MEM=y
 CONFIG_WLAN_REGION_CODE=400
