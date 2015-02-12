@@ -47,7 +47,7 @@
 #include "queue.h"
 
 MODULE_ALIAS("mmc:block");
-#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_K2_KDI)
+#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 #define MMC_ENABLE_CPRM
 #endif
 

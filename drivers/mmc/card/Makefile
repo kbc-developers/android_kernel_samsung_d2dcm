@@ -9,7 +9,7 @@ ifeq ($(CONFIG_MACH_M2_DCM),y)
 mmc_block-objs			+= cprmdrv_samsung.o
 endif
 
-ifeq ($(CONFIG_MACH_K2_KDI),y)
+ifeq ($(CONFIG_MACH_M2_KDI),y)
 mmc_block-objs			+= cprmdrv_samsung.o
 endif
 
