@@ -1142,9 +1142,6 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	} else if (machine_is_M2_DCM()) {
 		snd_soc_dapm_add_routes(dapm, common_audio_map_rev00,
 			ARRAY_SIZE(common_audio_map_rev00));
-	} else if (machine_is_M2_KDI()) {
-		snd_soc_dapm_add_routes(dapm, common_audio_map_rev00,
-			ARRAY_SIZE(common_audio_map_rev00));
 	} else {
 	snd_soc_dapm_add_routes(dapm, common_audio_map_org,
 				ARRAY_SIZE(common_audio_map_org));
