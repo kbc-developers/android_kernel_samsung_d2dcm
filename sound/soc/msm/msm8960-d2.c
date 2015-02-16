@@ -1103,7 +1103,7 @@ static int msm8960_i2s_audrx_init(struct snd_soc_pcm_runtime *rtd)
 
 	return 0;
 }
-#if defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int err;
@@ -1139,9 +1139,15 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	if ((machine_is_M2_SKT() && system_rev >= BOARD_REV01)) {
 		snd_soc_dapm_add_routes(dapm, common_audio_map_rev00,
 			ARRAY_SIZE(common_audio_map_rev00));
+#if defined(CONFIG_MACH_M2_DCM)
 	} else if (machine_is_M2_DCM()) {
 		snd_soc_dapm_add_routes(dapm, common_audio_map_rev00,
 			ARRAY_SIZE(common_audio_map_rev00));
+#else /* CONFIG_MACH_M2_KDI */
+	} else if (machine_is_M2_KDI()) {
+		snd_soc_dapm_add_routes(dapm, common_audio_map_rev00,
+			ARRAY_SIZE(common_audio_map_rev00));
+#endif
 	} else {
 	snd_soc_dapm_add_routes(dapm, common_audio_map_org,
 				ARRAY_SIZE(common_audio_map_org));
@@ -1187,13 +1193,15 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	/* BTN_2 button is mapped to VOLUME Down key type*/
 	snd_jack_set_key(volumedown_jack.jack,
 			SND_JACK_BTN_2, KEY_VOLUMEDOWN);
-
+#if defined(CONFIG_MACH_M2_DCM)
 	if (((machine_is_M2_SKT() && system_rev < BOARD_REV08) ||
 		(machine_is_M2_DCM() && system_rev < BOARD_REV03) ||
-		(machine_is_M2_KDI() && system_rev < BOARD_REV03)) ||
-		(!machine_is_M2_SKT() && !machine_is_M2_DCM() &&
-		!machine_is_STRETTO() && !machine_is_M2_KDI() &&
-		!machine_is_SUPERIORLTE_SKT())) {
+		(!machine_is_M2_SKT() && !machine_is_M2_DCM()))) {
+#else /* CONFIG_MACH_M2_KDI */
+	if (((machine_is_M2_SKT() && system_rev < BOARD_REV08) ||
+		(machine_is_M2_KDI() && system_rev < BOARD_REV03) ||
+		(!machine_is_M2_SKT() && !machine_is_M2_KDI()))) {
+#endif
 		/* using mbhc driver for earjack */
 		if (GPIO_DETECT_USED) {
 			mbhc_cfg.gpio = PM8921_GPIO_PM_TO_SYS(JACK_DETECT_GPIO);
@@ -1276,6 +1284,7 @@ end:
 	return ret;
 }
 #endif
+
 static int msm8960_i2s_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
 {
@@ -1307,7 +1316,7 @@ static int msm8960_i2s_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 
 	return 0;
 }
-#if defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 static int msm8960_slim_0_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
 {
@@ -1340,6 +1349,7 @@ static int msm8960_slim_0_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 #endif
+
 static int msm8960_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
 {
@@ -1740,7 +1750,7 @@ static void msm8960_auxpcm_shutdown(struct snd_pcm_substream *substream)
 		msm8960_aux_pcm_free_gpios();
 }
 
-#if defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 static int msm8960_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -1807,7 +1817,7 @@ static struct snd_soc_dai_link msm8960_i2s_be_dai[] = {
 		.ops = &msm8960_i2s_be_ops,
 	},
 };
-#if defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 static struct snd_soc_dai_link msm8960_slimbus_be_dai[] = {
 	{
 		.name = LPASS_BE_SLIMBUS_0_RX,
@@ -2319,7 +2329,7 @@ static int __init msm8960_audio_init(void)
 	int ret;
 	msm8960_dai_list = kzalloc(sizeof(msm8960_dai) +
 			2 * sizeof(struct snd_soc_dai_link), GFP_KERNEL);
-#if defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 	if (wcd9xxx_get_intf_type() == WCD9XXX_INTERFACE_TYPE_SLIMBUS) {
 		memcpy(msm8960_dai_list, msm8960_dai, sizeof(msm8960_dai));
 		memcpy(&msm8960_dai_list[ARRAY_SIZE(msm8960_dai)],
@@ -2335,7 +2345,7 @@ static int __init msm8960_audio_init(void)
 		snd_soc_card_msm8960.dai_link = msm8960_dai_list;
 		snd_soc_card_msm8960.num_links = ARRAY_SIZE(msm8960_dai) +
 					ARRAY_SIZE(msm8960_i2s_be_dai);
-#if defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 	}
 #endif
 
