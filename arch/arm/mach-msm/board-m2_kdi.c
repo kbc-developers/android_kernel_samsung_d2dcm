@@ -167,10 +167,6 @@
 #ifdef CONFIG_SENSORS_CM36651
 #include <linux/i2c/cm36651.h>
 #endif
-#ifdef CONFIG_REGULATOR_MAX8952
-#include <linux/regulator/max8952.h>
-#include <linux/regulator/machine.h>
-#endif
 #ifdef CONFIG_VIBETONZ
 #include <linux/vibrator.h>
 #endif
@@ -2094,7 +2090,7 @@ static struct platform_device opt_gp2a = {
 			0, 0, 1},
 	};
 
-	struct mpu_platform_data mpu6050_data_09 = {
+	struct mpu_platform_data mpu6050_data_00 = {
 	.int_config = 0x10,
 	.orientation = {0, -1, 0,
 			1, 0, 0,
@@ -2102,7 +2098,7 @@ static struct platform_device opt_gp2a = {
 	.poweron = mpu_power_on,
 	};
 	/* compass */
-	static struct ext_slave_platform_data inv_mpu_ak8963_data_09 = {
+	static struct ext_slave_platform_data inv_mpu_ak8963_data_00 = {
 	.bus		= EXT_SLAVE_BUS_PRIMARY,
 	.orientation = {0, 1, 0,
 			-1, 0, 0,
@@ -2270,8 +2266,8 @@ static void mpl_init(void)
 		mpu_data = mpu_data_00;
 	mpu_data.reset = gpio_rev(GPIO_MAG_RST);
 #elif defined(CONFIG_MPU_SENSORS_MPU6050B1_411)
-	mpu6050_data = mpu6050_data_09;
-	inv_mpu_ak8963_data = inv_mpu_ak8963_data_09;
+	mpu6050_data = mpu6050_data_00;
+	inv_mpu_ak8963_data = inv_mpu_ak8963_data_00;
 
 	if (system_rev < BOARD_REV02)
 		mpu6050_data.reset = gpio_rev(GPIO_MAG_RST);
@@ -3566,7 +3562,7 @@ static int msm_hsusb_vbus_power(bool on)
 
 static int phy_settings[] = {
 	0x44, 0x80,
-	0x6F, 0x81,
+	0x7F, 0x81,
 	0x3C, 0x82,
 	0x13, 0x83,
 	-1,
@@ -4197,7 +4193,7 @@ static struct i2c_board_info sii_device_info[] __initdata = {
 };
 
 static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi4_pdata = {
-	.clk_freq = 400000,
+	.clk_freq = 100000,
 	.src_clk_rate = 24000000,
 };
 
@@ -4241,14 +4237,6 @@ static struct msm_rpm_platform_data msm_rpm_data = {
 	.irq_vmpm = RPM_APCC_CPU0_GP_MEDIUM_IRQ,
 	.msm_apps_ipc_rpm_reg = MSM_APCS_GCC_BASE + 0x008,
 	.msm_apps_ipc_rpm_val = 4,
-};
-#endif
-
-#if 0
-static struct msm_pm_sleep_status_data msm_pm_slp_sts_data = {
-	.base_addr = MSM_ACC0_BASE + 0x08,
-	.cpu_offset = MSM_ACC1_BASE - MSM_ACC0_BASE,
-	.mask = 1UL << 13,
 };
 #endif
 
@@ -4706,8 +4694,8 @@ static struct platform_device *common_devices[] __initdata = {
 
 static struct platform_device *k2_kdi_devices[] __initdata = {
 	&msm_8960_q6_lpass,
-	&msm_8960_q6_mss_fw,
 	&msm_8960_q6_mss_sw,
+	&msm_8960_q6_mss_fw,
 	&msm_8960_riva,
 	&msm_pil_tzapps,
 	&msm_pil_vidc,
@@ -4717,10 +4705,13 @@ static struct platform_device *k2_kdi_devices[] __initdata = {
 	&android_usb_device,
 	&msm_pcm,
 	&msm_multi_ch_pcm,
+	&msm_lowlatency_pcm,
 	&msm_pcm_routing,
 #ifdef CONFIG_SLIMBUS_MSM_CTRL
 	&msm_cpudai0,
 	&msm_cpudai1,
+	//&msm8960_cpudai_slimbus_2_rx,
+	//&msm8960_cpudai_slimbus_2_tx,
 #else
 	&msm_i2s_cpudai0,
 	&msm_i2s_cpudai1,
@@ -4734,11 +4725,6 @@ static struct platform_device *k2_kdi_devices[] __initdata = {
 	&msm_cpudai_auxpcm_tx,
 	&msm_cpu_fe,
 	&msm_stub_codec,
-	&msm_kgsl_3d0,
-#ifdef CONFIG_MSM_KGSL_2D
-	&msm_kgsl_2d0,
-	&msm_kgsl_2d1,
-#endif
 #ifdef CONFIG_MSM_GEMINI
 	&msm8960_gemini_device,
 #endif
@@ -4985,43 +4971,6 @@ static struct i2c_board_info msm_camera_boardinfo[] __initdata = {
 };
 #endif
 
-/*add for D2_ATT CAM_ISP_CORE power setting by MAX8952*/
-#ifdef CONFIG_REGULATOR_MAX8952
-static int max8952_is_used(void)
-{
-	if (system_rev >= 0x8)
-		return 1;
-	else
-		return 0;
-}
-
-static struct regulator_consumer_supply max8952_consumer =
-	REGULATOR_SUPPLY("cam_isp_core", NULL);
-
-static struct max8952_platform_data m2_att_max8952_pdata = {
-	.gpio_vid0	= -1, /* NOT controlled by GPIO, HW default high*/
-	.gpio_vid1	= -1, /* NOT controlled by GPIO, HW default high*/
-	.gpio_en	= CAM_CORE_EN, /* Controlled by GPIO, High enable */
-	.default_mode	= 3, /* vid0 = 1, vid1 = 1 */
-	.dvs_mode	= { 33, 33, 33, 43 }, /* 1.1V, 1.1V, 1.1V, 1.2V*/
-	.sync_freq	= 0, /* default: fastest */
-	.ramp_speed	= 0, /* default: fastest */
-	.reg_data	= {
-		.constraints	= {
-			.name		= "CAM_ISP_CORE",
-			.min_uV		= 770000,
-			.max_uV		= 1400000,
-			.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE |
-					  REGULATOR_CHANGE_STATUS,
-			.always_on	= 0,
-			.boot_on	= 0,
-		},
-		.num_consumer_supplies	= 1,
-		.consumer_supplies	= &max8952_consumer,
-	},
-};
-#endif /*CONFIG_REGULATOR_MAX8952*/
-
 #ifdef CONFIG_SAMSUNG_CMC624
 static struct i2c_board_info cmc624_i2c_borad_info[] = {
 	{
@@ -5029,19 +4978,6 @@ static struct i2c_board_info cmc624_i2c_borad_info[] = {
 	},
 };
 #endif
-
-#ifdef CONFIG_REGULATOR_MAX8952
-static struct i2c_board_info cmc624_max8952_i2c_borad_info[] = {
-	{
-		I2C_BOARD_INFO("cmc624", 0x38),
-	},
-
-	{
-		I2C_BOARD_INFO("max8952", 0xC0>>1),
-		.platform_data = &m2_att_max8952_pdata,
-	},
-};
-#endif /*CONFIG_REGULATOR_MAX8952*/
 
 /* Sensors DSPS platform data */
 #ifdef CONFIG_MSM_DSPS
@@ -5242,15 +5178,6 @@ static void __init register_i2c_devices(void)
 	u8 mach_mask = 0;
 	int i;
 
-#ifdef CONFIG_REGULATOR_MAX8952
-struct i2c_registry cmc624_max8952_i2c_devices = {
-		I2C_SURF | I2C_FFA | I2C_FLUID ,
-		MSM_CMC624_I2C_BUS_ID,
-		cmc624_max8952_i2c_borad_info,
-		ARRAY_SIZE(cmc624_max8952_i2c_borad_info),
-	};
-#endif /*CONFIG_REGULATOR_MAX8952*/
-
 #ifdef CONFIG_BATTERY_MAX17040
 	struct i2c_registry msm8960_fg_i2c_devices = {
 		I2C_SURF | I2C_FFA | I2C_FLUID,
@@ -5293,16 +5220,6 @@ struct i2c_registry cmc624_max8952_i2c_devices = {
 						msm8960_i2c_devices[i].info,
 						msm8960_i2c_devices[i].len);
 	}
-
-#ifdef CONFIG_SAMSUNG_CMC624
-#ifdef CONFIG_REGULATOR_MAX8952
-	if (max8952_is_used()) {
-		i2c_register_board_info(cmc624_max8952_i2c_devices.bus,
-					cmc624_max8952_i2c_devices.info,
-					cmc624_max8952_i2c_devices.len);
-	}
-#endif /*CONFIG_REGULATOR_MAX8952*/
-#endif /*CONFIG_SAMSUNG_CMC624*/
 
 #if defined(CONFIG_BATTERY_MAX17040)
 	if (!is_smb347_using()) {
@@ -5672,5 +5589,6 @@ MACHINE_START(M2_KDI, "SAMSUNG M2_KDI")
 	.init_machine = samsung_k2_kdi_init,
 	.init_early = msm8960_allocate_memory_regions,
 	.init_very_early = msm8960_early_memory,
+	.restart = msm_restart,
 MACHINE_END
 #endif
