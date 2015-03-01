@@ -88,6 +88,12 @@ config CPU_FREQ_DEFAULT_GOV_ONDEMAND
 	  governor. If unsure have a look at the help section of the
 	  driver. Fallback governor will be the performance governor.
 
+config CPU_FREQ_DEFAULT_GOV_SMARTASSH3
+        bool "smartassH3"
+        select CPU_FREQ_GOV_SMARTASSH3
+        help
+        Use the CPUFreq governor 'smartassH3' as default.
+
 config CPU_FREQ_DEFAULT_GOV_CONSERVATIVE
 	bool "conservative"
 	select CPU_FREQ_GOV_CONSERVATIVE
@@ -205,6 +211,12 @@ config CPU_FREQ_GOV_CONSERVATIVE
 	  For details, take a look at linux/Documentation/cpu-freq.
 
 	  If in doubt, say N.
+
+config CPU_FREQ_GOV_SMARTASSH3
+        tristate "'smartassH3' cpufreq governor"
+        depends on CPU_FREQ
+        help
+          'smartassH3' - a "smart" governor
 
 menu "x86 CPU frequency scaling drivers"
 depends on X86
