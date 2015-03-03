@@ -37,12 +37,12 @@
 #include <linux/moduleparam.h>
 #include <linux/notifier.h>
 #include <asm/cputime.h>
-#ifdef CONFIG_POWERSUSPEND
+
+#if defined(CONFIG_POWERSUSPEND)
 #include <linux/powersuspend.h>
-#endif
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#elif defined(CONFIG_HAS_EARLYSUSPEND)
 #include <linux/earlysuspend.h>
-#endif
+#endif /* CONFIG_POWERSUSPEND || CONFIG_HAS_EARLYSUSPEND */
 
 #define cputime64_sub(__a, __b) ((__a) - (__b))
 
@@ -831,7 +831,7 @@ static void smartass_suspend(int cpu, int suspend)
 	reset_timer(smp_processor_id(),this_smartass);
 }
 
-static void smartass_early_suspend(struct power_suspend *handler) {
+static void smartass_early_suspend(struct early_suspend *handler) {
 	int i;
 	if (suspended || sleep_ideal_freq==0) // disable behavior for sleep_ideal_freq==0
 		return;
@@ -840,7 +840,7 @@ static void smartass_early_suspend(struct power_suspend *handler) {
 		smartass_suspend(i,1);
 }
 
-static void smartass_late_resume(struct power_suspend *handler) {
+static void smartass_late_resume(struct early_suspend *handler) {
 	int i;
 	if (!suspended) // already not suspended so nothing to do
 		return;
@@ -849,7 +849,7 @@ static void smartass_late_resume(struct power_suspend *handler) {
 		smartass_suspend(i,0);
 }
 
-static struct power_suspend smartass_power_suspend = {
+static struct early_suspend smartass_power_suspend = {
 	.suspend = smartass_early_suspend,
 	.resume = smartass_late_resume,
 #ifdef CONFIG_MACH_HERO
@@ -903,7 +903,7 @@ static int __init cpufreq_smartass_init(void)
 	
 	idle_notifier_register(&cpufreq_idle_nb);
 	INIT_WORK(&freq_scale_work, cpufreq_smartass_freq_change_time_work);
-	register_power_suspend(&smartass_power_suspend);
+	register_early_suspend(&smartass_power_suspend);
 
 	return cpufreq_register_governor(&cpufreq_gov_smartass_h3);
 }
