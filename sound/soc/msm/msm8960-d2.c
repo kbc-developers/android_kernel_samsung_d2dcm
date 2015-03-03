@@ -1139,15 +1139,12 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	if ((machine_is_M2_SKT() && system_rev >= BOARD_REV01)) {
 		snd_soc_dapm_add_routes(dapm, common_audio_map_rev00,
 			ARRAY_SIZE(common_audio_map_rev00));
-#if defined(CONFIG_MACH_M2_DCM)
 	} else if (machine_is_M2_DCM()) {
 		snd_soc_dapm_add_routes(dapm, common_audio_map_rev00,
 			ARRAY_SIZE(common_audio_map_rev00));
-#else /* CONFIG_MACH_M2_KDI */
 	} else if (machine_is_M2_KDI()) {
 		snd_soc_dapm_add_routes(dapm, common_audio_map_rev00,
 			ARRAY_SIZE(common_audio_map_rev00));
-#endif
 	} else {
 	snd_soc_dapm_add_routes(dapm, common_audio_map_org,
 				ARRAY_SIZE(common_audio_map_org));
@@ -1193,15 +1190,12 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	/* BTN_2 button is mapped to VOLUME Down key type*/
 	snd_jack_set_key(volumedown_jack.jack,
 			SND_JACK_BTN_2, KEY_VOLUMEDOWN);
-#if defined(CONFIG_MACH_M2_DCM)
+			
 	if (((machine_is_M2_SKT() && system_rev < BOARD_REV08) ||
 		(machine_is_M2_DCM() && system_rev < BOARD_REV03) ||
-		(!machine_is_M2_SKT() && !machine_is_M2_DCM()))) {
-#else /* CONFIG_MACH_M2_KDI */
-	if (((machine_is_M2_SKT() && system_rev < BOARD_REV08) ||
 		(machine_is_M2_KDI() && system_rev < BOARD_REV03) ||
+		(!machine_is_M2_SKT() && !machine_is_M2_DCM()) ||
 		(!machine_is_M2_SKT() && !machine_is_M2_KDI()))) {
-#endif
 		/* using mbhc driver for earjack */
 		if (GPIO_DETECT_USED) {
 			mbhc_cfg.gpio = PM8921_GPIO_PM_TO_SYS(JACK_DETECT_GPIO);
@@ -2215,6 +2209,7 @@ static int msm8960_configure_audio_gpios(void)
 		.out_strength   = PM_GPIO_STRENGTH_MED,
 		.function       = PM_GPIO_FUNC_NORMAL,
 	};
+
 #if defined(CONFIG_MACH_M2_KDI)
 
         struct pm_gpio mic_open_det_param = {
@@ -2309,6 +2304,7 @@ static int msm8960_configure_audio_gpios(void)
 static void msm8960_free_audio_gpios(void)
 {
 	if (msm8960_audio_gpios_configured) {
+
 #if defined(CONFIG_MACH_M2_KDI)
                 gpio_free(PM8921_GPIO_PM_TO_SYS(35));
 #endif
