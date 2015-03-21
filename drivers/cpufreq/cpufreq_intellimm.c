@@ -164,7 +164,7 @@ static struct dbs_tuners {
 	.up_threshold_any_cpu_load = DEF_FREQUENCY_UP_THRESHOLD,
 	.ignore_nice = 0,
 	.powersave_bias = 0,
-	.optimal_freq = 0,
+	.optimal_freq = 1512000,
 	.shortcut = 0,
 	.power_save_freq = DEF_POWER_SAVE_FREQUENCY,
 	.two_phase_freq = DEF_TWO_PHASE_FREQUENCY,
