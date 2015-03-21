@@ -24,8 +24,8 @@
 #include <linux/cpufreq.h>
 //#include <linux/sort.h>
 
-#if CONFIG_POWERSUSPEND
-#include <linux/powersuspend.h>
+#if CONFIG_EARLYSUSPEND
+#include <linux/earlysuspend.h>
 #endif
 
 //#define DEBUG_INTELLI_PLUG
@@ -398,7 +398,7 @@ static void __cpuinit intelli_plug_work_fn(struct work_struct *work)
 		msecs_to_jiffies(sampling_time));
 }
 
-#ifdef CONFIG_POWERSUSPEND
+#ifdef CONFIG_EARLYSUSPEND
 static void screen_off_limit(bool on)
 {
 	unsigned int i, ret;
@@ -427,7 +427,7 @@ static void screen_off_limit(bool on)
 	}
 }
 
-static void intelli_plug_suspend(struct power_suspend *handler)
+static void intelli_plug_suspend(struct early_suspend *handler)
 {
 	int cpu;
 	
@@ -460,7 +460,7 @@ static void wakeup_boost(void)
 	}
 }
 
-static void __cpuinit intelli_plug_resume(struct power_suspend *handler)
+static void __cpuinit intelli_plug_resume(struct early_suspend *handler)
 {
 	int num_of_active_cores;
 	int i;
@@ -488,11 +488,11 @@ static void __cpuinit intelli_plug_resume(struct power_suspend *handler)
 		msecs_to_jiffies(10));
 }
 
-static struct power_suspend intelli_plug_power_suspend_driver = {
+static struct early_suspend intelli_plug_early_suspend_driver = {
 	.suspend = intelli_plug_suspend,
 	.resume = intelli_plug_resume,
 };
-#endif  /* CONFIG_POWERSUSPEND */
+#endif  /* CONFIG_EARLYSUSPEND */
 
 static void intelli_plug_input_event(struct input_handle *handle,
 		unsigned int type, unsigned int code, int value)
@@ -582,8 +582,8 @@ int __init intelli_plug_init(void)
 		nr_run_hysteresis = NR_RUN_HYSTERESIS_DUAL;
 
 	rc = input_register_handler(&intelli_plug_input_handler);
-#ifdef CONFIG_POWERSUSPEND
-	register_power_suspend(&intelli_plug_power_suspend_driver);
+#ifdef CONFIG_EARLYSUSPEND
+	register_early_suspend(&intelli_plug_early_suspend_driver);
 #endif
 
 	intelliplug_wq = alloc_workqueue("intelliplug",
