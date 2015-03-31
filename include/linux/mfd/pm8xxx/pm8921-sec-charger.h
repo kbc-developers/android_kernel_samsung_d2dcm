@@ -47,7 +47,7 @@ enum cable_type_t {
 	CABLE_TYPE_WPC = 10,
 #endif
 #if defined (CONFIG_MACH_M2_KDI)
-        CABLE_TYPE_HDMI = 11,
+	CABLE_TYPE_HDMI = 11,
 #endif
 };
 

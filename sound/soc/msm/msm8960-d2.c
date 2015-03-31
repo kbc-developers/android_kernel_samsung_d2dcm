@@ -1278,7 +1278,6 @@ end:
 	return ret;
 }
 #endif
-
 static int msm8960_i2s_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
 {
@@ -1343,7 +1342,6 @@ static int msm8960_slim_0_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 #endif
-
 static int msm8960_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
 {
@@ -2200,6 +2198,7 @@ static struct platform_device *msm8960_snd_device;
 static int msm8960_configure_audio_gpios(void)
 {
 	int ret;
+
 	struct pm_gpio param = {
 		.direction      = PM_GPIO_DIR_OUT,
 		.output_buffer  = PM_GPIO_OUT_BUF_CMOS,
@@ -2212,30 +2211,29 @@ static int msm8960_configure_audio_gpios(void)
 
 #if defined(CONFIG_MACH_M2_KDI)
 
-        struct pm_gpio mic_open_det_param = {
-                .direction      = PM_GPIO_DIR_IN,
-                .output_buffer  = PM_GPIO_OUT_BUF_CMOS,
-                .output_value   = 1,
-                .pull      = PM_GPIO_PULL_NO,
-                .vin_sel        = PM_GPIO_VIN_S4,
-                .out_strength   = PM_GPIO_STRENGTH_MED,
-                .function       = PM_GPIO_FUNC_NORMAL,
-        };
+	struct pm_gpio mic_open_det_param = {
+		.direction      = PM_GPIO_DIR_IN,
+		.output_buffer  = PM_GPIO_OUT_BUF_CMOS,
+		.output_value   = 1,
+		.pull       = PM_GPIO_PULL_NO,
+		.vin_sel        = PM_GPIO_VIN_S4,
+		.out_strength   = PM_GPIO_STRENGTH_MED,
+		.function       = PM_GPIO_FUNC_NORMAL,
+	};
 
-
-        ret = gpio_request(PM8921_GPIO_PM_TO_SYS(35), "US_EURO_SWITCH");
-        if (ret) {
-                pr_err("%s: Failed to request gpio %d\n", __func__,
-                        PM8921_GPIO_PM_TO_SYS(35));
-                return ret;
-        }
-        ret = pm8xxx_gpio_config(PM8921_GPIO_PM_TO_SYS(35), &mic_open_det_param);
-        if (ret) {
-                pr_err("%s: Failed to configure gpio %d\n", __func__,
-                        PM8921_GPIO_PM_TO_SYS(35));
-                return ret;
-        }
-        gpio_direction_input(PM8921_GPIO_PM_TO_SYS(35));
+	ret = gpio_request(PM8921_GPIO_PM_TO_SYS(35), "US_EURO_SWITCH");
+	if (ret) {
+		pr_err("%s: Failed to request gpio %d\n", __func__,
+				PM8921_GPIO_PM_TO_SYS(35));
+		return ret;
+	}
+	ret = pm8xxx_gpio_config(PM8921_GPIO_PM_TO_SYS(35), &mic_open_det_param);
+	if (ret) {
+		pr_err("%s: Failed to configure gpio %d\n", __func__,
+				PM8921_GPIO_PM_TO_SYS(35));
+		return ret;
+	}
+	gpio_direction_input(PM8921_GPIO_PM_TO_SYS(35));
 
 #endif
 
@@ -2306,7 +2304,7 @@ static void msm8960_free_audio_gpios(void)
 	if (msm8960_audio_gpios_configured) {
 
 #if defined(CONFIG_MACH_M2_KDI)
-                gpio_free(PM8921_GPIO_PM_TO_SYS(35));
+	gpio_free(PM8921_GPIO_PM_TO_SYS(35));
 #endif
 #if !defined(CONFIG_MACH_M2_DCM) && !defined(CONFIG_MACH_AEGIS2) \
 	&& !defined(CONFIG_MACH_M2_KDI) && !defined(CONFIG_MACH_EXPRESS)

@@ -1756,7 +1756,13 @@ static struct i2c_board_info mhl_i2c_board_info[] = {
 #endif
 
 #ifdef CONFIG_BATTERY_SEC
-static int is_sec_battery_using(void);
+static int is_sec_battery_using(void)
+{
+	if (system_rev >= 0x1)
+		return 1;
+	else
+		return 0;
+}
 
 int check_battery_type(void)
 {
@@ -1791,15 +1797,10 @@ static struct platform_device sec_device_battery = {
 	.dev.platform_data = &sec_bat_pdata,
 };
 
-static int is_sec_battery_using(void)
+static void check_highblock_temp(void)
 {
 	if (system_rev < 0x1)
 		sec_bat_pdata.high_block = 600;
-
-	if (system_rev >= 0x9)
-		return 1;
-	else
-		return 0;
 }
 
 #endif /* CONFIG_BATTERY_SEC */
@@ -5482,6 +5483,9 @@ static void __init samsung_m2_dcm_init(void)
 #ifndef CONFIG_S5C73M3
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
 #endif
+#ifdef CONFIG_BATTERY_SEC
+	check_highblock_temp();
+#endif /*CONFIG_BATTERY_SEC*/
 	msm8960_init_pmic();
 	msm8960_i2c_init();
 	msm8960_gfx_init();
