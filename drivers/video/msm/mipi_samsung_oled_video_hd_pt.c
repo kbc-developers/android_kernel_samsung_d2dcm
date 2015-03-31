@@ -1513,7 +1513,7 @@ static int prepare_brightness_control_cmd_array(int lcd_type, int bl_level)
 }
 static struct mipi_panel_data mipi_pd = {
 #if defined (CONFIG_MACH_M2_KDI)
-        .panel_name     = "SMD_AMS480GY10-0\n",
+	.panel_name	= "SMD_AMS480GY10-0\n",
 #else
 	.panel_name	= "SMD_AMS465GS0x\n",
 #endif

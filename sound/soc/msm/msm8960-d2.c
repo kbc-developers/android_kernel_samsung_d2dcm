@@ -1190,7 +1190,7 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	/* BTN_2 button is mapped to VOLUME Down key type*/
 	snd_jack_set_key(volumedown_jack.jack,
 			SND_JACK_BTN_2, KEY_VOLUMEDOWN);
-			
+
 	if (((machine_is_M2_SKT() && system_rev < BOARD_REV08) ||
 		(machine_is_M2_DCM() && system_rev < BOARD_REV03) ||
 		(machine_is_M2_KDI() && system_rev < BOARD_REV03) ||

@@ -403,8 +403,8 @@ static void smb347_charger_function_conrol(struct i2c_client *client)
 		data &= 0xf0;
 		if (chip->chg_mode == CHG_MODE_AC) {
 #if defined(CONFIG_MACH_M2_KDI)
-                        /* 1300mA limit */
-                        set_data = smb347_verA5 ? 0x5 : 0x3;
+			/* 1300mA limit */
+			set_data = smb347_verA5 ? 0x5 : 0x3;
 #else
 			/* 900mA limit */
 			set_data = smb347_verA5 ? 0x4 : 0x3;
@@ -614,13 +614,13 @@ static bool smb347_check_vdcin(struct i2c_client *client)
 #if defined(CONFIG_MACH_M2_KDI)
 #define DOCK_TEST 0
 #if (DOCK_TEST)
-                reg = SMB347_STATUS_B;
-                val = smb347_read_reg(client, reg);
-                pr_debug("[KDI SMB347] ADDR(0x%x)=0x%x\n",reg,val);
+		reg = SMB347_STATUS_B;
+		val = smb347_read_reg(client, reg);
+		pr_debug("[KDI SMB347] ADDR(0x%x)=0x%x\n",reg,val);
 
-                reg = SMB347_STATUS_E;
-                val = smb347_read_reg(client, reg);
-                pr_debug("[KDI SMB347] ADDR(0x%x)=0x%x\n",reg,val);
+		reg = SMB347_STATUS_E;
+		val = smb347_read_reg(client, reg);
+		pr_debug("[KDI SMB347] ADDR(0x%x)=0x%x\n",reg,val);
 #endif
 #endif
 
@@ -912,74 +912,74 @@ static int smb347_set_input_current_limit(struct i2c_client *client,
 #if defined(CONFIG_MACH_M2_KDI)
 static int smb347_set_input_current_limit_kdi(struct i2c_client *client, int input_current)
 {
-        int val, reg, data, set_val;
+	int val, reg, data, set_val;
 
-        smb347_allow_volatile_writes(client);
+	smb347_allow_volatile_writes(client);
 
-        if (input_current < ICL_300mA || input_current > ICL_2500mA) {
-                pr_err("%s: invalid input_current set value(%d)\n",
-                       __func__, input_current);
-                return -EINVAL;
-        }
+	if (input_current < ICL_300mA || input_current > ICL_2500mA) {
+		pr_err("%s: invalid input_current set value(%d)\n",
+				__func__, input_current);
+		return -EINVAL;
+	}
 
-        switch (input_current) {
-        case ICL_300mA: //USBIN 340mA
-                set_val = 0x00;
-                break;
-        case ICL_500mA: //USBIN 500mA
-                set_val = 0x11;
-                break;
-        case ICL_700mA: //USBIN 660mA
-                set_val = 0x22;
-                break;
-        case ICL_900mA: //USBIN 820mA
-                set_val = 0x33;
-                break;
-        case ICL_1200mA: //USBIN 1030mA
-                set_val = 0x44;
-                break;
-        case ICL_1500mA: //USBIN 1300mA
-                set_val = 0x55;
-                break;
-        case ICL_1800mA: //USBIN 1540mA
-                set_val = 0x66;
-                break;
-        case ICL_2000mA: //USBIN 1700mA
-                set_val = 0x77;
-                break;
-        case ICL_2200mA: //USBIN 1860mA
-                set_val = 0x88;
-                break;
-        case ICL_2500mA: //USBIN 2100mA
-                set_val = 0x99;
-                break;
-        default:
-                set_val = 0x77;
-                break;
-        }
+	switch (input_current) {
+	case ICL_300mA: //USBIN 340mA
+		set_val = 0x00;
+		break;
+	case ICL_500mA: //USBIN 500mA
+		set_val = 0x11;
+		break;
+	case ICL_700mA: //USBIN 660mA
+		set_val = 0x22;
+		break;
+	case ICL_900mA: //USBIN 820mA
+		set_val = 0x33;
+		break;
+	case ICL_1200mA: //USBIN 1030mA
+		set_val = 0x44;
+		break;
+	case ICL_1500mA: //USBIN 1300mA
+		set_val = 0x55;
+		break;
+	case ICL_1800mA: //USBIN 1540mA
+		set_val = 0x66;
+		break;
+	case ICL_2000mA: //USBIN 1700mA
+		set_val = 0x77;
+		break;
+	case ICL_2200mA: //USBIN 1860mA
+		set_val = 0x88;
+		break;
+	case ICL_2500mA: //USBIN 2100mA
+		set_val = 0x99;
+		break;
+	default:
+		set_val = 0x77;
+		break;
+	}
 
-        reg = SMB347_INPUT_CURRENTLIMIT;
-        val = smb347_read_reg(client, reg);
+	reg = SMB347_INPUT_CURRENTLIMIT;
+	val = smb347_read_reg(client, reg);
 
 
-        if (val >= 0) {
-                data = (u8) val;
+	if (val >= 0) {
+		data = (u8) val;
 
-                data &= ~(0xff);
-                data |= set_val;
+		data &= ~(0xff);
+		data |= set_val;
 
-                pr_debug("%s : write data = 0x%x\n", __func__, data);
+		pr_debug("%s : write data = 0x%x\n", __func__, data);
 
-                if (smb347_write_reg(client, reg, data) < 0) {
-                        pr_err("%s : error!\n", __func__);
-                        return -1;
-                }
+		if (smb347_write_reg(client, reg, data) < 0) {
+			pr_err("%s : error!\n", __func__);
+			return -1;
+		}
 
-                data = smb347_read_reg(client, reg);
-                pr_debug("%s : => reg (0x%x) = 0x%x\n", __func__, reg, data);
-        }
+		data = smb347_read_reg(client, reg);
+		pr_debug("%s : => reg (0x%x) = 0x%x\n", __func__, reg, data);
+	}
 
-        return 0;
+	return 0;
 }
 #endif
 
@@ -1330,38 +1330,38 @@ static int smb347_chg_set_property(struct power_supply *psy,
 
 		break;
 #if defined(CONFIG_MACH_M2_KDI)
-        case POWER_SUPPLY_PROP_SUSPEND:
-                #define VAL_1500mA 5
-                #define VAL_1200mA 4
+	case POWER_SUPPLY_PROP_SUSPEND:
+		#define VAL_1500mA 5
+		#define VAL_1200mA 4
 
-                pr_info("PROP SUSPEND, chg_mode:%d\n", chip->chg_mode);
+		pr_info("PROP SUSPEND, chg_mode:%d\n", chip->chg_mode);
 
-                if(!chip->lpm_chg_mode && chip->chg_mode == CHG_MODE_AC \
-                        && (0x0F & smb347_read_reg(chip->client, SMB347_INPUT_CURRENTLIMIT)) != VAL_1500mA)
-                {
-                        smb347_set_fast_current(chip->client ,FAST_1500mA);
-                        smb347_set_input_current_limit_kdi(chip->client ,ICL_1500mA);
-                        smb347_AICL_enable(chip->client ,false);
-                        smb347_AICL_enable(chip->client ,true);
+		if(!chip->lpm_chg_mode && chip->chg_mode == CHG_MODE_AC \
+		&& (0x0F & smb347_read_reg(chip->client, SMB347_INPUT_CURRENTLIMIT)) != VAL_1500mA)
+		{
+			smb347_set_fast_current(chip->client ,FAST_1500mA);
+			smb347_set_input_current_limit_kdi(chip->client ,ICL_1500mA);
+			smb347_AICL_enable(chip->client ,false);
+			smb347_AICL_enable(chip->client ,true);
 
-                        pr_err("[SMB347] 1200mA charging enabled!\n");
-                }
-        break;
+			pr_err("[SMB347] 1200mA charging enabled!\n");
+		}
+		break;
 
-        case POWER_SUPPLY_PROP_RESUME:
-                pr_info("PROP RESUME, chg_mode:%d\n", chip->chg_mode);
+	case POWER_SUPPLY_PROP_RESUME:
+		pr_info("PROP RESUME, chg_mode:%d\n", chip->chg_mode);
 
-                if(!chip->lpm_chg_mode && chip->chg_mode == CHG_MODE_AC \
-                        && (0x0F & smb347_read_reg(chip->client, SMB347_INPUT_CURRENTLIMIT)) != VAL_1200mA)
-                {
-                        smb347_set_fast_current(chip->client ,FAST_1500mA);
-                        smb347_set_input_current_limit_kdi(chip->client ,ICL_1200mA);
-                        smb347_AICL_enable(chip->client ,false);
-                        smb347_AICL_enable(chip->client ,true);
+		if(!chip->lpm_chg_mode && chip->chg_mode == CHG_MODE_AC \
+		&& (0x0F & smb347_read_reg(chip->client, SMB347_INPUT_CURRENTLIMIT)) != VAL_1200mA)
+		{
+			smb347_set_fast_current(chip->client ,FAST_1500mA);
+			smb347_set_input_current_limit_kdi(chip->client ,ICL_1200mA);
+			smb347_AICL_enable(chip->client ,false);
+			smb347_AICL_enable(chip->client ,true);
 
-                        pr_err("[SMB347] 1000mA charging enabled!\n");
-                }
-        break;
+			pr_err("[SMB347] 1000mA charging enabled!\n");
+		}
+		break;
 
 #endif
 

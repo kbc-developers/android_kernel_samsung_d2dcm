@@ -77,7 +77,7 @@ enum cable_type_t {
 	CABLE_TYPE_WPC = 10,
 #endif
 #if defined (CONFIG_MACH_M2_KDI)
-        CABLE_TYPE_HDMI = 11,
+	CABLE_TYPE_HDMI = 11,
 #endif
 
 };
@@ -216,7 +216,7 @@ struct sec_bat_info {
 	bool check_full_state;
 	unsigned int check_full_state_cnt;
 #if defined(CONFIG_MACH_M2_KDI)
-        unsigned int chg_1A_cnt;
+	unsigned int chg_1A_cnt;
 #endif
 };
 
@@ -735,9 +735,9 @@ static int sec_bat_set_property(struct power_supply *ps,
 			info->cable_type = CABLE_TYPE_SMART_DOCK;
 			break;
 #if defined (CONFIG_MACH_M2_KDI)
-                case POWER_SUPPLY_TYPE_HDMI:
-                        info->cable_type = CABLE_TYPE_HDMI;
-                        break;
+		case POWER_SUPPLY_TYPE_HDMI:
+			info->cable_type = CABLE_TYPE_HDMI;
+			break;
 #endif
 
 		default:
@@ -819,8 +819,8 @@ static int sec_ac_get_property(struct power_supply *ps,
 				(info->cable_type == CABLE_TYPE_WPC) ||
 #endif
 #if defined (CONFIG_MACH_M2_KDI)
-                                (info->cable_type == CABLE_TYPE_UNKNOWN) || \
-                                (info->cable_type == CABLE_TYPE_HDMI);
+				(info->cable_type == CABLE_TYPE_UNKNOWN) || \
+				(info->cable_type == CABLE_TYPE_HDMI);
 #else
 			    (info->cable_type == CABLE_TYPE_UNKNOWN);
 #endif
@@ -1042,7 +1042,7 @@ static void sec_check_chgcurrent(struct sec_bat_info *info)
 			if (info->batt_current_adc == 0) {
 				if (info->is_top_off == 1 &&
 #if defined(CONFIG_MACH_M2_KDI)
-                                        info->batt_presoc >= 95) {
+					info->batt_presoc >= 95) {
 #else
 					info->batt_presoc >= 99) {
 #endif
@@ -1233,11 +1233,11 @@ static int sec_bat_enable_charging(struct sec_bat_info *info, bool enable)
 			info->current_avg = 0;
 			break;
 #if defined (CONFIG_MACH_M2_KDI)
-                case CABLE_TYPE_HDMI:
-                        val_type.intval = POWER_SUPPLY_STATUS_CHARGING;
-                        val_chg_current.intval = 450;
-                        info->current_avg = 0;
-                        break;
+		case CABLE_TYPE_HDMI:
+			val_type.intval = POWER_SUPPLY_STATUS_CHARGING;
+			val_chg_current.intval = 450;
+			info->current_avg = 0;
+			break;
 #endif
 
 		default:
@@ -1490,7 +1490,7 @@ static void sec_bat_cable_work(struct work_struct *work)
 				__func__, ret);
 #endif
 #if defined (CONFIG_MACH_M2_KDI)
-        case CABLE_TYPE_HDMI:
+	case CABLE_TYPE_HDMI:
 #endif
 
 /*
@@ -1507,15 +1507,15 @@ static void sec_bat_cable_work(struct work_struct *work)
 		wake_lock_timeout(&info->vbus_wake_lock, 5 * HZ);
 		cancel_delayed_work(&info->measure_work);
 #if defined(CONFIG_MACH_M2_KDI)
-                if ((info->cable_type == CABLE_TYPE_AC) &&
-                        (sec_bat_is_charging(info) == POWER_SUPPLY_STATUS_DISCHARGING)) {
-                        /* skip charging enable and re-check on measure work */
-                        pr_info("%s: skip charging enable, "
-                                "re-check on measure_work\n", __func__);
-                } else {
-	                info->charging_status = POWER_SUPPLY_STATUS_CHARGING;
-        	        sec_bat_enable_charging(info, true);
-                }
+		if ((info->cable_type == CABLE_TYPE_AC) &&
+			(sec_bat_is_charging(info) == POWER_SUPPLY_STATUS_DISCHARGING)) {
+			/* skip charging enable and re-check on measure work */
+			pr_info("%s: skip charging enable, "
+					"re-check on measure_work\n", __func__);
+		} else {
+			info->charging_status = POWER_SUPPLY_STATUS_CHARGING;
+			sec_bat_enable_charging(info, true);
+		}
 #else
 		info->charging_status = POWER_SUPPLY_STATUS_CHARGING;
 		sec_bat_enable_charging(info, true);
@@ -1625,17 +1625,17 @@ static void sec_bat_monitor_work(struct work_struct *work)
 	wake_lock(&info->monitor_wake_lock);
 
 #if defined(CONFIG_MACH_M2_KDI)
-        if(info->is_esus_state == false && info->chg_1A_cnt < 3)
-        {
-                if (sec_bat_is_charging(info) == POWER_SUPPLY_STATUS_CHARGING &&
-                        info->batt_soc > 0)
-                {
-                        psy_smb->set_property(psy_smb, POWER_SUPPLY_PROP_RESUME, NULL);
-                        info->chg_1A_cnt++;
+	if(info->is_esus_state == false && info->chg_1A_cnt < 3)
+	{
+		if (sec_bat_is_charging(info) == POWER_SUPPLY_STATUS_CHARGING &&
+			info->batt_soc > 0)
+		{
+			psy_smb->set_property(psy_smb, POWER_SUPPLY_PROP_RESUME, NULL);
+			info->chg_1A_cnt++;
 
-                        pr_info("%s[BATT] Disable 1200mA charging!\n");
-                }
-        }
+			pr_info("%s[BATT] Disable 1200mA charging!\n");
+		}
+	}
 #endif
 
 	if (!psy_fg) {
@@ -2584,16 +2584,16 @@ static void sec_bat_early_suspend(struct early_suspend *handle)
 	struct sec_bat_info *info = container_of(handle, struct sec_bat_info,
 						 bat_early_suspend);
 #if defined (CONFIG_MACH_M2_KDI)
-        if (sec_bat_is_charging(info) == POWER_SUPPLY_STATUS_CHARGING)
-        {
-                struct power_supply *psy_smb = power_supply_get_by_name(info->charger_name);
+	if (sec_bat_is_charging(info) == POWER_SUPPLY_STATUS_CHARGING)
+	{
+		struct power_supply *psy_smb = power_supply_get_by_name(info->charger_name);
 
-                psy_smb->set_property(psy_smb, POWER_SUPPLY_PROP_SUSPEND, NULL);
+		psy_smb->set_property(psy_smb, POWER_SUPPLY_PROP_SUSPEND, NULL);
 
-                info->chg_1A_cnt = 0;
+		info->chg_1A_cnt = 0;
 
-                        pr_info("%s[BATT] Enable 1200mA charging!\n");
-                }
+		pr_info("%s[BATT] Enable 1200mA charging!\n");
+	}
 #endif
 
 	pr_info("%s[BATT]...\n", __func__);
@@ -2771,8 +2771,8 @@ static __devinit int sec_bat_probe(struct platform_device *pdev)
 		info->full_cond_voltage = FULL_CHARGE_COND_VOLTAGE;
 	}
 #if defined(CONFIG_MACH_M2_KDI)
-        if(poweroff_charging)
-                info->full_cond_count = 1;
+	if(poweroff_charging)
+		info->full_cond_count = 1;
 #endif
 
 	if (pdata->recharge_voltage != 0)
@@ -2968,10 +2968,10 @@ static int sec_bat_suspend(struct device *dev)
 		info->slow_polling = 1;
 	} else {
 #if defined(CONFIG_MACH_M2_KDI)
-        if(info->lpm_chg_mode)
-                sec_bat_monitoring_alarm(info, CHARGING_ALARM_INTERVAL/2);
-        else
-                sec_bat_monitoring_alarm(info, CHARGING_ALARM_INTERVAL);
+	if(info->lpm_chg_mode)
+		sec_bat_monitoring_alarm(info, CHARGING_ALARM_INTERVAL/2);
+	else
+		sec_bat_monitoring_alarm(info, CHARGING_ALARM_INTERVAL);
 
 #else
 		sec_bat_monitoring_alarm(info, CHARGING_ALARM_INTERVAL);
