@@ -25,6 +25,7 @@ export LOCALVERSION="-$BUILD_LOCALVERSION"
 echo ""
 echo "====================================================================="
 echo "    BUILD START (KERNEL VERSION $BUILD_KERNELVERSION-$BUILD_LOCALVERSION)"
+echo "    toolchain: ${BUILD_CROSS_COMPILE}"
 echo "====================================================================="
 
 if [ ! -n "$1" ]; then
