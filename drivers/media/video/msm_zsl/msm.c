@@ -148,6 +148,7 @@ static int msm_server_control(struct msm_cam_server_dev *server_dev,
 	D("%s\n", __func__);
 
 	v4l2_evt.type = V4L2_EVENT_PRIVATE_START + MSM_CAM_RESP_V4L2;
+	v4l2_evt.id = 0;
 	/* setup event object to transfer the command; */
 	*((uint32_t *)v4l2_evt.u.data) = (uint32_t)isp_event;
 	isp_event->resptype = MSM_CAM_RESP_V4L2;
@@ -941,8 +942,14 @@ static int msm_camera_v4l2_dqbuf(struct file *f, void *pctx,
 		return -EACCES;
 	}
 	rc = vb2_dqbuf(&pcam_inst->vid_bufq, pb,  f->f_flags & O_NONBLOCK);
-        if (pb->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-                /* Reject the buffer if planes array was not allocated */
+	if (rc < 0) {
+		pr_err("%s, videobuf_dqbuf returns %d\n", __func__, rc);
+		mutex_unlock(&pcam_inst->inst_lock);
+		return rc;
+	}
+
+	if (pb->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		/* Reject the buffer if planes array was not allocated */
 		if (pb->m.planes == NULL) {
                         pr_err("%s Planes array is null\n", __func__);
 			mutex_unlock(&pcam_inst->inst_lock);
@@ -1320,6 +1327,8 @@ static int msm_camera_v4l2_subscribe_event(struct v4l2_fh *fh,
 		(struct msm_cam_v4l2_dev_inst *)container_of(fh,
 		struct msm_cam_v4l2_dev_inst, eventHandle);
 
+	sub->id = 0;
+
 	D("%s:fh = 0x%x, type = 0x%x\n", __func__, (u32)fh, sub->type);
 	if (pcam_inst->my_index != 0)
 		return -EINVAL;
@@ -1337,6 +1346,8 @@ static int msm_camera_v4l2_unsubscribe_event(struct v4l2_fh *fh,
 {
 	int rc = 0;
 	struct msm_cam_v4l2_dev_inst *pcam_inst;
+
+	sub->id=0;
 	pcam_inst =
 		(struct msm_cam_v4l2_dev_inst *)container_of(fh,
 		struct msm_cam_v4l2_dev_inst, eventHandle);
@@ -1355,6 +1366,7 @@ static int msm_server_v4l2_subscribe_event(struct v4l2_fh *fh,
 {
 	int rc = 0;
 
+	sub->id = 0;
 	D("%s: fh = 0x%x, type = 0x%x", __func__, (u32)fh, sub->type);
 	if (sub->type == V4L2_EVENT_ALL) {
 		/*sub->type = MSM_ISP_EVENT_START;*/
@@ -1392,7 +1404,7 @@ static int msm_server_v4l2_unsubscribe_event(struct v4l2_fh *fh,
 			struct v4l2_event_subscription *sub)
 {
 	int rc = 0;
-
+	sub->id = 0;
 	D("%s: fh = 0x%x\n", __func__, (u32)fh);
 	rc = v4l2_event_unsubscribe(fh, sub);
 	D("%s: rc = %d\n", __func__, rc);
@@ -1923,6 +1935,7 @@ static long msm_ioctl_server(struct file *fp, unsigned int cmd,
 		u_ctrl_value = u_isp_event.isp_data.ctrl.value;
 
 		/* Dequeue the event queued into the v4l2 queue*/
+		ev.id = 0;
 		rc = v4l2_event_dequeue(
 			&g_server_dev.server_command_queue.eventHandle,
 			&ev, fp->f_flags & O_NONBLOCK);
@@ -2143,6 +2156,7 @@ static long msm_ioctl_config(struct file *fp, unsigned int cmd,
 		u_msg_value = u_isp_event.isp_data.isp_msg.data;
 
 		/* Dequeue the event queued into the v4l2 queue*/
+		ev.id = 0;
 		rc = v4l2_event_dequeue(
 			&config_cam->config_stat_event_queue.eventHandle,
 			&ev, fp->f_flags & O_NONBLOCK);
