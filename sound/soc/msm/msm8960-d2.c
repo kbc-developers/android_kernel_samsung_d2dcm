@@ -1194,7 +1194,7 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	if (((machine_is_M2_SKT() && system_rev < BOARD_REV08) ||
 		(machine_is_M2_DCM() && system_rev < BOARD_REV03) ||
 		(machine_is_M2_KDI() && system_rev < BOARD_REV03) ||
-		(!machine_is_M2_SKT() && !machine_is_M2_DCM()) ||
+		(!machine_is_M2_SKT() && !machine_is_M2_DCM()) &&
 		(!machine_is_M2_SKT() && !machine_is_M2_KDI()))) {
 		/* using mbhc driver for earjack */
 		if (GPIO_DETECT_USED) {
