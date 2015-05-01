@@ -568,16 +568,12 @@ static void adreno_cleanup_pt(struct kgsl_device *device,
 	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
 
 	kgsl_mmu_unmap(pagetable, &rb->buffer_desc);
-	kgsl_mmu_put_gpuaddr(pagetable, &rb->buffer_desc);
 
 	kgsl_mmu_unmap(pagetable, &rb->memptrs_desc);
-	kgsl_mmu_put_gpuaddr(pagetable, &rb->memptrs_desc);
 
 	kgsl_mmu_unmap(pagetable, &device->memstore);
-	kgsl_mmu_put_gpuaddr(pagetable, &device->memstore);
 
 	kgsl_mmu_unmap(pagetable, &device->mmu.setstate_memory);
-	kgsl_mmu_put_gpuaddr(pagetable, &device->mmu.setstate_memory);
 }
 
 static int adreno_setup_pt(struct kgsl_device *device,
@@ -3059,11 +3055,6 @@ int adreno_idle(struct kgsl_device *device)
 	kgsl_cffdump_regpoll(device->id,
 		adreno_dev->gpudev->reg_rbbm_status << 2,
 		0x00000000, 0x80000000);
-
-
-	/* If the device clock is off, it's already idle. Don't wake it up */
-	if (!kgsl_pwrctrl_isenabled(device))
-		return 0;
 
 retry:
 	/* First, wait for the ringbuffer to drain */
