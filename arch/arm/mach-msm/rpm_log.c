@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2011, 2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -47,6 +47,7 @@ struct msm_rpm_log_buffer {
 	char *data;
 	u32 len;
 	u32 pos;
+	struct mutex mutex;
 	u32 max_len;
 	u32 read_idx;
 	struct msm_rpm_log_platform_data *pdata;
@@ -109,6 +110,8 @@ static u32 msm_rpm_log_copy(const struct msm_rpm_log_platform_data *pdata,
 	while (tail_idx - head_idx > 0 && tail_idx - *read_idx > 0) {
 		head_idx = msm_rpm_log_read(pdata, MSM_RPM_LOG_PAGE_INDICES,
 					    MSM_RPM_LOG_HEAD);
+		tail_idx = msm_rpm_log_read(pdata, MSM_RPM_LOG_PAGE_INDICES,
+				    MSM_RPM_LOG_TAIL);
 		/* check if the message to be read is valid */
 		if (tail_idx - *read_idx > tail_idx - head_idx) {
 			*read_idx = head_idx;
@@ -123,7 +126,8 @@ static u32 msm_rpm_log_copy(const struct msm_rpm_log_platform_data *pdata,
 			break;
 
 		msg_len = msm_rpm_log_read(pdata, MSM_RPM_LOG_PAGE_BUFFER,
-					(*read_idx >> 2) & pdata->log_len_mask);
+				((*read_idx) & pdata->log_len_mask) >> 2);
+
 
 		/* handle messages that claim to be longer than the log */
 		if (PADDED_LENGTH(msg_len) > tail_idx - *read_idx - 4)
@@ -142,8 +146,8 @@ static u32 msm_rpm_log_copy(const struct msm_rpm_log_platform_data *pdata,
 			if (IS_ALIGNED(i, 4))
 				*((u32 *)temp) = msm_rpm_log_read(pdata,
 						MSM_RPM_LOG_PAGE_BUFFER,
-						((*read_idx + 4 + i) >> 2) &
-							pdata->log_len_mask);
+						((*read_idx + 4 + i) &
+						pdata->log_len_mask) >> 2);
 
 			pos += scnprintf(msg_buffer + pos, buf_len - pos,
 					 "0x%02X, ", temp[i & 0x03]);
@@ -153,6 +157,8 @@ static u32 msm_rpm_log_copy(const struct msm_rpm_log_platform_data *pdata,
 
 		head_idx = msm_rpm_log_read(pdata, MSM_RPM_LOG_PAGE_INDICES,
 					    MSM_RPM_LOG_HEAD);
+		tail_idx = msm_rpm_log_read(pdata, MSM_RPM_LOG_PAGE_INDICES,
+				    MSM_RPM_LOG_TAIL);
 
 		/* roll back if message that was read is not still valid */
 		if (tail_idx - *read_idx > tail_idx - head_idx)
@@ -184,18 +190,22 @@ static ssize_t msm_rpm_log_file_read(struct file *file, char __user *bufu,
 	struct msm_rpm_log_buffer *buf;
 
 	buf = file->private_data;
-	pdata = buf->pdata;
-	if (!pdata)
-		return -EINVAL;
+
 	if (!buf)
 		return -ENOMEM;
+
+	pdata = buf->pdata;
+
+	if (!pdata)
+		return -EINVAL;
 	if (!buf->data)
 		return -ENOMEM;
-	if (!bufu || count < 0)
+	if (!bufu || count == 0)
 		return -EINVAL;
 	if (!access_ok(VERIFY_WRITE, bufu, count))
 		return -EFAULT;
 
+	mutex_lock(&buf->mutex);
 	/* check for more messages if local buffer empty */
 	if (buf->pos == buf->len) {
 		buf->pos = 0;
@@ -203,8 +213,10 @@ static ssize_t msm_rpm_log_file_read(struct file *file, char __user *bufu,
 						&(buf->read_idx));
 	}
 
-	if ((file->f_flags & O_NONBLOCK) && buf->len == 0)
+	if ((file->f_flags & O_NONBLOCK) && buf->len == 0) {
+		mutex_unlock(&buf->mutex);
 		return -EAGAIN;
+	}
 
 	/* loop until new messages arrive */
 	while (buf->len == 0) {
@@ -219,6 +231,7 @@ static ssize_t msm_rpm_log_file_read(struct file *file, char __user *bufu,
 
 	remaining = __copy_to_user(bufu, &(buf->data[buf->pos]), out_len);
 	buf->pos += out_len - remaining;
+	mutex_unlock(&buf->mutex);
 
 	return out_len - remaining;
 }
@@ -265,6 +278,7 @@ static int msm_rpm_log_file_open(struct inode *inode, struct file *file)
 	buf->pdata = pdata;
 	buf->len = 0;
 	buf->pos = 0;
+	mutex_init(&buf->mutex);
 	buf->max_len = PRINTED_LENGTH(pdata->log_len);
 	buf->read_idx = msm_rpm_log_read(pdata, MSM_RPM_LOG_PAGE_INDICES,
 					 MSM_RPM_LOG_HEAD);
