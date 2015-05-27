@@ -2090,18 +2090,18 @@ static struct platform_device opt_gp2a = {
 			0, 0, 1},
 	};
 
-	struct mpu_platform_data mpu6050_data_00 = {
+	struct mpu_platform_data mpu6050_data_09 = {
 	.int_config = 0x10,
-	.orientation = {0, -1, 0,
-			1, 0, 0,
+	.orientation = {-1, 0, 0,
+			0, -1, 0,
 			0, 0, 1},
 	.poweron = mpu_power_on,
 	};
 	/* compass */
-	static struct ext_slave_platform_data inv_mpu_ak8963_data_00 = {
+	static struct ext_slave_platform_data inv_mpu_ak8963_data_09 = {
 	.bus		= EXT_SLAVE_BUS_PRIMARY,
-	.orientation = {0, 1, 0,
-			-1, 0, 0,
+	.orientation = {1, 0, 0,
+			0, 1, 0,
 			0, 0, 1},
 	};
 #endif
@@ -2266,8 +2266,8 @@ static void mpl_init(void)
 		mpu_data = mpu_data_00;
 	mpu_data.reset = gpio_rev(GPIO_MAG_RST);
 #elif defined(CONFIG_MPU_SENSORS_MPU6050B1_411)
-	mpu6050_data = mpu6050_data_00;
-	inv_mpu_ak8963_data = inv_mpu_ak8963_data_00;
+	mpu6050_data = mpu6050_data_09;
+	inv_mpu_ak8963_data = inv_mpu_ak8963_data_09;
 
 	if (system_rev < BOARD_REV02)
 		mpu6050_data.reset = gpio_rev(GPIO_MAG_RST);
