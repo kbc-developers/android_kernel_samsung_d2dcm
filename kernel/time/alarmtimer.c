@@ -57,6 +57,31 @@ static DEFINE_SPINLOCK(rtcdev_lock);
 static unsigned long power_on_alarm;
 static struct mutex power_on_alarm_lock;
 
+
+void power_on_alarm_init(void)
+{
+	struct rtc_wkalrm rtc_alarm;
+	struct rtc_time rt;
+	unsigned long alarm_time;
+	struct rtc_device *rtc;
+
+	rtc = alarmtimer_get_rtcdev();
+
+	/* If we have no rtcdev, just return */
+	if (!rtc)
+		return;
+
+	rtc_read_alarm(rtc, &rtc_alarm);
+	rt = rtc_alarm.time;
+
+	rtc_tm_to_time(&rt, &alarm_time);
+
+	if (alarm_time)
+		power_on_alarm = alarm_time + ALARM_DELTA;
+	else
+		power_on_alarm = 0;
+}
+
 void set_power_on_alarm(long secs, bool enable)
 {
 	int rc;
@@ -302,6 +327,70 @@ ktime_t alarm_expires_remaining(const struct alarm *alarm)
  * set an rtc timer to fire that far into the future, which
  * will wake us from suspend.
  */
+#if defined(CONFIG_RTC_DRV_QPNP) && defined(CONFIG_MSM_PM)
+extern void lpm_suspend_wake_time(uint64_t wakeup_time);
+static int alarmtimer_suspend(struct device *dev)
+{
+	struct rtc_time tm;
+	ktime_t min, now;
+	unsigned long flags;
+	struct rtc_device *rtc;
+	int i;
+	int ret = 0;
+
+	spin_lock_irqsave(&freezer_delta_lock, flags);
+	min = freezer_delta;
+	freezer_delta = ktime_set(0, 0);
+	spin_unlock_irqrestore(&freezer_delta_lock, flags);
+
+	rtc = alarmtimer_get_rtcdev();
+	/* If we have no rtcdev, just return */
+	if (!rtc)
+		return 0;
+
+	/* Find the soonest timer to expire*/
+	for (i = 0; i < ALARM_NUMTYPE; i++) {
+		struct alarm_base *base = &alarm_bases[i];
+		struct timerqueue_node *next;
+		ktime_t delta;
+
+		spin_lock_irqsave(&base->lock, flags);
+		next = timerqueue_getnext(&base->timerqueue);
+		spin_unlock_irqrestore(&base->lock, flags);
+		if (!next)
+			continue;
+		delta = ktime_sub(next->expires, base->gettime());
+		if (!min.tv64 || (delta.tv64 < min.tv64))
+			min = delta;
+	}
+	if (min.tv64 == 0)
+		return 0;
+
+	if (ktime_to_ns(min) < 2 * NSEC_PER_SEC) {
+		__pm_wakeup_event(ws, 2 * MSEC_PER_SEC);
+		return -EBUSY;
+	}
+
+	/* Setup a timer to fire that far in the future */
+	rtc_timer_cancel(rtc, &rtctimer);
+	rtc_read_time(rtc, &tm);
+	now = rtc_tm_to_ktime(tm);
+	now = ktime_add(now, min);
+	if (poweron_alarm) {
+		struct rtc_time tm_val;
+		unsigned long secs;
+		tm_val = rtc_ktime_to_tm(min);
+		rtc_tm_to_time(&tm_val, &secs);
+		lpm_suspend_wake_time(secs);
+	} else {
+		/* Set alarm, if in the past reject suspend briefly to handle */
+		ret = rtc_timer_start(rtc, &rtctimer, now, ktime_set(0, 0));
+		if (ret < 0)
+			__pm_wakeup_event(ws, MSEC_PER_SEC);
+	}
+	return ret;
+}
+#else
 static int alarmtimer_suspend(struct device *dev)
 {
 	struct rtc_time tm;
@@ -356,6 +445,7 @@ static int alarmtimer_suspend(struct device *dev)
 		__pm_wakeup_event(ws, 1 * MSEC_PER_SEC);
 	return ret;
 }
+#endif
 static int alarmtimer_resume(struct device *dev)
 {
 	struct rtc_device *rtc;
@@ -365,6 +455,8 @@ static int alarmtimer_resume(struct device *dev)
 	if (!rtc)
 		return 0;
 	rtc_timer_cancel(rtc, &rtctimer);
+
+	set_power_on_alarm(power_on_alarm , 1);
 	return 0;
 }
 #else
@@ -439,8 +531,13 @@ int alarm_start(struct alarm *alarm, ktime_t start)
  */
 int alarm_start_relative(struct alarm *alarm, ktime_t start)
 {
-	struct alarm_base *base = &alarm_bases[alarm->type];
+	struct alarm_base *base;
 
+	if (alarm->type >= ALARM_NUMTYPE) {
+		pr_err("Array out of index\n");
+		return -EINVAL;
+	}
+	base = &alarm_bases[alarm->type];
 	start = ktime_add(start, base->gettime());
 	return alarm_start(alarm, start);
 }
@@ -466,10 +563,15 @@ void alarm_restart(struct alarm *alarm)
  */
 int alarm_try_to_cancel(struct alarm *alarm)
 {
-	struct alarm_base *base = &alarm_bases[alarm->type];
+	struct alarm_base *base;
 	unsigned long flags;
 	int ret;
 
+	if (alarm->type >= ALARM_NUMTYPE) {
+		pr_err("Array out of index\n");
+		return -EINVAL;
+	}
+	base = &alarm_bases[alarm->type];
 	spin_lock_irqsave(&base->lock, flags);
 	ret = hrtimer_try_to_cancel(&alarm->timer);
 	if (ret >= 0)

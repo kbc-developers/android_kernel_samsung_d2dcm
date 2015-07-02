@@ -773,10 +773,6 @@ static int __init nbd_init(void)
 		return -EINVAL;
 	}
 
-	nbd_dev = kcalloc(nbds_max, sizeof(*nbd_dev), GFP_KERNEL);
-	if (!nbd_dev)
-		return -ENOMEM;
-
 	part_shift = 0;
 	if (max_part > 0) {
 		part_shift = fls(max_part);
@@ -798,6 +794,10 @@ static int __init nbd_init(void)
 	if (nbds_max > 1UL << (MINORBITS - part_shift))
 		return -EINVAL;
 
+	nbd_dev = kcalloc(nbds_max, sizeof(*nbd_dev), GFP_KERNEL);
+	if (!nbd_dev)
+		return -ENOMEM;
+
 	for (i = 0; i < nbds_max; i++) {
 		struct gendisk *disk = alloc_disk(1 << part_shift);
 		if (!disk)
@@ -817,6 +817,7 @@ static int __init nbd_init(void)
 		 * Tell the block layer that we are not a rotational device
 		 */
 		queue_flag_set_unlocked(QUEUE_FLAG_NONROT, disk->queue);
+		queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, disk->queue);
 	}
 
 	if (register_blkdev(NBD_MAJOR, "nbd")) {
