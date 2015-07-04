@@ -1191,11 +1191,11 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_jack_set_key(volumedown_jack.jack,
 			SND_JACK_BTN_2, KEY_VOLUMEDOWN);
 
-	if (((machine_is_M2_SKT() && system_rev < BOARD_REV08) ||
+	if  ((machine_is_M2_SKT() && system_rev < BOARD_REV08) ||
 		(machine_is_M2_DCM() && system_rev < BOARD_REV03) ||
 		(machine_is_M2_KDI() && system_rev < BOARD_REV03) ||
-		(!machine_is_M2_SKT() && !machine_is_M2_DCM()) &&
-		(!machine_is_M2_SKT() && !machine_is_M2_KDI()))) {
+		(!machine_is_M2_SKT() && !machine_is_M2_DCM() && 
+		!machine_is_M2_KDI())) {
 		/* using mbhc driver for earjack */
 		if (GPIO_DETECT_USED) {
 			mbhc_cfg.gpio = PM8921_GPIO_PM_TO_SYS(JACK_DETECT_GPIO);
