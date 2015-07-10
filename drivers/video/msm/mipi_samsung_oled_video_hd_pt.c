@@ -1105,10 +1105,7 @@ static int get_candela_index(int bl_level)
 		backlightlevel = GAMMA_250CD;
 		break;
 	case 255:
-		if (mipi_pd.msd->dstat.auto_brightness == 1)
-			backlightlevel = GAMMA_300CD;
-		else
-			backlightlevel = GAMMA_250CD;
+		backlightlevel = GAMMA_300CD;
 		break;
 	default:
 		backlightlevel = GAMMA_20CD;
@@ -1393,11 +1390,6 @@ static int set_gamma_level(int bl_level, enum gamma_mode_list gamma_mode)
 			bl_level, cd, gamma_lux, aid_change);
 	}
 	return aid_change;
-}
-
-int get_lcd_current_cd_index(void)
-{
-	return mipi_pd.lcd_current_cd_idx;
 }
 
 static void  prepare_fast_init_cmd_array(int lcd_type)
