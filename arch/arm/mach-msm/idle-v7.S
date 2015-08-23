@@ -143,7 +143,7 @@ skip_pc_debug1:
 	SUSPEND_8x25_L2
 	SET_SMP_COHERENCY OFF
 	wfi
-	DELAY_8x25 300
+	DELAY 300
 
 	mcr     p15, 0, r4, c1, c0, 0    /* restore d/i cache  */
 	isb
@@ -252,9 +252,9 @@ msm_pm_pa_to_va:
 
 #ifdef CONFIG_ARCH_MSM_KRAIT
 	mrc	p15, 0, r1, c0, c0, 0
-	ldr	r3, =0xff00fc00
+	ldr	r3, =0xffffff0d
 	and	r3, r1, r3
-	ldr 	r1, =0x51000400
+	ldr 	r1, =0x511f0400
 	cmp	r3, r1
 	mrceq	p15, 7, r3, c15, c0, 2
 	biceq	r3, r3, #0x400
