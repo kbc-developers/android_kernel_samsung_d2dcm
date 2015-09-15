@@ -46,6 +46,9 @@
 #include <linux/sw_sync.h>
 #include <linux/file.h>
 
+#include <linux/cpu.h>
+#include "../../../arch/arm/mach-msm/acpuclock.h"
+
 #ifdef CONFIG_SEC_DEBUG
 #include <mach/sec_debug.h>
 #endif
@@ -1221,6 +1224,19 @@ static void msm_fb_imageblit(struct fb_info *info, const struct fb_image *image)
 	}
 }
 
+static void __ref pump_up_the_jam(void)
+{
+	int cpu = 0;
+	for_each_possible_cpu(cpu) {
+		cpu_up(cpu);
+#if defined(CONFIG_MSM_CPU_MAX_CLK_1DOT2GHZ)
+		acpuclk_set_rate(cpu, 1188000, SETRATE_CPUFREQ);
+#else
+                acpuclk_set_rate(cpu, 1512000, SETRATE_CPUFREQ);
+#endif
+	}
+}
+
 static int msm_fb_blank(int blank_mode, struct fb_info *info)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
@@ -1235,20 +1251,10 @@ static int msm_fb_blank(int blank_mode, struct fb_info *info)
 	if (mfd->op_enable == 0) {
 		if (blank_mode == FB_BLANK_UNBLANK) {
 			mfd->suspend.panel_power_state = MDP_PANEL_POWER_ON;
-			/* if unblank is called when system is in suspend,
-			wait for the system to resume */
-			while (mfd->suspend.op_suspend) {
-				pr_debug("waiting for system to resume\n");
-				msleep(20);
-			}
+			pump_up_the_jam();
 		} else if (blank_mode == FB_BLANK_VSYNC_SUSPEND) {
 			mfd->suspend.panel_power_state = MDP_PANEL_POWER_DOZE;
-			/* if unblank is called when system is in suspend,
-			wait for the system to resume */
-			while (mfd->suspend.op_suspend) {
-				pr_debug("waiting for system to resume\n");
-				msleep(20);
-			}
+			pump_up_the_jam();
 		} else
 			mfd->suspend.panel_power_state = MDP_PANEL_POWER_OFF;
 	}
@@ -2152,19 +2158,6 @@ static void bl_workqueue_handler(struct work_struct *work)
 	up(&mfd->sem);
 }
 
-static inline int rt_policy(int policy)
-{
-	if (unlikely(policy == SCHED_FIFO) ||
-	    unlikely(policy == SCHED_RR))
-		return 1;
-	return 0;
-}
-
-static inline int task_has_rt_policy(struct task_struct *p)
-{
-	return rt_policy(p->policy);
-}
-
 static int msm_fb_pan_display(struct fb_var_screeninfo *var,
 			      struct fb_info *info)
 {
@@ -2178,7 +2171,6 @@ static int msm_fb_pan_display(struct fb_var_screeninfo *var,
 static int msm_fb_pan_display_sub(struct fb_var_screeninfo *var,
 			      struct fb_info *info)
 {
-	struct sched_param s = { .sched_priority = 1 };
 	struct mdp_dirty_region dirty;
 	struct mdp_dirty_region *dirtyPtr = NULL;
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
@@ -2190,14 +2182,6 @@ static int msm_fb_pan_display_sub(struct fb_var_screeninfo *var,
 		pr_err("%s: no pan display for fb%d!",
 		       __func__, info->node);
 		return -EPERM;
-	}
-
-	if (!task_has_rt_policy(current)) {
-		struct cred *new = prepare_creds();
-		cap_raise(new->cap_effective, CAP_SYS_NICE);
-		commit_creds(new);
-		if ((sched_setscheduler(current, SCHED_RR, &s)) < 0)
-			pr_err("sched_setscheduler failed\n");
 	}
 
 	if (info->node != 0 || mfd->cont_splash_done)	/* primary */
