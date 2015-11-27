@@ -1756,13 +1756,7 @@ static struct i2c_board_info mhl_i2c_board_info[] = {
 #endif
 
 #ifdef CONFIG_BATTERY_SEC
-static int is_sec_battery_using(void)
-{
-	if (system_rev >= 0x1)
-		return 1;
-	else
-		return 0;
-}
+static int is_sec_battery_using(void);
 
 int check_battery_type(void)
 {
@@ -1797,10 +1791,15 @@ static struct platform_device sec_device_battery = {
 	.dev.platform_data = &sec_bat_pdata,
 };
 
-static void check_highblock_temp(void)
+static int is_sec_battery_using(void)
 {
 	if (system_rev < 0x1)
 		sec_bat_pdata.high_block = 600;
+
+	if (system_rev >= 0x9)
+		return 1;
+	else
+		return 0;
 }
 
 #endif /* CONFIG_BATTERY_SEC */
@@ -2091,18 +2090,18 @@ static struct platform_device opt_gp2a = {
 			0, 0, 1},
 	};
 
-	struct mpu_platform_data mpu6050_data_00 = {
+	struct mpu_platform_data mpu6050_data_09 = {
 	.int_config = 0x10,
-	.orientation = {0, -1, 0,
-			1, 0, 0,
+	.orientation = {-1, 0, 0,
+			0, -1, 0,
 			0, 0, 1},
 	.poweron = mpu_power_on,
 	};
 	/* compass */
-	static struct ext_slave_platform_data inv_mpu_ak8963_data_00 = {
+	static struct ext_slave_platform_data inv_mpu_ak8963_data_09 = {
 	.bus		= EXT_SLAVE_BUS_PRIMARY,
-	.orientation = {0, 1, 0,
-			-1, 0, 0,
+	.orientation = {1, 0, 0,
+			0, 1, 0,
 			0, 0, 1},
 	};
 #endif
@@ -2267,8 +2266,8 @@ static void mpl_init(void)
 		mpu_data = mpu_data_00;
 	mpu_data.reset = gpio_rev(GPIO_MAG_RST);
 #elif defined(CONFIG_MPU_SENSORS_MPU6050B1_411)
-	mpu6050_data = mpu6050_data_00;
-	inv_mpu_ak8963_data = inv_mpu_ak8963_data_00;
+	mpu6050_data = mpu6050_data_09;
+	inv_mpu_ak8963_data = inv_mpu_ak8963_data_09;
 
 	if (system_rev < BOARD_REV02)
 		mpu6050_data.reset = gpio_rev(GPIO_MAG_RST);
@@ -4693,7 +4692,7 @@ static struct platform_device *common_devices[] __initdata = {
 	&msm8960_cpu_slp_status,
 };
 
-static struct platform_device *m2_dcm_devices[] __initdata = {
+static struct platform_device *k2_kdi_devices[] __initdata = {
 	&msm_8960_q6_lpass,
 	&msm_8960_q6_mss_sw,
 	&msm_8960_q6_mss_fw,
@@ -5209,7 +5208,7 @@ static void __init register_i2c_devices(void)
 		mach_mask = I2C_LIQUID;
 	else if (machine_is_msm8960_mtp())
 		mach_mask = I2C_FFA;
-	else if (machine_is_M2_DCM())
+	else if (machine_is_M2_KDI())
 		mach_mask = I2C_FFA;
 	else
 		pr_err("unmatched machine ID in register_i2c_devices\n");
@@ -5422,7 +5421,7 @@ static void __init msm8960_tsens_init(void)
 	msm_tsens_early_init(&msm_tsens_pdata);
 }
 
-static void __init samsung_m2_dcm_init(void)
+static void __init samsung_k2_kdi_init(void)
 {
 #ifdef CONFIG_SEC_DEBUG
 	sec_debug_init();
@@ -5483,9 +5482,6 @@ static void __init samsung_m2_dcm_init(void)
 #ifndef CONFIG_S5C73M3
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
 #endif
-#ifdef CONFIG_BATTERY_SEC
-	check_highblock_temp();
-#endif /*CONFIG_BATTERY_SEC*/
 	msm8960_init_pmic();
 	msm8960_i2c_init();
 	msm8960_gfx_init();
@@ -5509,7 +5505,7 @@ static void __init samsung_m2_dcm_init(void)
 		platform_device_register(&msm8960_device_acpuclk);
 	platform_add_devices(common_devices, ARRAY_SIZE(common_devices));
 	msm8960_pm8921_gpio_mpp_init();
-	platform_add_devices(m2_dcm_devices, ARRAY_SIZE(m2_dcm_devices));
+	platform_add_devices(k2_kdi_devices, ARRAY_SIZE(k2_kdi_devices));
 	msm8960_init_hsic();
 	msm8960_init_cam();
 	msm8960_init_mmc();
@@ -5584,13 +5580,13 @@ static void __init samsung_m2_dcm_init(void)
 	ion_adjust_secure_allocation();
 }
 
-MACHINE_START(M2_DCM, "SAMSUNG M2_DCM")
+MACHINE_START(M2_KDI, "SAMSUNG M2_KDI")
 	.map_io = msm8960_map_io,
 	.reserve = msm8960_reserve,
 	.init_irq = msm8960_init_irq,
 	.handle_irq = gic_handle_irq,
 	.timer = &msm_timer,
-	.init_machine = samsung_m2_dcm_init,
+	.init_machine = samsung_k2_kdi_init,
 	.init_early = msm8960_allocate_memory_regions,
 	.init_very_early = msm8960_early_memory,
 	.restart = msm_restart,

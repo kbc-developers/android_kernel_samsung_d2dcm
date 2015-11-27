@@ -78,7 +78,7 @@ void  melfas_vdd_on(bool onoff)
 #endif
 
 	/* 1.8V */
-#if defined(CONFIG_MACH_M2) || defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2) || defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 	if (system_rev < BOARD_REV02) {
 		if (onoff)
 			gpio_direction_output(10, 1);
@@ -429,7 +429,7 @@ static struct i2c_board_info __initdata mms_i2c3_boardinfo_final[] = {
 	},
 };
 
-#if defined(CONFIG_MACH_M2) || defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2) || defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 static void  mms144_init(void)
 {
 	if (system_rev < BOARD_REV02) {
@@ -456,7 +456,7 @@ void __init mms_tsp_input_init(void)
 {
 	int ret;
 
-#if defined(CONFIG_MACH_M2) || defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2) || defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 	mms144_init();
 #endif
 #ifdef CONFIG_MACH_JASPER

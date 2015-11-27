@@ -15,6 +15,7 @@
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
 #include <linux/mfd/core.h>
+#include <linux/mfd/pm8xxx/pm8921.h>
 #include <linux/mfd/wcd9xxx/wcd9xxx-slimslave.h>
 #include <linux/mfd/wcd9xxx/core.h>
 #include <linux/mfd/wcd9xxx/pdata.h>
@@ -286,6 +287,15 @@ static void wcd9xxx_bring_down(struct wcd9xxx *wcd9xxx)
 static int wcd9xxx_reset(struct wcd9xxx *wcd9xxx)
 {
 	int ret;
+	struct pm_gpio param = {
+		.direction      = PM_GPIO_DIR_OUT,
+		.output_buffer  = PM_GPIO_OUT_BUF_CMOS,
+		.output_value   = 1,
+		.pull	   = PM_GPIO_PULL_NO,
+		.vin_sel	= PM_GPIO_VIN_S4,
+		.out_strength   = PM_GPIO_STRENGTH_MED,
+		.function       = PM_GPIO_FUNC_NORMAL,
+	};
 
 	if (wcd9xxx->reset_gpio) {
 		ret = gpio_request(wcd9xxx->reset_gpio, "CDC_RESET");
@@ -296,6 +306,12 @@ static int wcd9xxx_reset(struct wcd9xxx *wcd9xxx)
 			return ret;
 		}
 
+		ret = pm8xxx_gpio_config(wcd9xxx->reset_gpio, &param);
+		if (ret)
+			pr_err("%s: Failed to configure gpio\n", __func__);
+
+		gpio_direction_output(wcd9xxx->reset_gpio, 1);
+		msleep(20);
 		gpio_direction_output(wcd9xxx->reset_gpio, 0);
 		msleep(20);
 		gpio_direction_output(wcd9xxx->reset_gpio, 1);
