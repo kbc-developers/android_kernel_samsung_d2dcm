@@ -640,7 +640,7 @@ msm_rpm_regulator_init_data[] __devinitdata = {
 	RPM_LDO(L22,	 0, 1, 0, 2750000, 2750000, NULL,      0, 0),
 	RPM_LDO(L23,	 1, 1, 1, 1800000, 1800000, "8921_s8", 10000, 10000),
 	RPM_LDO(L24,	 0, 1, 1,  750000, 1150000, "8921_s1", 10000, 10000),
-#if defined(CONFIG_MACH_M2) || defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_EXPRESS) || defined(CONFIG_MACH_EXPRESS) || defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI) || defined(CONFIG_MACH_COMANCHE)
+#if defined(CONFIG_MACH_M2) || defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_ESPRESSO_VZW) || defined(CONFIG_MACH_EXPRESS) || defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI) || defined(CONFIG_MACH_COMANCHE)
 	RPM_LDO(L25,	 1, 1, 0, 1225000, 1225000, "8921_s1", 10000, 10000),
 #else
 	RPM_LDO(L25,	 1, 1, 0, 1250000, 1250000, "8921_s1", 10000, 10000),
