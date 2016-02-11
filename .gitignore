@@ -84,3 +84,6 @@ GTAGS
 *.orig
 *~
 \#*#
+
+out
+AnyKernel2
