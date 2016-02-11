@@ -218,7 +218,7 @@ static void venc_cb(u32 event, u32 status, void *info, u32 size, void *handle,
 		{
 			unsigned long kvaddr, phys_addr;
 			s32 buffer_index = -1, ion_flags = 0;
-			struct ion_handle *ion_handle;
+			struct ion_handle *ion_handle = NULL;
 			int pmem_fd;
 			struct file *filp;
 			bool rc;
@@ -236,9 +236,11 @@ static void venc_cb(u32 event, u32 status, void *info, u32 size, void *handle,
 			else
 				WFD_MSG_ERR("Got an output buffer that we " \
 						"couldn't recognize!\n");
-
-			if (msm_ion_do_cache_op(client_ctx->user_ion_client,
-				ion_handle, &kvaddr, frame_data->data_len,
+			if (!ion_handle)
+				WFD_MSG_ERR("Invalid ion handle\n");
+			else if (msm_ion_do_cache_op(
+				client_ctx->user_ion_client, ion_handle,
+				&kvaddr, frame_data->data_len,
 				ION_IOC_CLEAN_INV_CACHES))
 				WFD_MSG_ERR("OP buffer flush failed\n");
 
@@ -1997,6 +1999,10 @@ static long venc_fill_outbuf(struct v4l2_subdev *sd, void *arg)
 			WFD_MSG_ERR("Failed to fill output buffer on encoder");
 	} else {
 		struct mem_region *temp = kzalloc(sizeof(*temp), GFP_KERNEL);
+		if (!temp) {
+			rc = -ENOMEM;
+			goto err;
+		}
 		*temp = *mregion;
 		INIT_LIST_HEAD(&temp->list);
 		list_add_tail(&temp->list, &inst->unqueued_op_bufs.list);
