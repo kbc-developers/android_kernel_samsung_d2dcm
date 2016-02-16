@@ -85,5 +85,7 @@ GTAGS
 *~
 \#*#
 
+# build script
+*.log
 out
 AnyKernel2

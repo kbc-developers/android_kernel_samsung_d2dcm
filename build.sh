@@ -10,7 +10,7 @@ clear
 
 # Device Config
 TARGET_DEVICE=SC06D
-DEFCONFIG="cyanogen_d2dcm_defconfig"
+KERNEL_DEFCONFIG="cyanogen_d2dcm_defconfig"
 AK2_BRANCH="d2"
 TOOLCHAIN_VER=arm-eabi-4.9
 
@@ -18,7 +18,7 @@ TOOLCHAIN_VER=arm-eabi-4.9
 THREAD="-j$(grep -c ^processor /proc/cpuinfo)"
 KERNEL="zImage"
 DTBIMAGE="dtb"
-KERNEL_DIR=`pwd`
+KERNEL_DIR=$PWD
 BUILD_VERSION=`date +%Y%m%d`
 TOOLCHAIN_DIR=${HOME}/toolchains
 
@@ -40,11 +40,13 @@ export KBUILD_BUILD_HOST=KBC
 mkdir -p out/$TARGET_DEVICE
 
 # Paths
+BIN_DIR=out/$TARGET_DEVICE/bin
+OBJ_DIR=out/$TARGET_DEVICE/obj
 ANYKERNEL_DIR="AnyKernel2"
 PATCH_DIR="$ANYKERNEL_DIR/patch"
 MODULES_DIR="$ANYKERNEL_DIR/modules"
-ZIP_MOVE="$PWD/out/$TARGET_DEVICE"
-ZIMAGE_DIR="$KERNEL_DIR/arch/arm/boot"
+ZIP_MOVE="$KERNEL_DIR/$BIN_DIR"
+ZIMAGE_DIR="$OBJ_DIR"
 
 # Functions
 function clean_all {
@@ -53,6 +55,10 @@ function clean_all {
                 echo "=====> CLEANING..."
                 echo -e "${restore}"
 		ccache -c -C
+                if [ `find $BIN_DIR -type f | wc -l` -gt 0 ]; then
+                 rm -rf $BIN_DIR/*
+                fi
+                mkdir -p $BIN_DIR
 		rm -rf $MODULES_DIR/*
                 if [ -d $ANYKERNEL_DIR ]; then
 		  cd $ANYKERNEL_DIR
@@ -95,10 +101,24 @@ function make_kernel {
                 echo ""
                 echo "=====> BUILDING..."
                 echo -e "${restore}"
-		make $DEFCONFIG
-		make $THREAD
+                cp -f ./arch/arm/configs/$KERNEL_DEFCONFIG $OBJ_DIR/.config
+                make -C $PWD O=$OBJ_DIR oldconfig || exit -1
+                if [ -e make.log ]; then
+                  mv make.log make_old.log
+                fi
+                nice -n 10 make O=$OBJ_DIR -j12 2>&1 | tee make.log
 		echo
-		cp -vr $ZIMAGE_DIR/$KERNEL $ANYKERNEL_DIR
+		cp -vr $OBJ_DIR/arch/arm/boot/zImage $ANYKERNEL_DIR
+}
+
+function check_compile_error {
+                COMPILE_ERROR=`grep 'error:' ./make.log`
+                if [ "$COMPILE_ERROR" ]; then
+                  echo ""
+                  echo "=====> ERROR"
+                  grep 'error:' ./make.log
+                  exit -1
+                fi
 }
 
 function make_modules {
@@ -181,9 +201,12 @@ while read -p "Do you want to build kernel (y/n)? " dchoice
 do
 case "$dchoice" in
 	y|Y)
+                mkdir -p $BIN_DIR
+                mkdir -p $OBJ_DIR
                 get_ubertc
                 get_anykernel2
 		make_kernel
+                check_compile_error
 		make_dtb
 		make_modules
 		make_zip
