@@ -299,7 +299,7 @@ static int msm8960_bias_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *k, int event)
 {
 	pr_debug("GPIO BIAS UP!!!%d\n", SND_SOC_DAPM_EVENT_ON(event));
-#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_K2_KDI)
+#if defined(CONFIG_MACH_M2_DCM) || defined(CONFIG_MACH_M2_KDI)
 	if (system_rev == BOARD_REV00)
 		gpio_direction_output(GPIO_MAIN_MIC_BIAS_REV00,
 				SND_SOC_DAPM_EVENT_ON(event));
@@ -2204,7 +2204,7 @@ static int msm8960_configure_audio_gpios(void)
 		.function       = PM_GPIO_FUNC_NORMAL,
 	};
 #if !defined(CONFIG_MACH_M2_DCM) && !defined(CONFIG_MACH_AEGIS2) \
-	&& !defined(CONFIG_MACH_K2_KDI) && !defined(CONFIG_MACH_EXPRESS)
+	&& !defined(CONFIG_MACH_M2_KDI) && !defined(CONFIG_MACH_EXPRESS)
 	ret = gpio_request(PM8921_GPIO_PM_TO_SYS(23), "AV_SWITCH");
 	if (ret) {
 		pr_err("%s: Failed to request gpio %d\n", __func__,
@@ -2269,7 +2269,7 @@ static void msm8960_free_audio_gpios(void)
 {
 	if (msm8960_audio_gpios_configured) {
 #if !defined(CONFIG_MACH_M2_DCM) && !defined(CONFIG_MACH_AEGIS2) \
-	&& !defined(CONFIG_MACH_K2_KDI) && !defined(CONFIG_MACH_EXPRESS)
+	&& !defined(CONFIG_MACH_M2_KDI) && !defined(CONFIG_MACH_EXPRESS)
 		gpio_free(PM8921_GPIO_PM_TO_SYS(23));
 		gpio_free(PM8921_GPIO_PM_TO_SYS(35));
 #endif
