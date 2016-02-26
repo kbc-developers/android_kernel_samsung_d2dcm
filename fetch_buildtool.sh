@@ -34,6 +34,7 @@ function get_anykernel2 {
                   echo ""
                   echo "=====> Get AnyKernel2"
                   echo -e "${restore}"
+		  cd $KERNEL_DIR
                   git clone -b $AK2_BRANCH git@github.com:lawnn/AnyKernel2.git
                 fi
 }
@@ -53,16 +54,18 @@ function fetch_anykernel2 {
                 echo ""
                 echo "=====> Update AnyKernel2"
                 echo -e "${restore}"
-		cd $ANYKERNEL_DIR
-                rm -rf $KERNEL
-		rm -rf $DTBIMAGE
-		git reset --hard > /dev/null 2>&1
-		git clean -f -d > /dev/null 2>&1
-                git fetch git@github.com:lawnn/AnyKernel2.git $AK2_BRANCH
-                git merge FETCH_HEAD
-                git add-A
-                git commit -a
-                cd $KERNEL_DIR
+                if [ -d $KERNEL_DIR/AnyKernel2 ]; then
+		  cd $ANYKERNEL_DIR
+                  rm -rf $KERNEL
+		  rm -rf $DTBIMAGE
+		  git reset --hard > /dev/null 2>&1
+                  git clean -f -d > /dev/null 2>&1
+                  git fetch git@github.com:lawnn/AnyKernel2.git $AK2_BRANCH
+                  git merge FETCH_HEAD
+                  git add-A
+                  git commit -a
+                  cd $KERNEL_DIR
+                fi
 }
 
 while read -p "Update Buildtool? (y/n)? " cchoice

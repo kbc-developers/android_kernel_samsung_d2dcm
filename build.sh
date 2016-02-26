@@ -28,16 +28,12 @@ VER="$BUILD_VERSION-MM"
 AK_VER="$BASE_AK_VER-$TARGET_DEVICE-$VER"
 
 # Vars
-export LOCALVERSION=~`echo $AK_VER`
+export LOCALVERSION=-`echo $TARGET_DEVICE-$VER`
 export CROSS_COMPILE="$TOOLCHAIN_DIR/$TOOLCHAIN_VER/bin/arm-eabi-"
 export ARCH=arm
 export SUBARCH=arm
 export KBUILD_BUILD_USER=lawn
 export KBUILD_BUILD_HOST=KBC
-
-
-# Make Directory
-mkdir -p out/$TARGET_DEVICE
 
 # Paths
 BIN_DIR=out/$TARGET_DEVICE/bin
@@ -55,10 +51,6 @@ function clean_all {
                 echo "=====> CLEANING..."
                 echo -e "${restore}"
 		ccache -c -C
-                if [ `find $BIN_DIR -type f | wc -l` -gt 0 ]; then
-                 rm -rf $BIN_DIR/*
-                fi
-                mkdir -p $BIN_DIR
 		rm -rf $MODULES_DIR/*
                 if [ -d $ANYKERNEL_DIR ]; then
 		  cd $ANYKERNEL_DIR
@@ -92,7 +84,8 @@ function get_anykernel2 {
                   echo ""
                   echo "=====> Get AnyKernel2"
                   echo -e "${restore}"
-                  git clone -b $AK2_BRANCH git@github.com:lawnn/AnyKernel2.git
+		  cd $KERNEL_DIR
+                  git clone -b $AK2_BRANCH git@github.com:lawnn/AnyKernel2.git $ANYKERNEL_DIR
                 fi
 }
 
@@ -101,12 +94,17 @@ function make_kernel {
                 echo ""
                 echo "=====> BUILDING..."
                 echo -e "${restore}"
+                if [ `find $BIN_DIR -type f | wc -l` -gt 0 ]; then
+                 rm -rf $BIN_DIR/*
+                fi
+                mkdir -p $BIN_DIR
+                mkdir -p $OBJ_DIR
                 cp -f ./arch/arm/configs/$KERNEL_DEFCONFIG $OBJ_DIR/.config
                 make -C $PWD O=$OBJ_DIR oldconfig || exit -1
                 if [ -e make.log ]; then
                   mv make.log make_old.log
                 fi
-                nice -n 10 make O=$OBJ_DIR -j12 2>&1 | tee make.log
+                nice -n 10 make O=$OBJ_DIR $THREAD 2>&1 | tee make.log
 		echo
 		cp -vr $OBJ_DIR/arch/arm/boot/zImage $ANYKERNEL_DIR
 }
@@ -114,8 +112,10 @@ function make_kernel {
 function check_compile_error {
                 COMPILE_ERROR=`grep 'error:' ./make.log`
                 if [ "$COMPILE_ERROR" ]; then
+                  echo -e "${red}"
                   echo ""
                   echo "=====> ERROR"
+                  echo -e "${restore}"
                   grep 'error:' ./make.log
                   exit -1
                 fi
@@ -201,8 +201,6 @@ while read -p "Do you want to build kernel (y/n)? " dchoice
 do
 case "$dchoice" in
 	y|Y)
-                mkdir -p $BIN_DIR
-                mkdir -p $OBJ_DIR
                 get_ubertc
                 get_anykernel2
 		make_kernel
