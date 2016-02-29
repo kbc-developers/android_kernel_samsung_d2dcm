@@ -1169,7 +1169,7 @@ static void fsa9485_mhl_cb(bool attached, int mhl_charge)
 			set_cable_status = CABLE_TYPE_USB;
 			break;
 		case 2:
-			set_cable_status = CABLE_TYPE_AC;
+            set_cable_status = CABLE_TYPE_HDMI;
 			break;
 		}
 	} else {
@@ -1196,6 +1196,9 @@ static void fsa9485_mhl_cb(bool attached, int mhl_charge)
 	case CABLE_TYPE_NONE:
 		value.intval = POWER_SUPPLY_TYPE_BATTERY;
 		break;
+	case CABLE_TYPE_HDMI:
+        value.intval = POWER_SUPPLY_TYPE_HDMI;
+        break;
 	default:
 		pr_err("%s: invalid cable :%d\n", __func__, set_cable_status);
 		return;
