@@ -3900,12 +3900,20 @@ static const struct file_operations perf_fops = {
  * to user-space before waking everybody up.
  */
 
+static inline struct fasync_struct **perf_event_fasync(struct perf_event *event)
+{
+	/* only the parent has fasync state */
+	if (event->parent)
+		event = event->parent;
+	return &event->fasync;
+}
+
 void perf_event_wakeup(struct perf_event *event)
 {
 	ring_buffer_wakeup(event);
 
 	if (event->pending_kill) {
-		kill_fasync(&event->fasync, SIGIO, event->pending_kill);
+		kill_fasync(perf_event_fasync(event), SIGIO, event->pending_kill);
 		event->pending_kill = 0;
 	}
 }
@@ -4916,7 +4924,7 @@ static int __perf_event_overflow(struct perf_event *event,
 	else
 		perf_event_output(event, data, regs);
 
-	if (event->fasync && event->pending_kill) {
+	if (*perf_event_fasync(event) && event->pending_kill) {
 		event->pending_wakeup = 1;
 		irq_work_queue(&event->pending);
 	}
@@ -5208,7 +5216,8 @@ static int perf_swevent_add(struct perf_event *event, int flags)
 
 static void perf_swevent_del(struct perf_event *event, int flags)
 {
-	hlist_del_rcu(&event->hlist_entry);
+	if(!hlist_unhashed(&event->hlist_entry))
+		hlist_del_rcu(&event->hlist_entry);
 }
 
 static void perf_swevent_start(struct perf_event *event, int flags)
@@ -6439,6 +6448,9 @@ SYSCALL_DEFINE5(perf_event_open,
 	err = perf_copy_attr(attr_uptr, &attr);
 	if (err)
 		return err;
+
+	if (attr.__reserved_1)
+		return -EINVAL;
 
 	if (!attr.exclude_kernel) {
 		if (perf_paranoid_kernel() && !capable(CAP_SYS_ADMIN))
