@@ -135,7 +135,7 @@ function make_dtb {
                 echo ""
                 echo "=====> make dtb"
                 echo -e "${restore}"
-		  $ANYKERNEL_DIR/tools/dtbToolCM -2 -o $ANYKERNEL_DIR/$DTBIMAGE -s 2048 -p scripts/dtc/ arch/arm/boot/
+		  $ANYKERNEL_DIR/tools/dtbToolCM -2 -o $ANYKERNEL_DIR/$DTBIMAGE -s 2048 -p $OBJ_DIR/scripts/dtc/ $OBJ_DIR/arch/arm/boot/
                 
 }
 
