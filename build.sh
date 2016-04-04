@@ -205,7 +205,7 @@ case "$dchoice" in
                 get_anykernel2
 		make_kernel
                 check_compile_error
-		make_dtb
+		#make_dtb
 		make_modules
 		make_zip
 		break
